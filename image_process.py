@@ -210,18 +210,17 @@ def mdval(dict_):
 
 # Checks nodata value and format and if latter cannot contain negative values changes negative nodata to zero
 def check_nodata(dtype, nodata):
-    if dtype in [int, np.uint16]:
+    if dtype in [bool, int, np.uint8, np.uint16, np.uint32] or (nodata is None):
         if nodata < 0:
-            return 0
-        else:
-            return nodata
+            return int(0)
+    else:
+        return nodata
 
 # Converts all values in list into integers
 def intlist(list_):
     for val in range(len(list_)):
         list_[val] = int(list_[val])
     return list_
-
 
 # Functions for working with GDAL
 
@@ -251,13 +250,28 @@ def band2raster(s_raster, t_raster, s_band_num=1, t_band_num=1, method=gdal.GRA_
         s_band_num = s_raster.RasterCount
     if t_band_num > t_raster.RasterCount:
         t_band_num = t_raster.RasterCount
-    s_band_array = s_raster.GetRasterBand(s_band_num).ReadAsArray()
     if dtype is None:
         dtype = s_raster.GetRasterBand(s_band_num).DataType
-    t_band_array = reproject_band(s_band_array, s_proj, s_trans,t_proj, t_trans, t_shape, dtype, method)
-    #t_raster.AddBand(dtype)
+    s_band_array = s_raster.GetRasterBand(s_band_num).ReadAsArray()
+    if (s_proj == t_proj) and (s_trans == t_trans):
+        t_band_array = s_band_array
+    else:
+        t_band_array = reproject_band(s_band_array, s_proj, s_trans,t_proj, t_trans, t_shape, dtype, method)
+        #t_raster.AddBand(dtype)
+    #t_band_array = reproject_band(s_band_array, s_proj, s_trans,t_proj, t_trans, t_shape, dtype, method)
     t_raster.GetRasterBand(t_band_num).WriteArray(t_band_array)
     return t_raster
+
+''' A piece of code for avoiding reproject band if source and target raster parameters are the same
+
+    if (s_proj == t_proj) and (s_trans == t_trans):
+        t_band_array = s_band_array
+    else:
+        t_band_array = reproject_band(s_band_array, s_proj, s_trans,t_proj, t_trans, t_shape, dtype, method)
+        #t_raster.AddBand(dtype)
+    if dtype != t_raster.GetRasterBand(t_band_num).DataType:
+        
+'''
 
 # Creates gdal virtual dataset for use within scene class
 def create_virtual_dataset(proj, geotrans, shape_, num_bands, dtype):
@@ -372,6 +386,16 @@ def ndvi(red, nir):
     ndvi = np.zeros(red.shape, dtype=red.dtype)
     ndvi[denom!=0] = nom[denom!=0] / denom[denom!=0]
     return ndvi
+
+# Functions which use objects of classes "scene" and "process" as variables
+def dataset_ath_corr(_scene, _dataset, data_id, method):
+    _scene.close(data_id)
+    print(_dataset.ReadAsArray().shape)
+    _scene.data[data_id] = _dataset; _scene.data_list.append(data_id)
+    print(_scene[data_id].ReadAsArray().shape)
+    out = _scene.ath_corr(data_id, method)
+    _scene.close(data_id)
+    return out
 
 # Objects of class "scene" represent single scenes of Landsat or Sentinel defined by a metadata file
 # They contain paths to all the scene files as well as additional objects created from them
@@ -488,7 +512,8 @@ class scene(object):
             else:
                 raise FileNotFoundError(('File not found: ' + self.file_names[file_id]))
             self.data[file_id] = dataset
-            self.data_list.append(file_id)
+            if file_id not in self.data_list:
+                self.data_list.append(file_id)
             if 0 in dataset.ReadAsArray():
                 self.mask(file_id)
             if (self.projection is None) or (self.transform is None):
@@ -505,7 +530,8 @@ class scene(object):
             self.data.pop(obj_id)
             self.data_list.remove(obj_id)
         else:
-            print('No Dataset found: {}'.format(obj_id))
+            #print('No Dataset found: {}'.format(obj_id))
+            pass
         return None
 
     # Closes all Datasets
@@ -602,12 +628,13 @@ class scene(object):
         if data_newid is None:
             data_newid = str(len(self) + 1)
         dtype = source_dataset.GetRasterBand(s_band_num).DataType
-        #dtype = gdal.GDT_Float32
         if data_newid not in self.data_list:
             self.add_dataset(data_newid, copy=self[target_data_id], param={'num_bands': t_band_num, 'dtype': dtype})
         while t_band_num > self[data_newid].RasterCount:
             self[data_newid].AddBand(dtype)
+        print('\nStart merging band by method {}'.format(method))
         data_new = band2raster(source_dataset, self[data_newid], s_band_num, t_band_num, method=method, dtype=dtype)
+        print('Merging finished\n')
         self.data[data_newid] = data_new
         return self[data_newid]
 
@@ -659,6 +686,7 @@ class scene(object):
     def array_to_dataset(self, data_newid, band_array, copy=None, param=None):
         if band_array.ndim == 2:
             band_num = 1
+            band_array = [band_array]
         elif band_array.ndim == 3:
             band_num = len(band_array)
         else:
@@ -668,7 +696,8 @@ class scene(object):
         else:
             param = {'num_bands': 1}
         self.add_dataset(data_newid, copy, param)
-        self.data[data_newid].GetRasterBand(1).WriteArray(band_array)
+        for band_id in range(1, band_num+1):
+            self.data[data_newid].GetRasterBand(band_id).WriteArray(band_array[band_id-1])
         self.data_list.append(data_newid)
         return self[data_newid]
 
@@ -865,7 +894,11 @@ class scene(object):
         outData = driver.Create(path, xsize, ysize, band_num, dt)
         for id in range(1, band_num+1):
             band_array = self[data_id].GetRasterBand(id).ReadAsArray()
-            nodata_ = check_nodata(band_array.dtype, nodata)
+            #print(band_array.dtype)
+            nodata_ = self[data_id].GetRasterBand(id).GetNoDataValue()
+            if nodata_ is None:
+                nodata_ = check_nodata(band_array.dtype, nodata)
+            #print(nodata_)
             if mask_list is not None:
                 band_array = self.mask_apply(band_array, mask_list, nodata_)
             outData.GetRasterBand(id).WriteArray(band_array)
@@ -873,10 +906,10 @@ class scene(object):
         outData.SetProjection(self[data_id].GetProjection())
         outData.SetGeoTransform(self[data_id].GetGeoTransform())
         outData = None
-        print('File successfully saved: {}'.format(os.path.abspath(path)))
+        print('File saved: {}'.format(os.path.abspath(path)))
         return None
 
-    # Saves dta from a band in Dataset to polygon shapefile
+    # Saves dta from a band in Dataset to polygon shapefile -- not finished yet
     def save_to_shp(self, data_id, path, band_num=1, mask_list=None):
         data_id = self.check_data_id(data_id)
         if not os.path.exists(os.path.split(path)[0]):
@@ -1053,7 +1086,7 @@ class process(object):
         scene_id = self.check_scene_id(scene_id)
         if self.scene[scene_id] is None:
             self.scene[scene_id] = scene(self.input_list[scene_id])
-            print('Opened scene from: {}'.format(self.input_list[scene_id]))
+            #print('Opened scene from: {}'.format(self.input_list[scene_id]))
         return self.scene[scene_id]
 
     # Closes one scene
@@ -1061,7 +1094,7 @@ class process(object):
         scene_id = self.check_scene_id(scene_id)
         if self.scene[scene_id] is not None:
             self.scene[scene_id] = None
-            print('Closed scene from: {}'.format(self.input_list[scene_id]))
+            #print('Closed scene from: {}'.format(self.input_list[scene_id]))
         return None
 
     # Opens many scenes
@@ -1163,41 +1196,51 @@ class process(object):
         return None
 
     # Creates a composite of an old and a new images
-    def composite(self, scene_id, method='None', data_newid='Composite', interpol_method=gdal.GRA_CubicSpline, delta=dtime.timedelta(365)):
+    def composite(self, scene_id, method='None', data_newid='Composite', interpol_method=gdal.GRA_Average, delta=dtime.timedelta(365)):
         s = self[scene_id]
         if s:
             if data_newid in s.data_list:
                 raise Exception('Dataset already exist: {}'.format(data_newid))
-            s.ath_corr('3', method)
-            s.ath_corr('4', method)
-            if method is 'None':
-                method = 'Ref'
+            #s.ath_corr('3', method)
+            #s.ath_corr('4', method)
             delta_min = delta
+            old_date = self[scene_id].date - delta
             out_red_id = scene_id
             for try_id in range(len(self)):
                 if self[try_id]:
-                    try_delta = self[scene_id].date - self[try_id].date
-                    if try_delta < delta_min:
+                    try_delta = old_date - self[try_id].date
+                    if abs(try_delta) < abs(delta_min):
                         delta_min = try_delta
                         out_red_id = try_id
                     elif try_delta == delta_min:
                         if self[out_red_id].image_system == 'Landsat' and self[try_id].image_system == 'Sentinel':
                             delta_min = try_delta
                             out_red_id = try_id
-            print('{}: {} for {}'.format(out_red_id, self[out_red_id].image_system, self[out_red_id].date))
             if out_red_id == scene_id:
-                print('No proper scenes found for {} scene from {}'.format(s.image_system, s.date))
-            out_red = self[out_red_id]['4']
+                print('\nNo proper scenes found for {} scene from {}\n'.format(s.image_system, s.date))
+                return None
+            print('\nMaking composite:\nOld: {}: {} for {}'.format(out_red_id, self[out_red_id].image_system, self[out_red_id].date))
+            print('New: {}: {} for {}\n'.format(scene_id, s.image_system, s.date))
+            #out_red = self[out_red_id]['4']
             if s.image_system == 'Landsat' and self[out_red_id] == 'Sentinel':
                 t = self[out_red_id]
             else:
                 t = s
-            t.merge_band('4', s['3'], data_newid, t_band_num=1, method=interpol_method)
-            t.merge_band('4', out_red, data_newid, t_band_num=2, method=interpol_method)
-            t.merge_band('4', s['4'], data_newid, t_band_num=3, method=interpol_method)
-            data_ids = ['{data_newid}_{ath_corr}'.format(data_newid = data_newid, ath_corr = self.ath_corr_method)]
-            filenames = ['{descr}_{data_newid}_{ath_corr}.tif'.format(descr = s.descript, data_newid = data_newid, ath_corr = self.ath_corr_method)]
-            mask_0 = []
+            scene_list = [s, self[out_red_id], s]
+            id_list = [4, 4, 3]
+            export = []
+            for id in range(3):
+                t.merge_band('4', scene_list[id][id_list[id]], '__temp__', method=interpol_method)
+                export.append(dataset_ath_corr(scene_list[id], t['__temp__'], id_list[id], method).ReadAsArray())
+                print(export[id].shape)
+                t.close('__temp__')
+
+            t.array_to_dataset(data_newid, np.concatenate(tuple(export)), copy=t[4], param={'dtype': 6})
+            if method is 'None':
+                method = 'Ref'
+            #data_ids = ['{data_newid}_{ath_corr}'.format(data_newid = data_newid, ath_corr = self.ath_corr_method)]
+            filename = '{descr}_{data_newid}_{ath_corr}.tif'.format(descr = s.descript, data_newid = data_newid, ath_corr = self.ath_corr_method)
+            '''mask_0 = []
             if self.filter_clouds:
                 if s.image_system == 'Landsat':
                     s.mask('QUALITY', 2720, True, 'Cloud')
@@ -1209,10 +1252,10 @@ class process(object):
                    else:
                        print('Vector mask not found: {}'.format(vector_path))
                 mask_0.append('Cloud')
-            mask = [mask_0]
+            mask = [mask_0]'''
             os.chdir(self.output_path)
-            for id in range(len(data_ids)):
-                s.save(data_newid, filenames[id], mask[id])
+            #for id in range(len(data_ids)):
+            s.save(data_newid, filename)
 
         else:
             print('No data found in {}'.format(str(s)))

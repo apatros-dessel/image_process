@@ -683,3 +683,4 @@ class scene(object):
         self.array_to_dataset(maskdataset_id, self.outmask[mask_id], copy=s['4'])
         s.save('cloudmask', r'C:\sadkov\test.tif')
         return None
+

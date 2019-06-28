@@ -13,7 +13,20 @@ import re
 import xml.etree.ElementTree as et
 import datetime as dtime
 
+ath_corr_method_list = ['None', 'DOS1']
+image_system_ids = ['All', 'Landsat', 'Sentinel']
+image_system_list = [['Landsat', 'Sentinel'], ['Landsat'], ['Sentinel']]
+#image_id_list = []
+work_method_list = ['Single', 'Bulk', 'By_List']
+
 # OS functions to read and write data to file system
+
+# Checks if filename ends with '.tif(f)'
+def TIF(path):
+    if path.lower().endswith('.tiff') or path.lower().endswith('.tif'):
+        return path
+    else:
+        return (path + '.tif')
 
 # Checks if the file name fits the image system
 def corner_file_check(filename, template):
@@ -375,15 +388,6 @@ def ndvi(red, nir):
     ndvi = np.zeros(red.shape, dtype=red.dtype)
     ndvi[denom!=0] = nom[denom!=0] / denom[denom!=0]
     return ndvi
-
-# Functions which use objects of classes "scene" and "process" as variables
-def dataset_ath_corr(_scene, _dataset, data_id, method):
-    #_scene.close(data_id)
-    #print(_dataset.ReadAsArray().shape)
-    #_scene.data[data_id] = _dataset; _scene.data_list.append(data_id)
-    out = _scene.ath_corr(data_id, method, dataset=_dataset)
-    _scene.close('__test__')
-    return out
 
 # Objects of class "scene" represent single scenes of Landsat or Sentinel defined by a metadata file
 # They contain paths to all the scene files as well as additional objects created from them
@@ -810,28 +814,6 @@ class scene(object):
         self.array_to_dataset(data_newid, band_array, copy=self['4'], param={'dtype': 6})
         return self[data_newid]
 
-    # Returns band of NDWI_Gao with a predefined ath_corr method
-    def ndwi_Gao(self, method='None'):
-        data_newid = 'NDWI_Gao{}'.format(method)
-        if data_newid in self.data_list:
-            return self.data[data_newid]
-        if self.image_system == 'Landsat':
-            x = 5
-            nir = self.ath_corr('5', method).ReadAsArray()
-            swir = self.ath_corr('6', method).ReadAsArray()
-        elif self.image_system == 'Sentinel':
-            print('Warning: scene.ndwi_Gao method has not yet been tested on Sentinel')
-            x = 8
-            nir = self.ath_corr('8', method).ReadAsArray()
-            # Sentinel SWIR channel needs to be merged with 8th channel to be processed
-            swir = self.merge_band(self['8'], self['11']).ReadAsArray()
-        else:
-            raise Exception('Unreckognized image system: {}'.format(self.image_system))
-        print('Calculating NDWI_Gao with {}'.format(method))
-        band_array = ndvi(nir, swir)
-        self.array_to_dataset(data_newid, band_array, copy=self[x], param={'dtype': 6})
-        return self[data_newid]
-
     # Creates mask from raster band
     def mask(self, data_id, nodata=0, include=False, mask_id=None):
         data_id =self.check_data_id(data_id)
@@ -897,9 +879,11 @@ class scene(object):
         outData = driver.Create(path, xsize, ysize, band_num, dt)
         for id in range(1, band_num+1):
             band_array = self[data_id].GetRasterBand(id).ReadAsArray()
+            print(band_array.dtype)
             nodata_ = self[data_id].GetRasterBand(id).GetNoDataValue()
             if nodata_ is None:
                 nodata_ = check_nodata(band_array.dtype, nodata)
+            print(nodata_)
             if mask_list is not None:
                 band_array = self.mask_apply(band_array, mask_list, nodata_)
             outData.GetRasterBand(id).WriteArray(band_array)
@@ -908,22 +892,6 @@ class scene(object):
         outData.SetGeoTransform(self[data_id].GetGeoTransform())
         outData = None
         print('File saved: {}'.format(os.path.abspath(path)))
-        return None
-
-    # Saves dta from a band in Dataset to polygon shapefile -- not finished yet
-    def save_to_shp(self, data_id, path, band_num=1, mask_list=None):
-        data_id = self.check_data_id(data_id)
-        if not os.path.exists(os.path.split(path)[0]):
-            raise Exception('Path not found: {}'.format(os.path.split(path)))
-        if path.endswith('.shp'):
-            dst_layername = path[:-4]
-        else:
-            dst_layername = path
-            path = path + ".shp"
-        drv = ogr.GetDriverByName("ESRI Shapefile")
-        dst_ds = drv.CreateDataSource(path)
-        dst_layer = dst_ds.CreateLayer(dst_layername, srs=None)
-        gdal.Polygonize(self[data_id].GetRasterBand(band_num), None, dst_layer, -1, [], callback=None)
         return None
 
     # Creates a new Dataset from a mask
@@ -1167,7 +1135,19 @@ class process(object):
             s.ndwi(self.ath_corr_method)
             #os.chdir(self.output_path)
             data_ids = ['NDWI_{}'.format(self.ath_corr_method)]
-            filenames = ['{}_NDWI_{}.tif'.format(s.descript, self.ath_corr_method)]
+            outfolder, outfile = os.path.split(self.output_path)
+            if os.path.exists(self.output_path) and not os.path.isfile(self.output_path):
+                outfolder = self.output_path
+                outfile = ''
+            else:
+                outfolder, outfile = os.path.split(self.output_path)
+                if not os.path.exists(outfolder):
+                    print('Cannot find output path')
+                    return None
+            if outfile == '':
+                filenames = ['{}_NDWI_{}.tif'.format(s.descript, self.ath_corr_method)]
+            else:
+                filenames = [outfile]
             mask_0 = []
             if self.filter_clouds:
                 if s.image_system == 'Landsat':
@@ -1191,79 +1171,9 @@ class process(object):
                     data_ids.append('{}_{}'.format(band, add))
                     filenames.append('{}_B{}_{}.tif'.format(s.descript, band, add))
                     mask.append(mask_0 + [band])
-            os.chdir(self.output_path)
+            os.chdir(outfolder)
             for id in range(len(data_ids)):
                 s.save(data_ids[id], filenames[id], mask[id])
-        else:
-            print('No data found in {}'.format(str(s)))
-        return None
-
-    # Creates a composite of an old and a new images
-    def composite(self, scene_id, method='None', data_newid='Composite', interpol_method=gdal.GRA_Average, delta=dtime.timedelta(365)):
-        s = self[scene_id]
-        if s:
-            if data_newid in s.data_list:
-                raise Exception('Dataset already exist: {}'.format(data_newid))
-            #s.ath_corr('3', method)
-            #s.ath_corr('4', method)
-            delta_min = delta
-            old_date = self[scene_id].date - delta
-            out_red_id = scene_id
-            for try_id in range(len(self)):
-                if self[try_id]:
-                    try_delta = old_date - self[try_id].date
-                    if abs(try_delta) < abs(delta_min):
-                        delta_min = try_delta
-                        out_red_id = try_id
-                    elif try_delta == delta_min:
-                        if self[out_red_id].image_system == 'Landsat' and self[try_id].image_system == 'Sentinel':
-                            delta_min = try_delta
-                            out_red_id = try_id
-            if out_red_id == scene_id:
-                print('\nNo proper scenes found for {} scene from {}\n'.format(s.image_system, s.date))
-                return None
-            print('\nMaking composite:\nOld: {}: {} for {}'.format(out_red_id, self[out_red_id].image_system, self[out_red_id].date))
-            print('New: {}: {} for {}\n'.format(scene_id, s.image_system, s.date))
-            old_s = self[out_red_id]
-            if s.image_system == 'Landsat' and old_s.image_system == 'Sentinel':
-                target = old_s
-                source = s
-            else:
-                target = s
-                source = old_s
-            scene_list = [s, old_s, s]
-            id_list = [4, 4, 3]
-            export = []
-            for id in range(3):
-                target.merge_band('4', scene_list[id][id_list[id]], '__temp__0', method=interpol_method)
-                target.mask('__temp__0', mask_id=str(id))
-                export.append(dataset_ath_corr(scene_list[id], target['__temp__0'], id_list[id], method).ReadAsArray())
-                export[id].shape = tuple([1]+list(export[id].shape))
-                target.close('__temp__0')
-                target.close('__temp__')
-            target.array_to_dataset(data_newid, np.concatenate(tuple(export)), copy=target[4], param={'dtype': 6, 'num_bands': 3})
-            if method is 'None':
-                method = 'Ref'
-            #data_ids = ['{data_newid}_{ath_corr}'.format(data_newid = data_newid, ath_corr = self.ath_corr_method)]
-            filename = '{descr}_{data_newid}_{ath_corr}.tif'.format(descr = s.descript, data_newid = data_newid, ath_corr = self.ath_corr_method)
-            mask_ = ['1', '2', '3']
-            if self.filter_clouds:
-                for scene_ in [s, old_s]:
-                    if scene_.image_system == 'Landsat':
-                        scene_.mask('QUALITY', 2720, True, 'Cloud')
-                    elif scene_.image_system == 'Sentinel':
-                       vector_path = scene_.meta_call('MASK_FILENAME', check={'type': 'MSK_CLOUDS'}, mtd=True)
-                       vector_path = '{}\\{}'.format(scene_.folder, vector_path)
-                       if os.path.exists(vector_path):
-                           scene_.vector_mask(vector_path, 'Cloud', data_id='3')
-                       else:
-                           print('Vector mask not found: {}'.format(vector_path))
-                target.merge_band('4', source.mask_dataset('Cloud'), 'Cloud_old', method=gdal.GRA_Average)
-                target.mask('Cloud_old', 1)
-                mask_ += ['Cloud', 'Cloud_old']
-            os.chdir(self.output_path)
-            target.save('Cloud_old', 'test.tif')
-            target.save(data_newid, filename, mask_)
         else:
             print('No data found in {}'.format(str(s)))
         return None

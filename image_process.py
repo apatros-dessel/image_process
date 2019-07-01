@@ -2,11 +2,13 @@
 Modification of the ImageProcess class converting its objects (processes and scenes to work with GDAL objects in Python (Datasets, Bands, etc.))
 """
 import os
+import sys # to allow GDAL to throw Python Exceptions
 try:
-    from osgeo import gdal, ogr
+    from osgeo import gdal, ogr, osr
 except:
     import gdal
     import ogr
+    import osr
 import math
 import numpy as np
 import re
@@ -14,6 +16,20 @@ import xml.etree.ElementTree as et
 import datetime as dtime
 
 # OS functions to read and write data to file system
+
+corner_path = os.getcwd()
+print('\n{}\n'.format(corner_path))
+tdir = '{}\\temp'.format(corner_path)
+if not os.path.exists(tdir):
+    os.makedirs(tdir)
+
+# Calculates time for performing operation - not finished yet
+def calc_time(func):
+    t = dtime.datetime.now()
+    x = func()
+    dt = dtime.datetime.now() - t
+    print('Finished for {}'.format(dt))
+    return x
 
 # Checks if the file name fits the image system
 def corner_file_check(filename, template):
@@ -275,26 +291,31 @@ def create_virtual_dataset(proj, geotrans, shape_, num_bands, dtype):
 
 # Calculates radiance for Landsat
 def simple_radiance_landsat(band_array, param):
-    RadMult, RadAdd = param
+    RadMult = param['RADIANCE_MULT_BAND']
+    RadAdd = param['RADIANCE_ADD_BAND']
     band_array = np.copy(band_array) * RadMult
     return band_array + RadAdd
 
 # Calculates radiance for Sentinel
 def radiance_sentinel(band_array, param):
-    rad_sun, sun_dist, quant = param
+    rad_sun = param['SOLAR_IRRADIANCE']
+    sun_dist = param['U']
+    quant = param['QUANTIFICATION_VALUE']
     coef = (rad_sun * sun_dist) / quant
     return band_array * coef
 
 # Calculates reflectance for Landsat
 def simple_reflectance(band_array, param):
-    RefMult, RefAdd = param
+    RefMult = param['REFLECTANCE_MULT_BAND']
+    RefAdd = param['REFLECTANCE_ADD_BAND']
     band_array = np.copy(band_array) * RefMult
     band_array = band_array + RefAdd
     band_array[band_array < 0.00] = 0.00
     return band_array
 
 # Calculates reflectance for Sentinel
-def reflectance_sentinel(band_array, quant=10000):
+def reflectance_sentinel(band_array, param={'QUANTIFICATION_VALUE': 10000}):
+    quant = param['QUANTIFICATION_VALUE']
     return band_array / quant
 
 # Returns DOS parameters from metadata
@@ -321,7 +342,7 @@ def dos_par(dospar=1, cos_sun = None, cos_sat = None, t = None, rayleigh = None,
         return parlist[dospar]
 
 # Calculates dark radiance for Landsat (in DOS)
-def rad_dark(band, param, noData=0, samp_size=1000):
+def radiance_dark(band, param, noData=0, samp_size=1000):
     band_fil = np.copy(band)[band != noData]
     dark = band_fil.argsort()[:samp_size]
     DN = np.mean(band_fil[dark])
@@ -345,12 +366,31 @@ def dn_dark(band, mask=None, noData=0, samp_size=1000):
     dark = band_fil.argsort()[:samp_size]
     return np.mean(band_fil[dark])
 
+# Filters
+def sample_dict(dict_, list_keys=None):
+    if list_keys is None:
+        return dict_
+    else:
+        dict_exp = {}
+        for key_ in list_keys:
+            if key_ in dict_:
+                dict_exp[key_] = dict_[key_]
+            else:
+                print('No key found: {}'.format(key_))
+        return dict_exp
+
 # Calculates DOS reflectance for Landsat
-def dos_reflectance(band_array, param, dos_id=1):
-    sun_elev, sun_dist, rad_max, ref_max, cos_sun, cos_sat, t, rayleigh, rad_dark = param
+def dos_reflectance(band_array, param, dos_id=1): # by now only DOS1 method is used
+    cos_sun = cos_sky(param['SUN_ELEVATION'])
+    sun_dist = param['EARTH_SUN_DISTANCE']
+    rad_max = param['RADIANCE_MAXIMUM_BAND']
+    ref_max = param['REFLECTANCE_MAXIMUM_BAND']
+    cos_sat = 1
+    # t and rayleigh are not defined
     pid2 = math.pi * sun_dist ** 2
     e_sun = pid2 * rad_max / ref_max
-    tau_v, tau_z, e_sky = dos_par(dos_id, cos_sun, cos_sat, t, rayleigh, rad_dark)
+    rad_dark = radiance_dark(band_array, param)
+    tau_v, tau_z, e_sky = dos_par(dospar=dos_id, cos_sun=cos_sun, cos_sat=cos_sat, rad_dark=rad_dark)
     sun_rad = tau_v * (e_sun * cos_sun * tau_z + e_sky) / pid2
     rad_path = rad_dark - 0.01 * sun_rad
     band_array = band_array - rad_path
@@ -358,9 +398,43 @@ def dos_reflectance(band_array, param, dos_id=1):
     band_array = band_array / sun_rad
     return band_array
 
+def segmentator(band_array, param):
+    param_list = ['borders', 'max', 'min', 'val']
+    for id in range(4):
+        if param_list[id] in param:
+            param_list[id] = param[param_list[id]]
+        else:
+            param_list[id] = None
+    borders, max_list, min_list, val_list = param_list
+    if min_list is None:
+        if max_list is None:
+            if borders is None:
+                print('No segmentation parameters defined')
+                return None
+            else:
+                max_list = borders + [None]
+                min_list = [None] + borders
+        else:
+            min_list = [None] + max_list
+    elif max_list is None:
+        max_list = min_list + [None]
+    assert len(min_list) = len(max_list)
+    len_ = len(min_list)
+    if val_list is None:
+        val_list = [0,1]
+    while len(val_list)<len_:
+        val_list += [np.max(val_list)+1]
+    segmented_array = np.zeros(band_array.shape)
+    segmented_array[band_array<=max_list[0]] = val_list[0]
+    segmented_array[band_array>min_list[len_]] = val_list[len_]
+    for id in range(1, len_-1):
+        segmented_array[band_array>min_list[id] and band_array<=max_list[id]] = val_list[id]
+    return segmented_array
+
 # Calculates DOS reflectance for Sentinel
 def dos_sentinel(band_array, param):
-    quant, DN_dark = param
+    quant = param['QUANTIFICATION_VALUE']
+    DN_dark = dn_dark(band_array)
     subtr = (DN_dark / quant) - 0.01
     band_array = band_array / quant
     band_array = band_array - subtr
@@ -389,8 +463,11 @@ def dataset_ath_corr(_scene, _dataset, data_id, method):
 # They contain paths to all the scene files as well as additional objects created from them
 class scene(object):
 
-    def __init__(self, path):
+    def __init__(self, path, tdir=tdir):
         self.path = path
+        self.folder = os.path.split(path)[0]  # full path to corner dir
+        self.tdir = tdir
+
         if self.path.endswith('_MTL.txt'):
             self.image_system = 'Landsat'
             self.mtl = mtl(path)
@@ -398,6 +475,13 @@ class scene(object):
             name = self.mtl['LANDSAT_PRODUCT_ID']
             self.descript = name[:5] + name[10:25]
             date_str = self.mtl['DATE_ACQUIRED']
+            if (self.mtl['MAP_PROJECTION'] == 'UTM' and self.mtl['DATUM'] == 'WGS84') and self.mtl['ELLIPSOID'] == 'WGS84':
+                crs_id = int('326' + str(int(self.mtl['UTM_ZONE'])))
+            else:
+                print('Cannot read projection data for the scene on path: {}'.format(path))
+                crs_id = None
+            # GeoTransform data is not taken from Landsat. Instead, it's imported from each channel separately
+
         elif self.path.endswith('MTD_MSIL1C.xml'):
             self.image_system = 'Sentinel'
             self.msi = meta_sentinel(path)
@@ -406,11 +490,20 @@ class scene(object):
             name = self.meta_call('PRODUCT_URI')
             self.descript = name[:19]
             date_str = self.meta_call('DATATAKE_SENSING_START')[:10]
+            # Get projection from Sentinel metadata
+            proj_search = re.search(r'EPSG:\d+', self.meta_call('HORIZONTAL_CS_CODE', mtd=True))
+            if proj_search is None:
+                print('Cannot read projection data for the scene on path: {}'.format(path))
+                crs_id = None
+            else:
+                crs_id = int(proj_search.group()[5:])
+            # GeoTransform data is not taken from Sentinel. Instead, it's imported from each channel separately
+
         else:
             raise Exception('Unreckognized image system for path: {}'.format(path))
+
         year, month, day = intlist(date_str.split('-'))
         self.date = dtime.date(year, month, day)
-        self.folder = os.path.split(path)[0] # full path to corner dir
         self.file_names = {}
         for key in file_names_dict:
             if os.path.exists(self.folder + '\\' + file_names_dict[key]):
@@ -425,18 +518,25 @@ class scene(object):
         self.data = {}
         self.data_list = [None]
         self.outmask = {}
-        try:
-            os.chdir(self.folder)
-            band_data = gdal.Open(self.file_names['4'])
-            self.projection = band_data.GetProjection()
-            self.transform = band_data.GetGeoTransform()
-            self.array_shape = (band_data.RasterYSize, band_data.RasterXSize)
-            del(band_data)
-        except:
-            print('Cannot read projection data for the scene on path: {}'.format(path))
-            self.projection = None
-            self.transform = None
-            self.array_shape = None
+        self.projection = None
+        self.transform = None
+
+        if crs_id is not None:
+            try:
+                crs = osr.SpatialReference()
+                crs.ImportFromEPSG(crs_id)
+                self.projection = crs.ExportToWkt()
+            except:
+                print('Error reading projection from metadata for the scene on path: {}'.format(path))
+        if self.projection == None or self.projection == '':
+            try:
+                os.chdir(self.folder)
+                band_data = gdal.Open(self.file_names['4'])
+                self.projection = band_data.GetProjection()
+                del (band_data)
+            except:
+                print('Cannot read projection data for the scene on path: {}'.format(path))
+                self.projection = None
 
     def __repr__(self):
         return 'Object of class "scene" with:\n path: {p}\n image_system: {i_s}\n date: {d}\n {l} files are now available'.format(p=self.path, i_s=self.image_system, l=len(self), d=self.date)
@@ -447,24 +547,6 @@ class scene(object):
     # Returns number of available files
     def __len__(self):
         return len(self.file_names)
-
-    def __lt__(self, other):
-        return len(self) < len(other)
-
-    def __le__(self, other):
-        return len(self) <= len(other)
-
-    def __eq__(self, other):
-        return len(self) == len(other)
-
-    def __ne__(self, other):
-        return len(self) != len(other)
-
-    def __gt__(self, other):
-        return len(self) > len(other)
-
-    def __ge__(self, other):
-        return len(self) >= len(other)
 
     # Checks if a single file is available in self.file_names
     def __bool__(self):
@@ -565,7 +647,7 @@ class scene(object):
         return self.data[data_id]
 
     # Gets metadata from Landsat MTL
-    def mtl_call(self, call_list, band_id=None):
+    def mtl_call(self, call, band_id=None):
         if self.image_system != 'Landsat':
             raise Exception('Image system must be "Landsat"')
         if band_id is not None:
@@ -575,18 +657,14 @@ class scene(object):
                 self.mtl = mtl(self.input_path)
             except:
                 raise Exception('MTL data unavailable')
-        par_list = []
-        for call in call_list:
-            par = None
-            try:
-                par = self.mtl[call]
-            except:
-                call = (call + '_' + band_id)
-                par = self.mtl[call]
-            if par is None:
-                raise KeyError(call + ' value not found')
-            par_list.append(par)
-        return par_list
+        if call in self.mtl:
+            par = self.mtl[call]
+        elif band_id is not None:
+            call = (call + '_' + band_id)
+            par = self.mtl[call]
+        else:
+            raise KeyError(call + ' value not found')
+        return par
 
     # Gets metadata from Sentinel
     def meta_call(self, call, check=None, data='text', attrib=None, sing_to_sing=True, digit_to_float=True, mtd=False):
@@ -615,7 +693,7 @@ class scene(object):
             return [True, data_newid, self[data_id].GetRasterBand(band_num).ReadAsArray()]
 
     # Merges bands with different size if necessary
-    def merge_band(self, target_data_id, source_dataset, data_newid = None, s_band_num=1, t_band_num=1, method = gdal.GRA_CubicSpline):
+    def merge_band(self, target_data_id, source_dataset, data_newid = None, s_band_num=1, t_band_num=1, method = gdal.GRA_Average):
         if data_newid is None:
             data_newid = str(len(self) + 1)
         dtype = source_dataset.GetRasterBand(s_band_num).DataType
@@ -630,7 +708,7 @@ class scene(object):
         return self[data_newid]
 
     # Gets parameters specifically to each function - not finished yet
-    def get_param(self, function):
+    def get_param(self, function, band_id=1):
         landsat_dict = {
             'radiance': ['RADIANCE_MULT_BAND', 'RADIANCE_ADD_BAND'],
             'reflectance': ['REFLECTANCE_MULT_BAND', 'REFLECTANCE_ADD_BAND'],
@@ -641,37 +719,95 @@ class scene(object):
             'reflectance': ['QUANTIFICATION_VALUE'],
             'dos': ['QUANTIFICATION_VALUE'],
         }
+        check_dict = {
+            'radiance': {
+                'SOLAR_IRRADIANCE': {'band_Id': band_id},
+                'U': None,
+                'QUANTIFICATION_VALUE': None,
+            },
+            'reflectance': {'QUANTIFICATION_VALUE': None},
+            'dos': {'QUANTIFICATION_VALUE': None},
+        }
+        # Other self.meta_call parameters have not been used in any function yet
+        data_dict = {}
+        attrib_dict = {}
+        sing2sing_dict = {}
+        digit2float_dict = {}
+        mtd_dict = {}
+
         param_dict = {'Landsat': landsat_dict, 'Sentinel': sentinel_dict}
         func_dict = {'Landsat': self.mtl_call, 'Sentinel': self.meta_call}
-        param = []
+        param = {}
         for call in param_dict[self.image_system][function]:
-            param_to_add = func_dict[self.image_system](call)
+            if self.image_system == 'Landsat':
+                param_to_add = self.mtl_call(call, band_id)
+            elif self.image_system == 'Sentinel':
+                param_to_add = self.meta_call(call, check=check_dict[function][call])
+            else:
+                raise Exception('Unreckognized image system: {}'.format(self.image_system))
             if param_to_add is not None:
-                param.append(param_to_add)
+                param[call] = param_to_add
             else:
                 print('Parameter not found: {} is None'.format(call))
         return param
 
     # Processes band arrays according to a set of functions - not finished yet
-    def array_process(self, band_array, function, data_id):
+    def band_process(self, function, data_id, dataset=None, dataset_band_num=1, data_newid=None, save_in_scene=True):
         landsat_dict = {
             'radiance': simple_radiance_landsat,
             'reflectance': simple_reflectance,
             'dos': dos_reflectance,
         }
         sentinel_dict = {
-            'radiance': simple_radiance_landsat,
-            'reflectance': simple_reflectance,
-            'dos': dos_reflectance,
+            'radiance': radiance_sentinel,
+            'reflectance': reflectance_sentinel,
+            'dos': dos_sentinel,
+        }
+        universal = {
+            'segmentator': segmentator
         }
         func_dict = {'Landsat': landsat_dict, 'Sentinel': sentinel_dict}
         if function not in func_dict[self.image_system]:
-            raise Exception('Unreckognized function: {}'.format(function))
+            if function not in universal:
+                raise Exception('Unreckognized function: {}'.format(function))
+            else:
+                todo = universal[function]
         else:
-            print('Calculating {} from band {}'.format(function, data_id))
+            todo = func_dict[self.image_system][function]
+
         param = self.get_param(function)
-        band_array = func_dict[self.image_system][function](data_id, param)
-        return band_array
+
+        # Specifies names endings for the new datasets
+        add_dict = {
+            'radiance': '_Rad',
+            'reflectance': '_Ref',
+            'dos': '_DOS',
+        }
+        # If band_process has another dataset, not from the original scene, it can be processed using the scene parameters for a specified band
+        if dataset is not None:
+            band_array = dataset.GetRasterBand(dataset_band_num).ReadAsArray()
+            exist = True
+        else: # Else the original data from the band would be used
+            exist, data_newid, band_array = self.exist_check(data_id, add_dict[function])
+            dataset = self[data_id]
+
+        # Performing calculations
+        if exist:
+            print('Calculating {} for channel {}'.format(function, data_id))
+            band_array = todo(band_array, param)
+        else: # If a result of function already exists it will be returned immediately without calculations
+            return self[data_newid]
+
+        # Writing results to scene if data_newid is available
+        if data_newid is None:
+            save_in_scene = False
+            data_newid = '__temp__'
+        self.array_to_dataset(data_newid, band_array, copy=dataset, param={'dtype': 6})
+        export_dataset = self[data_newid]
+        if not save_in_scene:
+            self.close('__temp__')
+
+        return export_dataset
 
     # Creates a new Dataset containing data from a band_array
     def array_to_dataset(self, data_newid, band_array, copy=None, param=None):
@@ -692,119 +828,45 @@ class scene(object):
         self.data_list.append(data_newid)
         return self[data_newid]
 
-    # Returns band of radiance from source channel
-    def radiance(self, data_id):
-        exist, data_newid, band_array = self.exist_check(data_id, '_Rad')
-        if exist:
-            print('Calculating radiance from band {}'.format(data_id))
-            if self.image_system == 'Landsat':
-                param = self.mtl_call(['RADIANCE_MULT_BAND', 'RADIANCE_ADD_BAND'], data_id)
-                par_undef([band_array] + param, ['band_array', 'RADIANCE_MULT_BAND', 'RADIANCE_ADD_BAND'])
-                band_array = simple_radiance_landsat(band_array, param)
-            elif self.image_system == 'Sentinel':
-                sun_rad = self.meta_call('SOLAR_IRRADIANCE', check={'bandId': data_id})
-                sun_dist = self.meta_call('U')
-                quant = self.meta_call('QUANTIFICATION_VALUE')
-                param = [sun_rad, sun_dist, quant]
-                par_undef(param, ['SOLAR_IRRADIANCE', 'U', 'QUANTIFICATION_VALUE'])
-                band_array = radiance_sentinel(band_array, param)
-            else:
-                raise Exception('Unreckognized image system: {}'.format(self.image_system))
-            self.array_to_dataset(data_newid, band_array, copy=self[data_id], param={'dtype': 6})
-        return self[data_newid]
-
-    # Returns band of reflectance from source channel
-    def reflectance(self, data_id, dataset=None, band_num=1):
-        if dataset is not None:
-            band_array = dataset.GetRasterBand(band_num).ReadAsArray()
-            data_newid = '__test__'
-            exist = True
-        else:
-            dataset = self[data_id]
-            exist, data_newid, band_array = self.exist_check(data_id, '_Ref')
-        if exist:
-            print('Calculating reflectance from band {}'.format(data_id))
-            if self.image_system == 'Landsat':
-                param = self.mtl_call(['REFLECTANCE_MULT_BAND', 'REFLECTANCE_ADD_BAND'], data_id)
-                par_undef([band_array] + param, ['band_array', 'REFLECTANCE_MULT_BAND', 'REFLECTANCE_ADD_BAND'])
-                band_array = simple_reflectance(band_array, param)
-            elif self.image_system == 'Sentinel':
-                quant = self.meta_call('QUANTIFICATION_VALUE')
-                par_undef([quant], ['QUANTIFICATION_VALUE'])
-                band_array = reflectance_sentinel(band_array, quant)
-            else:
-                raise Exception('Unreckognized image system: {}'.format(self.image_system))
-            self.array_to_dataset(data_newid, band_array, copy=dataset, param={'dtype': 6})
-        return self[data_newid]
-
-    # Returns band of reflectance from source channel with DOS correction
-    def dos(self, data_id, dos_id=1):
-        dos_ = '_DOS' + str(dos_id)
-        exist, data_newid, band_array = self.exist_check(data_id, dos_)
-        if exist:
-            t = None
-            rayleigh = None
-            print('Calculating {} reflectance from band {}'.format(dos_[1:], data_id))
-            if self.image_system == 'Landsat':
-                radiance_array = self.radiance(data_id).ReadAsArray()
-                par = self.mtl_call(['SUN_ELEVATION', 'EARTH_SUN_DISTANCE', 'RADIANCE_MAXIMUM_BAND', 'REFLECTANCE_MAXIMUM_BAND', 'RADIANCE_MULT_BAND', 'RADIANCE_ADD_BAND'], data_id)
-                par_undef(par, ['SUN_ELEVATION', 'EARTH_SUN_DISTANCE', 'RADIANCE_MAXIMUM_BAND', 'REFLECTANCE_MAXIMUM_BAND', 'RADIANCE_MULT_BAND', 'RADIANCE_ADD_BAND'])
-                radiance_dark = rad_dark(band_array, param=par[4:6])
-                cos_sun = cos_sky(par[0])
-                cos_sat = 1  # Not sure about proper source of it
-                param = par[:4] + [cos_sun, cos_sat, t, rayleigh, radiance_dark]
-                band_array = dos_reflectance(radiance_array, param, dos_id)
-            elif self.image_system == 'Sentinel':
-                quant = self.meta_call('QUANTIFICATION_VALUE')
-                par_undef([quant], ['QUANTIFICATION_VALUE'])
-                DN_dark = dn_dark(band_array)
-                band_array = dos_sentinel(band_array, [quant, DN_dark])
-            else:
-                raise Exception('Unreckognized image system: {}'.format(self.image_system))
-            self.array_to_dataset(data_newid, band_array, copy=self[data_id], param={'dtype': 6})
-        return self[data_newid]
-
     # Returns band of reflectance from source channel with a predefined ath_corr method
-    def ath_corr(self, data_id, method, dataset=None, band_num=1):
+    def ath_corr(self, data_id, method, dataset=None, band_num=1, data_newid=None, save_in_scene=True):
         if method == 'None':
-            return self.reflectance(data_id, dataset=dataset, band_num=band_num)
+            return self.band_process('reflectance', data_id, dataset=dataset, dataset_band_num=band_num, data_newid=None, save_in_scene=save_in_scene)
         elif method == 'DOS1':
-            return self.dos(data_id, 1)
-        elif method == 'DOS2':
-            return self.dos(data_id, 2)
+            return self.band_process('dos', data_id, dataset=dataset, dataset_band_num=band_num, data_newid=None, save_in_scene=save_in_scene)
         else:
             print('Unknown method: {}'.format(method))
             return None
 
     # Returns band of NDVI with a predefined ath_corr method
-    def ndvi(self, method='None'):
+    def ndvi(self, method='None', save_bands=True):
         data_newid = 'NDVI_{}'.format(method)
         if data_newid in self.data_list:
             return self.data[data_newid]
-        red = self.ath_corr('4', method).ReadAsArray()
         if self.image_system == 'Landsat':
-            nir = self.ath_corr('5', method).ReadAsArray()
+            nir = self.ath_corr('5', method, save_in_scene=save_bands).ReadAsArray()
         elif self.image_system == 'Sentinel':
-            nir = self.ath_corr('8', method).ReadAsArray()
+            nir = self.ath_corr('8', method, save_in_scene=save_bands).ReadAsArray()
         else:
             raise Exception('Unreckognized image system: {}'.format(self.image_system))
+        red = self.ath_corr('4', method, save_in_scene=save_bands).ReadAsArray()
         print('Calculating NDVI with {}'.format(method))
         band_array = ndvi(red, nir)
         self.array_to_dataset(data_newid, band_array, copy=self['4'], param={'dtype': 6})
         return self[data_newid]
 
     # Returns band of NDVI with a predefined ath_corr method
-    def ndwi(self, method='None'):
+    def ndwi(self, method='None', save_bands=True):
         data_newid = 'NDWI_{}'.format(method)
         if data_newid in self.data_list:
             return self.data[data_newid]
-        green = self.ath_corr('3', method).ReadAsArray()
         if self.image_system == 'Landsat':
-            nir = self.ath_corr('5', method).ReadAsArray()
+            nir = self.ath_corr('5', method, save_in_scene=save_bands).ReadAsArray()
         elif self.image_system == 'Sentinel':
-            nir = self.ath_corr('8', method).ReadAsArray()
+            nir = self.ath_corr('8', method, save_in_scene=save_bands).ReadAsArray()
         else:
             raise Exception('Unreckognized image system: {}'.format(self.image_system))
+        green = self.ath_corr('3', method, save_in_scene=save_bands).ReadAsArray()
         print('Calculating NDWI with {}'.format(method))
         band_array = ndvi(green, nir)
         self.array_to_dataset(data_newid, band_array, copy=self['4'], param={'dtype': 6})
@@ -863,6 +925,26 @@ class scene(object):
         self.close('temp_ds')
         return self.outmask[mask_id]
 
+    def merge_mask_from_list(self, mask_list=None, shape=None):
+        if mask_list is None or not isinstance(mask_list, list):
+            print('No mask data found')
+            return None
+        if shape is None and len(mask_list) > 0:
+            shape = mask_list[0].shape
+        mask_array = np.zeros(band_array.shape).astype(bool)
+        for mask_id in mask_list:
+            if mask_id not in self.outmask.keys():
+                # print('Mask not found: {}'.format(mask_id))
+                continue
+            else:
+                mask_array_ = self.outmask[mask_id].astype(bool)
+                if mask_array.shape != mask_array_.shape:
+                    print('Array shapes does not match, cannot apply mask: {}'.format(mask_array_.shape))
+                    continue
+                else:
+                    mask_array[mask_array_] = True
+        return mask_array
+
     # Filters raster array with a set of masks
     def mask_apply(self, band_array, mask_list, nodata=-9999):
         nodata = check_nodata(band_array.dtype, nodata)
@@ -911,7 +993,8 @@ class scene(object):
         return None
 
     # Saves dta from a band in Dataset to polygon shapefile -- not finished yet
-    def save_to_shp(self, data_id, path, band_num=1, mask_list=None):
+    def save_to_shp(self, data_id, path, band_num=1, mask_list=None, dst_fieldname='NoName'):
+        gdal.UseExceptions()
         data_id = self.check_data_id(data_id)
         if not os.path.exists(os.path.split(path)[0]):
             raise Exception('Path not found: {}'.format(os.path.split(path)))
@@ -923,7 +1006,28 @@ class scene(object):
         drv = ogr.GetDriverByName("ESRI Shapefile")
         dst_ds = drv.CreateDataSource(path)
         dst_layer = dst_ds.CreateLayer(dst_layername, srs=None)
-        gdal.Polygonize(self[data_id].GetRasterBand(band_num), None, dst_layer, -1, [], callback=None)
+        if dst_fieldname is None:
+            dst_fieldname = 'DN'
+        fd = ogr.FieldDefn(dst_fieldname, ogr.OFTInteger)
+        dst_layer.CreateField(fd)
+        dst_field = 0
+        '''
+        ds_path = self[data_id].GetDescription()
+        if ds_path == '':
+            ds_path = r'{}\__temp__.tif'.format(self.tdir)
+            self.save(data_id, ds_path)
+        else:
+            ds_path = r'{}\{}'.format(self.folder, ds_path)
+        print(ds_path)
+        ds = gdal.Open(ds_path).GetRasterBand(band_num)
+        if ds is None:
+            raise FileNotFoundError('File not found: {}'.format(ds_path))
+        '''
+        gdal.Polygonize(self[data_id].GetRasterBand(band_num), None, dst_layer, dst_field, [], callback=gdal.TermProgress_nocb)
+        dst_ds = None
+        prj_handle = open(dst_layername + '.prj', 'w')
+        prj_handle.write(self.projection)
+        prj_handle.close()
         return None
 
     # Creates a new Dataset from a mask
@@ -942,9 +1046,10 @@ class scene(object):
 # Each of them must contain an input_list of paths to Landsat or Sentinel metadata files which are used for getting access to their data
 class process(object):
 
-    def __init__(self, input_path='', output_path='', image_system = ['Landsat', 'Sentinel'], image_id = 'L8OLI', work_method = 'Single', ath_corr_method = 'None', return_bands = False, filter_clouds = False):
-        self.input_path = input_path #
+    def __init__(self, input_path='', output_path='', image_system = ['Landsat', 'Sentinel'], image_id = 'L8OLI', work_method = 'Single', ath_corr_method = 'None', return_bands = False, filter_clouds = False, tdir=tdir):
+        self.input_path = input_path
         self.output_path = output_path # must be dir
+        self.tdir = tdir
         self.image_system = image_system
         #self.image_id = image_id
         self.work_method = work_method
@@ -1126,7 +1231,7 @@ class process(object):
     def ndvi(self, scene_id=0):
         s = self[scene_id]
         if s:
-            s.ndvi(self.ath_corr_method)
+            s.ndvi(self.ath_corr_method, save_bands=self.return_bands)
             #os.chdir(self.output_path)
             data_ids = ['NDVI_{}'.format(self.ath_corr_method)]
             filenames = ['{}_NDVI_{}.tif'.format(s.descript, self.ath_corr_method)]
@@ -1147,6 +1252,8 @@ class process(object):
             if self.return_bands:
                 if self.ath_corr_method == 'None':
                     add = 'Ref'
+                elif self.ath_corr_method == 'DOS1':
+                    add = 'DOS'
                 else:
                     add = self.ath_corr_method
                 for band in bands:
@@ -1164,7 +1271,7 @@ class process(object):
     def ndwi(self, scene_id=0):
         s = self[scene_id]
         if s:
-            s.ndwi(self.ath_corr_method)
+            s.ndwi(self.ath_corr_method, save_bands=self.return_bands)
             #os.chdir(self.output_path)
             data_ids = ['NDWI_{}'.format(self.ath_corr_method)]
             filenames = ['{}_NDWI_{}.tif'.format(s.descript, self.ath_corr_method)]
@@ -1185,6 +1292,8 @@ class process(object):
             if self.return_bands:
                 if self.ath_corr_method == 'None':
                     add = 'Ref'
+                elif self.ath_corr_method == 'DOS1':
+                    add = 'DOS'
                 else:
                     add = self.ath_corr_method
                 for band in bands:

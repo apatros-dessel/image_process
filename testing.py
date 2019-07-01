@@ -1,4 +1,4 @@
-from ndwi_process import *
+from image_process import *
 
 proc = process()
 #proc.image_system = 'Sentinel'
@@ -6,14 +6,19 @@ proc.return_bands = True
 proc.filter_clouds = True
 proc.ath_corr_method = 'DOS1'
 proc.input(r'C:\sadkov\lsat8\test\LC08_L1TP_173027_20180727_20180731_01_T1')
-proc.input(r'C:\sadkov\sentinel\new\S2A_MSIL1C_20180622T080611_N0206_R078_T37TGN_20180622T092729.SAFE')
+s = proc[0]
+s.save_to_shp('QUALITY', 'c:\\sadkov\\test.shp')
+
+#proc.input(r'C:\sadkov\sentinel\new\S2A_MSIL1C_20180622T080611_N0206_R078_T37TGN_20180622T092729.SAFE')
 proc.output_path = r'C:\sadkov'
+#ss = proc[1]
 #proc.input('C:\\sadkov\\lsat8')
 #proc.input('C:\\sadkov\\sentinel')
-proc.run('ndwi')
-'''
-proc.composite(22, interpol_method=gdal.GRA_Average)
+#proc[0].ndwi('None')
+#proc.run('ndwi')
 
+#proc.composite(22, interpol_method=gdal.GRA_Average)
+'''
 
 s=proc[3]
 t=proc[22]

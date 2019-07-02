@@ -5,12 +5,14 @@ proc = process()
 proc.return_bands = True
 proc.filter_clouds = True
 proc.ath_corr_method = 'DOS1'
-proc.input(r'C:\sadkov\lsat8\test\LC08_L1TP_173027_20180727_20180731_01_T1')
+proc.input(r'E:\data')
 s = proc[0]
-s.save_to_shp('QUALITY', 'c:\\sadkov\\test.shp')
+s.mask('QUALITY', 2720, True, 'Cloud')
+s.ndwi('DOS1')
+s.save_to_shp('NDWI_DOS1', r'E:\data\test.shp', mask_list=['Cloud'], classify_param={'borders': [0]})
 
 #proc.input(r'C:\sadkov\sentinel\new\S2A_MSIL1C_20180622T080611_N0206_R078_T37TGN_20180622T092729.SAFE')
-proc.output_path = r'C:\sadkov'
+proc.output_path = r'E:\data'
 #ss = proc[1]
 #proc.input('C:\\sadkov\\lsat8')
 #proc.input('C:\\sadkov\\sentinel')

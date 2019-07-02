@@ -409,8 +409,7 @@ def segmentator(band_array, param):
     if min_list is None:
         if max_list is None:
             if borders is None:
-                print('No segmentation parameters defined')
-                return None
+                borders = [0]
             else:
                 max_list = borders + [None]
                 min_list = [None] + borders
@@ -418,15 +417,16 @@ def segmentator(band_array, param):
             min_list = [None] + max_list
     elif max_list is None:
         max_list = min_list + [None]
-    assert len(min_list) = len(max_list)
+    assert len(min_list) == len(max_list)
     len_ = len(min_list)
     if val_list is None:
         val_list = [0,1]
+    print(len_, min_list, max_list, val_list)
     while len(val_list)<len_:
         val_list += [np.max(val_list)+1]
     segmented_array = np.zeros(band_array.shape)
     segmented_array[band_array<=max_list[0]] = val_list[0]
-    segmented_array[band_array>min_list[len_]] = val_list[len_]
+    segmented_array[band_array>min_list[len_-1]] = val_list[len_-1]
     for id in range(1, len_-1):
         segmented_array[band_array>min_list[id] and band_array<=max_list[id]] = val_list[id]
     return segmented_array
@@ -855,7 +855,7 @@ class scene(object):
         self.array_to_dataset(data_newid, band_array, copy=self['4'], param={'dtype': 6})
         return self[data_newid]
 
-    # Returns band of NDVI with a predefined ath_corr method
+    # Returns band of NDWI with a predefined ath_corr method
     def ndwi(self, method='None', save_bands=True):
         data_newid = 'NDWI_{}'.format(method)
         if data_newid in self.data_list:
@@ -925,13 +925,13 @@ class scene(object):
         self.close('temp_ds')
         return self.outmask[mask_id]
 
-    def merge_mask_from_list(self, mask_list=None, shape=None):
+    def merge_mask_from_list(self, mask_list=None, shape=None, invert=False):
         if mask_list is None or not isinstance(mask_list, list):
             print('No mask data found')
             return None
         if shape is None and len(mask_list) > 0:
             shape = mask_list[0].shape
-        mask_array = np.zeros(band_array.shape).astype(bool)
+        mask_array = np.zeros(shape).astype(bool)
         for mask_id in mask_list:
             if mask_id not in self.outmask.keys():
                 # print('Mask not found: {}'.format(mask_id))
@@ -943,6 +943,8 @@ class scene(object):
                     continue
                 else:
                     mask_array[mask_array_] = True
+        if invert:
+            mask_array = - mask_array
         return mask_array
 
     # Filters raster array with a set of masks
@@ -993,7 +995,7 @@ class scene(object):
         return None
 
     # Saves dta from a band in Dataset to polygon shapefile -- not finished yet
-    def save_to_shp(self, data_id, path, band_num=1, mask_list=None, dst_fieldname='NoName'):
+    def save_to_shp(self, data_id, path, band_num=1, mask_list=None, dst_fieldname='NoName', classify_param=None):
         gdal.UseExceptions()
         data_id = self.check_data_id(data_id)
         if not os.path.exists(os.path.split(path)[0]):
@@ -1023,11 +1025,28 @@ class scene(object):
         if ds is None:
             raise FileNotFoundError('File not found: {}'.format(ds_path))
         '''
-        gdal.Polygonize(self[data_id].GetRasterBand(band_num), None, dst_layer, dst_field, [], callback=gdal.TermProgress_nocb)
+        if classify_param is not None:
+            band_array = segmentator(self[data_id].GetRasterBand(band_num).ReadAsArray(), classify_param)
+            data_band = self.array_to_dataset('__temp__', band_array, copy=self[data_id], param={'dtype':
+                                                                                                1}).GetRasterBand(1)
+        else:
+            data_band = self[data_id].GetRasterBand(1)
+
+        if mask_list is not None:
+            mask = self.merge_mask_from_list(mask_list, band_array.shape, invert=True)
+            mask_band = self.array_to_dataset('__temp2__', mask, copy=self[data_id], param={'dtype':
+                                                                                                1}).GetRasterBand(1)
+        else:
+            mask_band = None
+
+        gdal.Polygonize(data_band, mask_band, dst_layer, dst_field, [],
+                        callback=gdal.TermProgress_nocb)
         dst_ds = None
         prj_handle = open(dst_layername + '.prj', 'w')
         prj_handle.write(self.projection)
         prj_handle.close()
+        self.close('__temp__')
+        self.close('__temp2__')
         return None
 
     # Creates a new Dataset from a mask

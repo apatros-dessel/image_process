@@ -61,7 +61,7 @@ composites_dict = {
 corner_file_list = {                                # Helps to find metadata files
             'Landsat-8':    r'L[CE]\d\d_.+_MTL\.txt',
             'Sentinel-2':   r'MTD_MSIL\d[CA]\.xml',
-            'Planet':       r'\d{7}_\d{7}_\d{4}-\d{2}-\d{2}_.{4}_BGRN_Analytic_metadata.xml',
+            'Planet':       r'\d+_\d+_\S+_Analytic\S*_metadata.xml',
         }
 
 band_dict_lsat8 = {'coastal': '1', 'blue': '2', 'green': '3', 'red': '4', 'nir': '5', 'swir1': '6', 'swir2': '7', 'pan': '8', 'cirrus': '9', 'tirs1': '10', 'tirs2': '11'}
@@ -209,31 +209,55 @@ class process(object):
                  tdir = globals()['default_temp']):
 
         self.output_path = output_path  # must be dir
-        self.image_system = obj2list(image_system)
-        self.work_method = work_method
-        self.input = []
+        #self.work_method = work_method
+        #self.input = []
         self.scenes = []  # contains available scenes
+        self.options = {}
         self.tdir = tdir
 
     def __str__(self):
-        return '{i_s} process of {n_sc} scenes available.'.format(i_s=self.image_system, n_sc=len(self.input_list))
+        return 'Process of scenes available.'.format(len(self.scenes))
 
     # Returns number of paths in the input_list
     def __len__(self):
-        return len(self.input)
+        return len(self.scenes)
 
     # Checks if a single path is available in the input_list
     def __bool__(self):
-        for s_path in self.input:
-            if os.path.exists(s_path):
-                return True
-        return False
+        return bool(self.scenes)
 
     # Adds new path to self.input_list
-    def __iadd__(self, other):
-        self.input.append(None)
-        self.scenes.append(None)
-        self[-1] = other
+    def add_scene(self, path2scene):
+        #newscene = scene(path2scene)
+        try:
+            newscene = scene(path2scene)
+        #except FileNotFoundError:
+        except IOError:
+            print('Cannot open scene by path: {}'.format(path2scene))
+            newscene = None
+        if newscene is not None:
+            self.scenes.append(newscene)
+        return self
+
+    def input(self, path, search_scenes = True):
+        path = listoftype(path, str)
+        #print('Path: {}'.format(path))
+        if path is None:
+            return self
+        for path2scene in path:
+            file = os.path.isfile(path2scene)
+            if file:
+                self.add_scene(path2scene)
+            if search_scenes:
+                if file:
+                    path2folder = os.path.split(path2scene)[0]
+                else:
+                    path2folder = path2scene
+                    #print('Path to folder: {}'.format(path2folder))
+                input_list = walk_find(path2folder, globals()['corner_file_list'].values())
+                #print('Input list: {}'.format(input_list))
+                for newpath2scene in input_list:
+                    self.add_scene(newpath2scene)
         return self
 
 # Every space image scene
@@ -244,6 +268,8 @@ class scene:
             folder, file = os.path.split(path)
             imsysdict = globals()['metalib']
             self.fullpath = None
+            #print(file)
+            #print(imsysdict)
             for imsys in imsysdict:
                 for sat in imsysdict[imsys].filepattern:
                     if check_name(file, imsysdict[imsys].filepattern[sat]):
@@ -256,6 +282,9 @@ class scene:
                         self.filenames = self.meta.filenames
                         self.bandpaths = self.meta.bandpaths # an ordered dict of lists containing file id and band number
                         self.clip_parameters = {}
+        else:
+            #raise FileNotFoundError
+            raise IOError
 
     def __bool__(self):
         return bool(self.fullpath)
@@ -267,15 +296,15 @@ class scene:
             file_id = self.meta.files.get(file_id)
         return file_id
 
-    # Get path to raster data file. Retruns None if the clipped file hasn't been created
-    def getpath2file(self, file_id):
+    # Get path to raster data file. Returns None if the clipped file hasn't been created
+    def _getpath2file(self, file_id):
         file_id = self.getfileid(file_id)
         path2file = self.filenames.get(file_id)
         return path2file
 
     # Get raster path by file id. Clip raster file if necessary
     def getraster(self, file_id):
-        path2file = self.getpath2file(file_id)
+        path2file = self._getpath2file(file_id)
         if path2file is None:
             try:
                 path2file = self.clipraster(file_id)

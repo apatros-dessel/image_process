@@ -354,6 +354,7 @@ def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, class
     dst_field = 0
 
     # Polygonize raster data
+    print(path2raster)
     raster_ds = gdal.Open(path2raster)
     if classify_table is not None:
         band_array = calc.segmentator(raster_ds.GetRasterBand(band_num).ReadAsArray(), classify_table)

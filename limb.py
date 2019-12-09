@@ -21,11 +21,28 @@ def stringoflen(value, length, filler = '0', left = False):
     return value
 
 # Creates a list of predefined lenghth filled with value
-def listfull(length, value):
+def listfull(length, value=1):
     newlist = []
     for i in range(length):
         newlist.append(value)
     return newlist
+
+# Converts objects into a list or tuple of objects of specific type
+def listoftype(obj, objtype, export_tuple = False):
+    if isinstance(obj, objtype):
+        return [obj]
+    elif isinstance(obj, tuple):
+        obj = list(obj)
+    if isinstance(obj, list):
+        for i in range(len(obj)-1, -1, -1):
+            if not isinstance(obj[i], objtype):
+                obj.pop(i)
+    else:
+        print('Error listing object of type: {}'.format(type(obj)))
+        return None
+    if export_tuple:
+        obj = tuple(obj)
+    return obj
 
 # Converts all values in list into integers. Non-numeric values're converted to zeros
 def intlist(list_):
@@ -179,7 +196,8 @@ def fold_finder(path):
 
 # Searches filenames according to template and returns a list of full paths to them
 # Doesn't use os.walk to avoid using generators
-def walk_find(path, template, id_max=10000):
+def walk_find(path, templates, id_max=10000):
+    templates = listoftype(templates, str, export_tuple=True)
     if os.path.exists(path) and os.path.isdir(path):
         path_list = [path]
         path_list = [path_list]
@@ -191,8 +209,10 @@ def walk_find(path, template, id_max=10000):
             if fold_ != []:
                 path_list.append(fold_)
             for file_n in file_:
-                if check_name(template, file_n):
-                    export_.append(file_n)
+                for template in templates:
+                    #print('{}: \n {} \n'.format(template, file_n))
+                    if check_name(file_n, template):
+                        export_.append(file_n)
         id += 1
     if len(path_list) > id_max:
         raise Exception('Number of folder exceeds maximum = {}'.format(id_max))

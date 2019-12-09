@@ -18,9 +18,10 @@ import datetime as dtime
 from limb import check_name, intlist, slice_orderdict
 
 r'2376743_4865309_2019-05-20_0f2a_BGRN_Analytic_metadata.xml'
+r'20190910_081115_0e26_3B_AnalyticMS_metadata.xml'
 
 filepattern = {
-    'PLN': r'\d{7}_\d{7}_\d{4}-\d{2}-\d{2}_.{4}_BGRN_Analytic_metadata.xml'
+    'PLN': r'\d+_\d+_\S+_Analytic\S*_metadata.xml',
 }
 
 bands = {
@@ -119,11 +120,14 @@ def getplanetfiles(xml_tree):
     file_list = get_from_tree(xml_tree, 'fileName')
     file_dict = OrderedDict()
     for file in file_list:
-        if 'Analytic' in file:
-            file_dict['Analytic'] = file
-    for file in file_list:
         if 'DN' in file:
-            file_dict['mask'] = file
+            file_dict['mask'] = file_list.pop(file_list.index(file))
+            break
+    for file in file_list:
+        if 'Analytic' or 'MS' in file:
+            file_dict['Analytic'] = file_list.pop(file_list.index(file))
+            break
+
     return file_dict
 
 # Planet metadata
@@ -137,7 +141,8 @@ class planet:
             self.xmltree = xml2tree(path)
             self.filenames = getplanetfiles(self.xmltree)
             self.bandpaths = OrderedDict({'1': ('Analytic', 1), '2': ('Analytic', 2), '3': ('Analytic', 3), '4': ('Analytic', 4)})
-            year, month, day = intlist(file[16:26].split('-'))
+            aq_date_time = get_from_tree(self.xmltree, 'acquisitionDateTime')
+            year, month, day = intlist(aq_date_time[:10].split('-'))
             self.date = dtime.date(year, month, day)
             self.place = file[:15]
         else:

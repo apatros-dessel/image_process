@@ -1,20 +1,13 @@
 # Version 0.3
 
-import os
-import sys # to allow GDAL to throw Python Exceptions
 try:
     from osgeo import gdal, ogr, osr
 except:
     import gdal
     import ogr
     import osr
-import math
-import numpy as np
-import re
-import xml.etree.ElementTree as et
-import datetime as dtime
 
-from limb import *
+from tools import *
 
 import geodata
 
@@ -23,8 +16,18 @@ import planet
 
 # Constants
 
-# Set default output directory for a process
-default_output = os.getcwd()
+
+default_output = os.getcwd() # default output directory for a process
+
+imsys_dict = {
+    'LST': landsat,
+    #'SNT': sentinel,
+    'PLN': planet,
+}
+
+
+'''
+-- keeping here until new modules will be made
 
 # Set image systems available for analysis
 image_system_list = [
@@ -48,13 +51,8 @@ corner_file_list = {                                # Helps to find metadata fil
             'Planet':       r'\d+_\d+_\S+_Analytic\S*_metadata.xml',
         }
 
-# Set work method list -- not used anymore
-work_method_list = ['single', 'bulk', 'by_list']
 
-# Set methods of athmosphere correction -- not used at the moment
-ath_corr_method_list = ['none', 'dos1']
-
-# Set indexes for different channels in different image systems
+# Set indexes for different channels in different image systems 
 # Landsat-8
 band_dict_lsat8 = {
     'coastal': '1',
@@ -85,19 +83,7 @@ band_dict_s2 = {
     'swir1': '11',
     'swir2': '12'
 }
-# Planet
-band_dict_pln = {
-    'blue': '3',
-    'green': '2',
-    'red': '1',
-    'nir': '4'
-}
-
-band_dict = {
-    'Landsat': band_dict_lsat8,
-    'Sentinel': band_dict_s2,
-    'Planet': band_dict_pln,
-}
+'''
 
 # Set default types of composites
 composites_dict = {
@@ -248,18 +234,16 @@ def get_meta_sentinel(path, call, check=None, data='text', attrib=None, sing_to_
         raise Exception(('Cannot open file: ' + path))
     return result
 
-# Defines image system
-def check_imsys(path):
-    if path.endswith('_MTL.txt'):                       # for Landsat data
-        imsys = 'Landsat'
-        spacecraft = get_meta_landsat(path, 'SPACECRAFT_ID')
-    elif path.endswith('_xml'):
-        imsys = 'Sentinel'
-        spacecraft = get_meta_sentinel(path, 'SPACECRAFT_NAME')
+# Defines image system by path to file or returns None if no one matches
+def get_imsys(path):
+    if os.path.exists(path):
+        for imsys, module in globals()['imsys_dict']:
+            file = os.path.split(path)[1]
+            if check_name(file, module.imsys_data.template):
+                return imsys
     else:
-        return None
-    assert spacecraft in globals()['spacecraft_list']
-    return imsys, spacecraft
+        print('Path does not exist: {}'.format(path))
+    return None
 
 # Class containing image processing parameters and procedures
 class process(object):
@@ -325,130 +309,140 @@ class process(object):
 # Every space image scene
 class scene:
 
-    def __init__(self, path):       # No filter for wrong paths!
-        if os.path.exists(path):
-            folder, file = os.path.split(path)
-            imsysdict = globals()['metalib']
-            self.fullpath = None
-            #print(file)
-            #print(imsysdict)
-            for imsys in imsysdict:
-                for sat in imsysdict[imsys].filepattern:
-                    if check_name(file, imsysdict[imsys].filepattern[sat]):
-                        self.fullpath = path
-                        self.path = self.filepath = folder
-                        self.file = file
-                        self.imsys = imsys
-                        self.sat = sat
-                        self.meta = imsysdict[imsys].satlib[sat](path)
-                        self.filenames = self.meta.filenames
-                        self.bandpaths = self.meta.bandpaths # an ordered dict of lists containing file id and band number
-                        self.clip_parameters = {}
-        else:
-            #raise FileNotFoundError
+    def __init__(self, path, imsys):
+
+        if not os.path.exists(path):
+            print('Path does not exist: {}'.format(path))
+            # raise FileNotFoundError
             raise IOError
+
+        module = globals()['imsys_dict'].get(imsys)
+        if module is None:
+            print('Unknown data source: {}'.format(imsys))
+            raise KeyError
+
+        meta = module.metadata(path, module.imsys_data)
+        if not meta.check():
+            raise ImportError
+
+        self.fullpath = path
+        folder, file = os.path.split(path)
+        self.path = self.filepath = folder
+        self.file = file
+        self.files = self.meta.files
+        self.imsys = imsys
+        self.meta = meta
+        self.clip_parameters = {}
 
     def __bool__(self):
         return bool(self.fullpath)
 
-    # Get file id
-    def getfileid(self, file_id):
-        file_id = str(file_id)
-        if not (file_id in self.meta.files.values()):
-            file_id = self.meta.files.get(file_id)
-        return file_id
-
     # Get path to raster data file. Returns None if the clipped file hasn't been created
-    def _getpath2file(self, file_id):
-        file_id = self.getfileid(file_id)
-        path2file = self.filenames.get(file_id)
-        return path2file
+    def get_raster_local_path(self, file_id):
+       return fullpath(self.filepath, self.meta.get_raster_path(file_id))
 
     # Get raster path by file id. Clip raster file if necessary
-    def getraster(self, file_id):
-        path2file = self._getpath2file(file_id)
-        if path2file is None:
-            try:
+    def get_raster_path(self, file_id):
+
+        file_id = str(file_id)
+        if not file_id in self.files:
+            if file_id in self.meta.files:
                 path2file = self.clipraster(file_id)
-            except:
-                print('File not found: {}'.format(file_id))
+            else:
+                print('Unknown file id: {}'.format(file_id))
                 return None
         else:
-            path2file = fullpath(self.filepath, path2file)
+            path2file = self.get_raster_local_path(file_id)
+
         return path2file
 
-    # Clips a single band
+    # Clips a single raster
     def clipraster(self, file_id):
+
         file_id = str(file_id)
-        localpath = self.meta.filenames.get(self.getfileid(file_id))
-        full_export_path = r'{}\{}'.format(self.filepath, localpath)
-        geodata.clip_raster(path2raster = fullpath(self.path, localpath),
+        full_export_path = self.get_raster_local_path(file_id)
+        export_folder = os.path.split(full_export_path)
+        if not os.path.exists(export_folder):
+            os.makedirs(export_folder)
+
+        geodata.clip_raster(path2raster = fullpath(self.path, self.meta.get_raster_path(file_id)),
                             path2vector = self.clip_parameters.get('path2vector'),
                             export_path = full_export_path,
                             byfeatures = self.clip_parameters.get('byfeatures', True),
                             exclude = self.clip_parameters.get('exclude', False),
                             nodata = self.clip_parameters.get('nodata', 0))
-        self.filenames[file_id] = localpath
+
+        self.files.append(file_id)
+
         return full_export_path
 
-    # Get band id
-    def getbandid(self, band_id):
+    # Gets path to raster file containing th bands and its number
+    def get_band_path(self, band_id):
+
         band_id = str(band_id)
-        if not (band_id in self.meta.bands.values()):
-            band_id = self.meta.bands.get(band_id)
-        return band_id
+        band_tuple = self.meta.bandpaths.get(band_id)
+        if band_tuple is not None:
+            raster_path = self.get_raster_path(band_tuple[0])
+        else:
+            print('Unknown band_id: {}'.format(band_id))
+            return None
+        if raster_path is not None:
+            return (raster_path, band_tuple[1])
 
-    # Get file_id and band number for a given band_id
-    def band(self, band_id):
-        band_id = self.getbandid(band_id)
-        file_id, band_num = self.meta.bandpaths[band_id]
-        return file_id, band_num
-
-    # Get path2file and band number for a given band_id
-    def getband(self, band_id):
-        file_id, band_num = self.band(band_id)
-        path2file = self.getraster(file_id)
-        return geodata.bandpath(path2file, band_num)
+        return (raster_path, band_tuple[1])
 
     # Creates a copy of a scene, cropping the original data with shpapefile
     def clip(self, path2vector, export_path = None, byfeatures = True, exclude = False, nodata = 0, save_files = False):
+
         if export_path is None:
             export_path = temp_dir_list.create()
+
         self.filepath = export_path
-        self.filenames = {}
+        self.files = []
         self.clip_parameters['path2vector'] = path2vector
         self.clip_parameters['byfeatures'] = byfeatures
         self.clip_parameters['exclude'] = exclude
         self.clip_parameters['nodata'] = nodata
+
         if save_files:
-            for key in self.meta.filenames:
+            for key in self.meta.filepaths:
                 self.clipraster(key)
+
         return None
 
     # Aborts clipping scene, the created files aren't deleted
     def unclip(self):
         self.filepath = self.path
         self.filenames = self.meta.filenames
+        self.clip_parameters = {}
         return None
 
     # Creates a composite of a single scene --- change
     def composite(self, bands, export_path, main_band = None, exclude_nodata = True, enforce_nodata = None):
+
         path2start = []
         band_nums = []
+
         for band_id in bands:
-            file_id, band_num = self.band(band_id)
-            path2start.append(self.getraster(file_id))
+            raster_path, band_num = self.get_band_path(band_id)
+            path2start.append(raster_path)
             band_nums.append(band_num)
+
         if main_band is None:
             path2target = path2start[0]
+
         else:
-            path2target = self.band(main_band)[0]
+            path2target = self.get_band_path(main_band)[0]
+
         geodata.raster2raster(path2start, path2target, export_path, band_nums = band_nums, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata)
+
         return None
 
     # Creates default composite by name ('RGB', 'NIR', etc.)
     def default_composite(self, comptype, export_path, main_band = None, exclude_nodata = True, enforce_nodata = None):
+
         compdict = globals()['composites_dict']
+
         if comptype in compdict:
             try:
                 self.composite(compdict[comptype], export_path, main_band = main_band, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata)
@@ -456,63 +450,49 @@ class scene:
                 print('Cannot make composite: {}'.format(comptype))
         else:
             print('Unknown composite: {}'.format(comptype))
+
         return None
 
     # Calculates index by id
-    def calculate_index(self, indexid, export_path):
-        index_params = globals()['index_dict'].get(indexid)
+    def calculate_index(self, index_id, export_path):
+
+        index_params = globals()['index_dict'].get(index_id)
+
         if index_params is not None:
             funcid, bandlist, dt = index_params
             func = geodata.index_calculator.get(funcid)
             bandpath_list = []
-            for bandid in bandlist:
-                band = list(self.band(bandid))
-                band[0] = self.getraster(band[0])
-                bandpath_list.append(tuple(band))
+
+            for band_id in bandlist:
+                bandpath_list.append(self.get_band_path(band_id))
+
             if (func is not None) and (not None in bandpath_list):
-                func(bandpath_list, export_path, dt=dt)
+                #func(bandpath_list, export_path, dt=dt)
                 try:
-                    #func(bandpath_list, export_path)
+                    func(bandpath_list, export_path)
                     pass
                 except:
-                    print('Error calculating {}'.format(indexid))
+                    print('Error calculating {}'.format(index_id))
             else:
-                print('Insuffisient parameters for {} calculation'.format(indexid))
+                print('Insuffisient parameters for {} calculation'.format(index_id))
+
         return None
 
-    def codes(self, key):
-        code_dict = {
-            '[imsys]': self.imsys,
-            '[sat]': self.sat,
-            '[place]': self.meta.place,
-            #'[column]': self.meta.col,
-            #'[row]': self.meta.row,
-            '[date]': '{}{}{}'.format(self.meta.date.year, stringoflen(self.meta.date.month, 2, left = True), stringoflen(self.meta.date.day, 2, left = True)),
-            '[year]': self.meta.date.year,
-            '[month]': self.meta.date.month,
-            '[day]': self.meta.date.day,
-        }
-        return code_dict.get(key, '')
-
-    # Includes data about the scene into a string
-    def name(self, template):
-        name_index = globals()['nameids']
-        for string in name_index:
-            template = template.replace(string, stringoflen(self.codes(string), name_index[string], left = True))
-        return template
-
 def timecomposite(scenes, band_ids, scene_nums, export_path, path2target = None, exclude_nodata = True):
+
     path2start = []
     band_nums = []
     assert len(band_ids) == len(scene_nums)
-    for i in range(len(scene_nums)):
-        file_id, band_num = scenes[scene_nums[i]].band(band_ids[i])
-        path2start.append(scenes[scene_nums[i]].getraster(band_ids[i]))
+
+    for i, band_id in enumerate(band_ids):
+        raster_path, band_num = scenes[scene_nums[i]].get_band_path(band_id)
+        path2start.append(raster_path)
         band_nums.append(band_num)
-    print(path2start)
+
+    #print(path2start)
     if path2target is None:
         path2target = path2start[0]
+
     geodata.raster2raster(path2start, path2target, export_path, band_nums = band_nums, exclude_nodata = exclude_nodata)
+
     return None
-
-

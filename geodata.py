@@ -11,7 +11,7 @@ import math
 
 import calc
 
-from limb import tdir, default_temp, listfull, newname
+from tools import tdir, default_temp, listfull, newname
 
 temp_dir_list = tdir(default_temp)
 

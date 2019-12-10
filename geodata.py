@@ -142,7 +142,7 @@ def save_raster(path, band_array, copypath = None, proj = None, trans = None, dt
         if trans is None:
             trans = copy_ds.GetGeoTransform()
         if nodata is None:
-            nodata = copy_ds.GetRasterBand().GetNoDataValue()
+            nodata = copy_ds.GetRasterBand(1).GetNoDataValue()
     band_array = calc.array3dim(band_array)
     if dt is None:
         dt = format_to_gdal(band_array.dtype)
@@ -410,6 +410,7 @@ def getrastershape(raster_ds):
 def getbandarrays(path2bands):
     assert isinstance(path2bands, (tuple, list)) and (len(path2bands) > 0)
     raster_list = []
+    print(path2bands)
     for path2raster, band_num in path2bands:
         raster_ds = gdal.Open(path2raster)
         if raster_ds is None:
@@ -430,15 +431,27 @@ def getbandarrays(path2bands):
             return array3dim(gdal.Open(path2export).ReadAsArray())
     stack_list = []
     for i in range(len(raster_list)):
-        stack_list.append(array3dim(raster_list[i].GetRasterBand(path2bands[i][1])))
+        stack_list.append(array3dim(raster_list[i].GetRasterBand(path2bands[i][1]).ReadAsArray()))
     return np.vstack(tuple(stack_list))
 
 # Calculates normalized difference raster (for NDVI, NDWI and other indices calculation
 def normalized_difference(path2bands, path2export, dt = None):
-    data_array = getbandarrays(path2bands)
-    nd_array = (data_array[1] - data_array[0]) / (data_array[1] + data_array[0])
+    data_array = getbandarrays(path2bands).astype(np.float)
+    print(data_array.shape)
+    # New option below
+    mask = np.ones(data_array.shape[1:]).astype(np.bool)
+    for slice in data_array:
+        mask[slice==0] = False
+    #nd_data = (data_array[1][mask] - data_array[0][mask]) / (data_array[1][mask] + data_array[0][mask])
+    nd_array = np.zeros(data_array.shape[1:])
+    nd_array[mask] = (data_array[0][mask] - data_array[1][mask]) / (data_array[1][mask] + data_array[0][mask])
+    #nd_array = (data_array[1] - data_array[0]) / (data_array[1] + data_array[0])
     save_raster(path2export, nd_array, copypath = path2bands[0][0], dt = dt)
     return None
+
+index_calculator = {
+    'Normalized': normalized_difference,
+}
 
 def write_prj(path2prj, projection):
     prj_handle = open(path2prj, 'w')

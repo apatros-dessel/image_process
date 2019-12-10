@@ -22,20 +22,104 @@ import landsat
 import planet
 
 # Constants
+
+# Set default output directory for a process
 default_output = os.getcwd()
+
+# Set image systems available for analysis
 image_system_list = [
     'LST',                  # LANDSAT
     'SNT',                  # SENTINEL
     'PLN',                  # PLANET
 ]
+
+# Set spacecraft list
 spacecraft_list = [
     'LS8',                  # LANDSAT-8
     'SN2',                  # SENTINEL-2A
     'S2B',                  # SENTINEL-2B
     'PLN',                  # PLANET
 ]
+
+# Templates for searching metadata files
+corner_file_list = {                                # Helps to find metadata files
+            'Landsat-8':    r'L[CE]\d\d_.+_MTL\.txt',
+            'Sentinel-2':   r'MTD_MSIL\d[CA]\.xml',
+            'Planet':       r'\d+_\d+_\S+_Analytic\S*_metadata.xml',
+        }
+
+# Set work method list -- not used anymore
 work_method_list = ['single', 'bulk', 'by_list']
+
+# Set methods of athmosphere correction -- not used at the moment
 ath_corr_method_list = ['none', 'dos1']
+
+# Set indexes for different channels in different image systems
+# Landsat-8
+band_dict_lsat8 = {
+    'coastal': '1',
+    'blue': '2',
+    'green': '3',
+    'red': '4',
+    'nir': '5',
+    'swir1': '6',
+    'swir2': '7',
+    'pan': '8',
+    'cirrus': '9',
+    'tirs1': '10',
+    'tirs2': '11'
+}
+# Sentinel-2
+band_dict_s2 = {
+    'coastal_aerosol': '1',
+    'blue': '2',
+    'green': '3',
+    'red': '4',
+    'vegetation red edge 1': '5',
+    'vegetation red edge 2': '6',
+    'vegetation red edge 3': '7',
+    'nir': '8',
+    'narrow nir': '8b',
+    'water vapour': '9',
+    'swir - cirrus': '10',
+    'swir1': '11',
+    'swir2': '12'
+}
+# Planet
+band_dict_pln = {
+    'blue': '3',
+    'green': '2',
+    'red': '1',
+    'nir': '4'
+}
+
+band_dict = {
+    'Landsat': band_dict_lsat8,
+    'Sentinel': band_dict_s2,
+    'Planet': band_dict_pln,
+}
+
+# Set default types of composites
+composites_dict = {
+    'RGB':      ['red', 'green', 'blue'],           # Natural colours
+    'NIR':      ['nir', 'red', 'green'],            # False colours
+    'UFC':      ['swir2', 'swir1', 'red'],          # Urban False Colour
+    'AGR':      ['swir1', 'nir', 'blue'],           # Agriculture
+    'GEOL':     ['swir2', 'red', 'blue'],           # Geology
+    'BAT':      ['red', 'green', 'coastal'],        # Bathymetric
+    'APN':      ['swir2', 'swir1', 'narrow nir'],   # Athmospheric penetration
+    'SWIR':     ['swir2', 'narow nir', 'red'],
+    'SWIR-2':   ['blue', 'swir1', 'swir2'],
+}
+
+# Set default types of indices
+index_dict = {
+    'NDVI': ('Normalized',  ['nir', 'red'],     6),
+    'NDWI': ('Normalized',  ['nir', 'green'],   6),
+    'NDBI': ('Normalized',  ['swir', 'nir'],    6),
+}
+
+# Set elements for naming files
 nameids = {
     '[imsys]': 3,
     '[sat]': 3,
@@ -46,29 +130,7 @@ nameids = {
     '[day]': 2,
 }
 
-composites_dict = {
-    'RGB':      ['red', 'green', 'blue'],
-    'NIR':      ['nir', 'red', 'green'],
-    'UFC':      ['swir2', 'swir1', 'red'],          # Urban False Colour
-    'AGR':      ['swir1', 'nir', 'blue'],           # Agriculture
-    'GEOL':     ['swir2', 'red', 'blue'],           # Geology
-    'BAT':      ['red', 'green', 'coastal'],        # Bathymetric
-    'APN':      ['swir2', 'swir1', 'narrow nir'],   # Athmospheric penetration
-    'SWIR':     ['swir2', 'narow nir', 'red'],
-    'SWIR-2':   ['blue', 'swir1', 'swir2'],
-}
-
-corner_file_list = {                                # Helps to find metadata files
-            'Landsat-8':    r'L[CE]\d\d_.+_MTL\.txt',
-            'Sentinel-2':   r'MTD_MSIL\d[CA]\.xml',
-            'Planet':       r'\d+_\d+_\S+_Analytic\S*_metadata.xml',
-        }
-
-band_dict_lsat8 = {'coastal': '1', 'blue': '2', 'green': '3', 'red': '4', 'nir': '5', 'swir1': '6', 'swir2': '7', 'pan': '8', 'cirrus': '9', 'tirs1': '10', 'tirs2': '11'}
-band_dict_s2 = {'coastal_aerosol': '1', 'blue': '2', 'green': '3', 'red': '4', 'vegetation red edge 1': '5', 'vegetation red edge 2': '6', 'vegetation red edge 3': '7', 'nir': '8', 'narrow nir': '8b', 'water vapour': '9', 'swir - cirrus': '10', 'swir1': '11', 'swir2': '12'}
-band_dict_pln = {'blue': '3', 'green': '2', 'red': '1', 'nir': '4'}
-band_dict = {'Landsat': band_dict_lsat8, 'Sentinel': band_dict_s2}
-
+# Set dictionary of modules to get metadata from different sources
 metalib = {
     'LST': landsat,
     'PLN': planet,
@@ -396,6 +458,28 @@ class scene:
             print('Unknown composite: {}'.format(comptype))
         return None
 
+    # Calculates index by id
+    def calculate_index(self, indexid, export_path):
+        index_params = globals()['index_dict'].get(indexid)
+        if index_params is not None:
+            funcid, bandlist, dt = index_params
+            func = geodata.index_calculator.get(funcid)
+            bandpath_list = []
+            for bandid in bandlist:
+                band = list(self.band(bandid))
+                band[0] = self.getraster(band[0])
+                bandpath_list.append(tuple(band))
+            if (func is not None) and (not None in bandpath_list):
+                func(bandpath_list, export_path, dt=dt)
+                try:
+                    #func(bandpath_list, export_path)
+                    pass
+                except:
+                    print('Error calculating {}'.format(indexid))
+            else:
+                print('Insuffisient parameters for {} calculation'.format(indexid))
+        return None
+
     def codes(self, key):
         code_dict = {
             '[imsys]': self.imsys,
@@ -423,8 +507,9 @@ def timecomposite(scenes, band_ids, scene_nums, export_path, path2target = None,
     assert len(band_ids) == len(scene_nums)
     for i in range(len(scene_nums)):
         file_id, band_num = scenes[scene_nums[i]].band(band_ids[i])
-        path2start.append(scenes[scene_nums[i]].get_raster(band_ids[i]))
+        path2start.append(scenes[scene_nums[i]].getraster(band_ids[i]))
         band_nums.append(band_num)
+    print(path2start)
     if path2target is None:
         path2target = path2start[0]
     geodata.raster2raster(path2start, path2target, export_path, band_nums = band_nums, exclude_nodata = exclude_nodata)

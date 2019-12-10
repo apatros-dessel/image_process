@@ -17,15 +17,21 @@ import datetime as dtime
 
 from limb import check_name, intlist, slice_orderdict
 
-r'2376743_4865309_2019-05-20_0f2a_BGRN_Analytic_metadata.xml'
-r'20190910_081115_0e26_3B_AnalyticMS_metadata.xml'
+# Examples of Planet metadata filenames
+# r'2376743_4865309_2019-05-20_0f2a_BGRN_Analytic_metadata.xml'
+# r'20190910_081115_0e26_3B_AnalyticMS_metadata.xml'
 
 filepattern = {
     'PLN': r'\d+_\d+_\S+_Analytic\S*_metadata.xml',
 }
 
 bands = {
-    'PLN': {'blue': '1', 'green': '2', 'red': '3', 'nir': '4'}
+    'PLN': {
+        'blue': '1',
+        'green': '2',
+        'red': '3',
+        'nir': '4'
+    }
 }
 
 # Reads .xml file and returns metadata as element tree

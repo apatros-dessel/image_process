@@ -13,10 +13,12 @@ proc.input(path2scenes)
 
 for ascene in proc.scenes:
     print(ascene.meta)
-    filename = ascene.name('test4planet_[date]_[imsys]_NIR.tif')
-    filepath = fullpath(proc.output_path, filename)
-    ascene.default_composite('NIR', filepath)
-
+    #filename = ascene.name('test4planet_[date]_[imsys]_RGB.tif')
+    #filepath = fullpath(proc.output_path, filename)
+    #ascene.default_composite('RGB', filepath)
+    #filename = ascene.name('test4planet_[date]_[imsys]_NIR.tif')
+    #filepath = fullpath(proc.output_path, filename)
+    #ascene.default_composite('NIR', filepath)
     #shpname = ascene.name('test4planet_mask_[date]_[imsys]_RGB.shp')
     #shppath = fullpath(proc.output_path, shpname)
 
@@ -32,4 +34,8 @@ for ascene in proc.scenes:
             if shp is not None:
                 print('File opened: {}'.format(filepath))
     '''
+    filename = ascene.name('test4planet_[date]_[imsys]_NDWI.tif')
+    filepath = fullpath(proc.output_path, filename)
+    ascene.calculate_index('NDWI', filepath)
 
+#timecomposite(proc.scenes, ['red', 'red', 'green'], [0,1,0], r'c:\sadkov\playground\test\timecomp.tif')

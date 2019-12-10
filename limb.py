@@ -302,3 +302,84 @@ def scroll(obj):
                 print(val)
     else:
         print(obj)
+
+# Landsat-8 metadata
+class landsat_8:
+
+    def __init__(self, path):
+        folder, file = os.path.split(path)
+        if check_name(file, globals()['filepattern']['LS8']):
+            self.files = globals()['bands']['LS8']
+            self.bands = globals()['bands']['LS8']
+            self.mtl = mtl2orderdict(path)
+            self.filenames = slice_orderdict(self.mtl, 'FILE_NAME_BAND_', delete_call = True)
+            self.bandpaths = list_orderdict([self.filenames, fill_orderdict(self.filenames, 1)])
+            year, month, day = intlist(self.mtl.get('DATE_ACQUIRED').split('-'))
+            self.date = dtime.date(year, month, day)
+            self.place = file[10:16]
+        else:
+            print('Wrong file name: {}'.format(file))
+
+# Planet metadata
+class planet:
+
+    def __init__(self, path):
+        folder, file = os.path.split(path)
+        if check_name(file, globals()['filepattern']['PLN']):
+            self.files = {'Analytic': 'Analytic', 'DN': 'mask'}
+            self.bands = globals()['bands']['PLN']
+            self.xmltree = xml2tree(path)
+            self.filenames = getplanetfiles(self.xmltree)
+            self.bandpaths = OrderedDict({'1': ('Analytic', 1), '2': ('Analytic', 2), '3': ('Analytic', 3), '4': ('Analytic', 4)})
+            aq_date_time = get_from_tree(self.xmltree, 'acquisitionDateTime')
+            year, month, day = intlist(aq_date_time[:10].split('-'))
+            self.date = dtime.date(year, month, day)
+            self.place = file[:15]
+        else:
+            print('Wrong file name: {}'.format(file))
+
+# Scene metadata
+class scene_metadata:
+
+    def __init__(self, path, template):
+        if check_name(path, template):
+            self.imsys = None                       # Image system (Landsat, Sentinel, etc.) as str of length 3
+            self.sat = None                         # Satellite id (Landsat-8, Sentinel-2A, 0e26 (Planet id), etc.) as str
+            self.container = {}                     # Place to keep source metadata as a dictionary
+            self.files = OrderedDict()              # Dictionary of file ids
+            self.filepaths = OrderedDict()          # Dictionary of filepaths
+            self.bands = OrderedDict()              # Dictionary of bands
+            self.bandpaths = OrderedDict()          # Dictionary of paths to bands (each path is a tuple of file id as str and band number as int)
+            self.datetime = None                    # Datetime as datetime
+            self.location = {}                      # Image locationa data as str
+            self.datamask = None                    # Local path to data mask as vector file
+            self.cloudmask = None                   # Local path to cloud mask as vector file
+        else:
+            del self
+
+    # Get local path to raster file
+    def get_raster_path(self, file_id):
+        file_num = self.files.get(file_id)
+        if file_num is not None:
+            raster_path = self.filepaths.get(file_num)
+        else:
+            print('Unknown file_id: {}'.format(file_id))
+            return None
+        if raster_path is None:
+            print('Path not found for file_num {}'.format(file_num))
+        else:
+            return raster_path
+
+    # Get local path to raster file containing specified band and
+    def get_band_path(self, band_id):
+        band_tuple = self.bandpaths.get(band_id)
+        if band_tuple is not None:
+            #file_id, band_num = band_tuple
+            raster_path = self.get_raster_path(band_tuple[0])
+        else:
+            print('Unknown band_id: {}'.format(band_id))
+            return None
+        if raster_path is not None:
+            return (raster_path, band_tuple[1])
+
+    # Get

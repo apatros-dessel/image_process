@@ -5,11 +5,18 @@ import re
 import numpy as np
 from collections import OrderedDict
 import xml.etree.ElementTree as et
-import datetime as dtime
+from datetime import datetime
 
 default_temp = '{}\image_processor'.format(os.environ['TMP'])
 if not os.path.exists(default_temp):
     os.makedirs(default_temp)
+
+# Conversts non-list objects to a list of length 1
+def obj2list(obj):
+    if isinstance(list, obj):
+        return obj
+    else:
+        return [obj]
 
 # Returns a string of proper length cutting the original string and stretching it adding filler symbols if necessary
 def stringoflen(value, length, filler = '0', left = False):
@@ -198,8 +205,8 @@ def fold_finder(path):
 
 # Searches filenames according to template and returns a list of full paths to them
 # Doesn't use os.walk to avoid using generators
-def walk_find(path, templates, id_max=10000):
-    templates = listoftype(templates, str, export_tuple=True)
+def walk_find(path, ids_list, templates_list, id_max=10000):
+    #templates_list = listoftype(templates_list, str, export_tuple=True)
     if os.path.exists(path) and os.path.isdir(path):
         path_list = [path]
         path_list = [path_list]
@@ -211,10 +218,11 @@ def walk_find(path, templates, id_max=10000):
             if fold_ != []:
                 path_list.append(fold_)
             for file_n in file_:
-                for template in templates:
+                for i, templates in enumerate(templates_list):
                     #print('{}: \n {} \n'.format(template, file_n))
-                    if check_name(file_n, template):
-                        export_.append(file_n)
+                    for template in templates:
+                        if check_name(file_n, template):
+                            export_.append((file_n, ids_list[i]))
         id += 1
     if len(path_list) > id_max:
         raise Exception('Number of folder exceeds maximum = {}'.format(id_max))
@@ -231,7 +239,7 @@ def sing2sing(obj, sing_to_sing=True, digit_to_float=True):
     if sing_to_sing:
         if len(obj) == 1:
             obj = obj[0]
-            if digit_to_float:
+            if digit_to_float and obj.isdigit():
                 try:
                     obj = float(obj)
                 except:
@@ -294,16 +302,20 @@ class tdir():
 
     # Create path to a new file
 
-def scroll(obj):
+def scroll(obj, print_type=True):
+    if print_type:
+        print('Object of {}:'.format(type(obj)))
     if hasattr(obj, '__iter__'):
-        if isinstance(obj, (dict)):
+        if len(obj) == 0:
+            print('  <empty>')
+        elif isinstance(obj, (dict)):
             for val in obj:
-                print('{}: {}'.format(val, obj[val]))
+                print('  {}: {}'.format(val, obj[val]))
         else:
             for val in obj:
-                print(val)
+                print('  {}'.format(val))
     else:
-        print(obj)
+        print('  {}'.format(obj))
 
 # Reads .xml file and returns metadata as element tree
 def xml2tree(path):
@@ -390,13 +402,36 @@ def get_from_tree(xml_tree, call, check=None, data='text', attrib=None, sing_to_
     if check is not None:
         filter = attrib_filter(iter, check)
         result = list(np.array(result)[filter])
+    #scroll(sing2sing(result, sing_to_sing, digit_to_float))
     return sing2sing(result, sing_to_sing, digit_to_float)
+
+# Image system data object
+class imsys_data:
+
+    def __init__(self, imsys, template):
+
+        if not isinstance(imsys, str):
+            print('Wrong imsys data type: str is needed')
+            raise TypeError
+
+        if len(imsys) != 3:
+            print('Length of imsys was incorrect, reduced to 3')
+            imsys = stringoflen(imsys.strip(), 3)
+
+        if not isinstance(template, str):
+            print('Wrong template data type: str is needed')
+            raise TypeError
+
+        self.imsys = imsys
+        self.template = template
+        self.files = []
+        self.bandpaths = OrderedDict()
 
 # Scene metadata
 class scene_metadata:
 
-    def __init__(self, path, imsys_data):
-        self.imsys = imsys_data.imsys           # Image system (Landsat, Sentinel, etc.) as str of length 3
+    def __init__(self, imsys):
+        self.imsys = imsys       # Image system (Landsat, Sentinel, etc.) as str of length 3
 
         self.container = {}                     # Place to keep source metadata as a dictionary. Filled by the imsys-specific function
 
@@ -409,7 +444,7 @@ class scene_metadata:
         self.location = {}                      # Image locationa data as str
         self.datamask = None                    # Local path to data mask as vector file
         self.cloudmask = None                   # Local path to cloud mask as vector file
-        self.name_codes = {}                    # Codes for names to products
+        self.namecodes = {'[imsys]': imsys}     # Codes for names to products
 
     def check(self):
         check_list = OrderedDict({
@@ -418,13 +453,13 @@ class scene_metadata:
             'sat':          self.sat is not None,
             'files':        len(self.files) > 0,
             'filepaths':    len(self.filepaths) > 0,
-            'bands':        len(self.bands) > 0,
+            #'bands':       len(self.bands) > 0,
             'bandpaths':    len(self.bandpaths) > 0,
-            'datetime':     len(self.datetime) > 0,
-            'name_codes':   len(self.name_codes) > 0,
+            'datetime':     isinstance(self.datetime, datetime),
+            'namecodes':    len(self.namecodes) > 0,
         })
         if False in check_list.values():
-            error_keys = np.array(list(check_list.keys()))[np.array(list(check_list.values()))]
+            error_keys = np.array(list(check_list.keys()))[~ np.array(list(check_list.values()))]
             for key in error_keys:
                 print('Error in key: {} == {}'.format(key, check_list[key]))
             return False
@@ -460,24 +495,22 @@ class scene_metadata:
                 '[second]': datetime_string[13:15],
             }
 
-            self.name_codes.update(datetime_codes)
+            self.namecodes.update(datetime_codes)
 
         else:
             print('No datetime data found')
 
         return None
 
-
     # Get local path to raster file
     def get_raster_path(self, file_id):
-        file_num = self.files.get(file_id)
-        if file_num is not None:
-            raster_path = self.filepaths.get(file_num)
+        if file_id in self.files:
+            raster_path = self.filepaths.get(file_id)
         else:
-            print('Unknown file_id: {}'.format(file_id))
+            print('Error: file_id not found: {}'.format(file_id))
             return None
         if raster_path is None:
-            print('Path not found for file_num {}'.format(file_num))
+            print('Error: path not found for file_num {}'.format(file_id))
         else:
             return raster_path
 
@@ -488,13 +521,13 @@ class scene_metadata:
             #file_id, band_num = band_tuple
             raster_path = self.get_raster_path(band_tuple[0])
         else:
-            print('Unknown band_id: {}'.format(band_id))
+            print('Error: band_id not found: {}'.format(band_id))
             return None
         if raster_path is not None:
             return (raster_path, band_tuple[1])
 
     # Make name from a string using the templates
     def name(self, namestring):
-        for key in self.name_codes.keys():
-            namestring = namestring.replace(key, self.name_codes.get(key, ''))
+        for key in self.namecodes.keys():
+            namestring = namestring.replace(key, self.namecodes.get(key, ''))
         return namestring

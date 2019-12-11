@@ -159,56 +159,7 @@ def save_raster(path, band_array, copypath = None, proj = None, trans = None, dt
     outData.SetGeoTransform(trans)
     outData = None
     return None
-'''
-    # Creates a new empty virtual Dataset in scene.data
-    def add_dataset(self, data_id, copy=None, param=None, cell_size=None):
-        data_id = str(data_id)
-        if data_id in (list(self.file_names.keys()) + self.data_list):
-            raise Exception('The dataset already exists: {}'.format(data_id))
-        if cell_size is None:
-            cell_size = self.cell_size[0]
-        if copy is not None:
-            if type(copy) == gdal.Dataset:
-                x_res = copy.RasterXSize
-                y_res = copy.RasterYSize
-                proj = copy.GetProjection()
-                trans = copy.GetGeoTransform()
-                if copy.RasterCount > 0:
-                    dtype = copy.GetRasterBand(1).DataType
-                    num_bands = copy.RasterCount
-            else:
-                raise TypeError('copy = {} must be of type gdal.Dataset'.format(copy))
-        else:
-            y_res, x_res = self.array_shape[str(cell_size)]
-            proj = self.projection
-            trans = self.transform
-            dtype = 1
-            num_bands = 1
-        if param is not None:
-            y_res = param.get('y_res', y_res)
-            x_res = param.get('x_res', x_res)
-            proj = param.get('proj', proj)
-            trans = param.get('trans', trans)
-            dtype = param.get('dtype', dtype)
-            num_bands = param.get('num_bands', num_bands)
-        self.data[data_id] = create_virtual_dataset(proj, trans, (y_res, x_res), num_bands, dtype)
-        self.data_list.append(data_id)
-        return self.data[data_id]
 
-    # Creates a new Dataset containing data from a band_array
-    def array_to_dataset(self, data_newid, band_array, copy=None, param=None):
-        band_array = array3dim(band_array)
-        band_num = len(band_array)
-        if param is None:
-            param = {'num_bands': band_num}
-        elif 'num_bands' not in param:
-            param['num_bands'] = band_num
-        self.add_dataset(data_newid, copy, param)
-        for band_id in range(1, band_num+1):
-            self.data[data_newid].GetRasterBand(band_id).WriteArray(band_array[band_id-1])
-        self.data_list.append(data_newid)
-        return self[data_newid]
-'''
 def clip_raster(path2raster, path2vector, export_path = None, byfeatures = True, exclude = False, nodata = 0, path2newshp = None):
     raster_ds = gdal.Open(path2raster)
     vector_ds = ogr.Open(path2vector)
@@ -266,7 +217,10 @@ def reproject_band(band, s_proj, s_trans, t_proj, t_trans, t_shape, dtype, metho
     gdal.ReprojectImage(s_ds, t_ds, None, None, method)
     return t_ds.ReadAsArray()
 
-def band2raster(s_raster_path, t_raster, s_band_num, method, exclude_nodata = True, enforce_nodata = None):
+def band2raster(bandpath, t_raster, method, exclude_nodata = True, enforce_nodata = None):
+
+    s_raster_path, s_band_num = bandpath
+
     s_raster = gdal.Open(s_raster_path)
     s_proj = s_raster.GetProjection()
     s_trans = s_raster.GetGeoTransform()
@@ -288,24 +242,22 @@ def band2raster(s_raster_path, t_raster, s_band_num, method, exclude_nodata = Tr
     t_raster.GetRasterBand(t_raster.RasterCount).WriteArray(t_band_array)
     return t_raster.RasterCount
 
-def raster2raster(path2start, path2target, path2export, band_nums = None, method = gdal.GRA_Bilinear, exclude_nodata = True, enforce_nodata = None):
-    len_ = len(path2start)
-    if band_nums is None:
-        band_nums = listfull(len_, 1)
-    elif type(band_nums) is int:
-        band_nums = listfull(len_, band_nums)
-    else:
-        while len(band_nums) < len_:
-            band_nums.append(band_nums[-1])
+def raster2raster(path2bands, path2export, path2target=None,  method = gdal.GRA_Bilinear, exclude_nodata = True, enforce_nodata = None):
+
+    if path2target is None:
+        path2target = path2bands[0][0]
+
     t_raster = gdal.Open(path2target)
     t_proj = t_raster.GetProjection()
     t_trans = t_raster.GetGeoTransform()
     t_shape = (t_raster.RasterYSize, t_raster.RasterXSize)
     ds = create_virtual_dataset(t_proj, t_trans, t_shape, 0)
-    for id in range(len_):
-        band2raster(path2start[id], ds, band_nums[id], method, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata)
+
+    for bandpath in path2bands:
+        band2raster(bandpath, ds, method, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata)
+
     driver = gdal.GetDriverByName('GTiff')
-    outputData = driver.CreateCopy(path2export, ds, len(band_nums))
+    outputData = driver.CreateCopy(path2export, ds, len(path2bands))
     outputData = None
     return
 
@@ -354,7 +306,7 @@ def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, class
     dst_field = 0
 
     # Polygonize raster data
-    print(path2raster)
+    #print(path2raster)
     raster_ds = gdal.Open(path2raster)
     if classify_table is not None:
         band_array = calc.segmentator(raster_ds.GetRasterBand(band_num).ReadAsArray(), classify_table)
@@ -380,23 +332,6 @@ def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, class
     # Write projection
     write_prj(dst_layername + '.prj', raster_ds.GetProjection())
     return None
-'''
-def extent2shp(path2raster, path2shp):
-    raster_ds = gdal.Open(path2raster)
-    crs = osr.SpatialReference()
-    crs.ImportFromWkt(raster_ds.GetProjection())
-    trans = raster_ds.GetGeoTransform()
-    driver = ogr.GetDriverByName("ESRI Shapefile")
-    data_source = driver.CreateDataSource(path2shp)
-    lyr = data_source.CreateLayer('Layer', crs, 'POLYGON')
-    coords = np.zeros((4,2), dtype = float)
-    coords[0,0] = trans[0]
-    coords[0,1] = trans[3]
-    coords[1,0] = trans[0] +
-    for i in range(4):
-        feat = ogr.Feature(lyr.GetLayerDefn())
-        x =
-'''
 
 # Returns data on raster projection and geotransform parameters
 def getrastershape(raster_ds):
@@ -410,7 +345,7 @@ def getrastershape(raster_ds):
 def getbandarrays(path2bands):
     assert isinstance(path2bands, (tuple, list)) and (len(path2bands) > 0)
     raster_list = []
-    print(path2bands)
+    #(path2bands)
     for path2raster, band_num in path2bands:
         raster_ds = gdal.Open(path2raster)
         if raster_ds is None:
@@ -437,15 +372,12 @@ def getbandarrays(path2bands):
 # Calculates normalized difference raster (for NDVI, NDWI and other indices calculation
 def normalized_difference(path2bands, path2export, dt = None):
     data_array = getbandarrays(path2bands).astype(np.float)
-    print(data_array.shape)
-    # New option below
+    #print(data_array.shape)
     mask = np.ones(data_array.shape[1:]).astype(np.bool)
     for slice in data_array:
         mask[slice==0] = False
-    #nd_data = (data_array[1][mask] - data_array[0][mask]) / (data_array[1][mask] + data_array[0][mask])
     nd_array = np.zeros(data_array.shape[1:])
     nd_array[mask] = (data_array[0][mask] - data_array[1][mask]) / (data_array[1][mask] + data_array[0][mask])
-    #nd_array = (data_array[1] - data_array[0]) / (data_array[1] + data_array[0])
     save_raster(path2export, nd_array, copypath = path2bands[0][0], dt = dt)
     return None
 
@@ -483,13 +415,3 @@ class bandpath:
         band = self.getband()
         if band is not None:
             return array3dim(band.ReadAsArray())
-
-class bandpaths(list):
-
-    def __init__(self, bandpath_list = []):
-        # Add keys?
-        pass
-
-    def addband(self, band):
-        if band is bandpath:
-            self.append(band)

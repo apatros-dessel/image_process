@@ -6,23 +6,21 @@ from tools import *
 # r'2376743_4865309_2019-05-20_0f2a_BGRN_Analytic_metadata.xml'
 # r'20190910_081115_0e26_3B_AnalyticMS_metadata.xml'
 
-imsys_data = object() # Object containing data about Planet image system
-imsys_data.template = r'\d+_\d+_\S+_Analytic\S*_metadata.xml'
+# Object containing data about Planet image system
 
-imsys_data.files = [
+# Templates for planet metadata filenames
+templates = (
+    r'\d+_\d+_\S+_Analytic\S*_metadata.xml',
+)
+
+# Raster files indices for Planet scenes
+planet_files = [
     'Analytic',
     'Mask',
 ]
 
-imsys_data.bands = [
-    'blue',
-    'green',
-    'red',
-    'nir',
-    'mask',
-]
-
-imsys_data.bandspaths = OrderedDict(
+# Tuples with raster file index and band number for Planet raster data bands
+planet_bandpaths = OrderedDict(
     {
             'blue':     ('Analytic',    1),
             'green':    ('Analytic',    2),
@@ -36,12 +34,15 @@ imsys_data.bandspaths = OrderedDict(
 
 # Gets Planet file names as ordered dictionary
 def getplanetfiles(xml_tree):
+
     file_list = get_from_tree(xml_tree, 'fileName')
     file_dict = OrderedDict()
+
     for file in file_list:
         if 'DN' in file:
             file_dict['mask'] = file_list.pop(file_list.index(file))
             break
+
     for file in file_list:
         if 'Analytic' or 'MS' in file:
             file_dict['Analytic'] = file_list.pop(file_list.index(file))
@@ -54,32 +55,37 @@ def getplanetdatetime(xmltree):
     aq_date_time = get_from_tree(xmltree, 'acquisitionDateTime')
     year, month, day = intlist(aq_date_time[:10].split('-'))
     hour, minute, second = intlist(aq_date_time[11:19].split(':'))
-    datetime = dtime.datetime(year, month, day, hour, minute, second)
-    return datetime
+    dtime = datetime(year, month, day, hour, minute, second)
+    return dtime
 
-# Planet metadata class
+# Fill planet metadata
+def metadata(path):
 
-class metadata(scene_metadata):
+    meta = scene_metadata('PLN')
 
-    def __init__(self, path, imsys_data):
+    meta.container['xmltree'] = xml2tree(path)
 
-        self.container['xmltree'] = xml2tree(path)
+    meta.sat = get_from_tree(meta.container.get('xmltree'), 'serialIdentifier', digit_to_float=False) # !!! - works incorrectly with some satellites with digit_to_float == True
+    meta.files = globals()['planet_files']
+    meta.filepaths = getplanetfiles(meta.container.get('xmltree'))
+    # self.bands = imsys_data_obj.bands
 
-        self.sat = get_from_tree(self.container.get('xmltree'), 'serialIdentifier')
-        self.files = imsys_data.files
-        self.filepaths = getplanetfiles(self.xmltree)
-        self.bands = imsys_data.bands
-        self.bandpaths = imsys_data.bandpaths
+    meta.bandpaths = globals()['planet_bandpaths']
+    meta.datetime = getplanetdatetime(meta.container.get('xmltree'))
 
-        self.write_time_codes(getplanetdatetime(self.xmltree))
+    meta.namecodes.update(
+        {
+            '[sat]':    meta.sat,
+        }
+    )
 
-        self.datamask = self.get_datamask_path(path)
+    meta.write_time_codes(getplanetdatetime(meta.container.get('xmltree')))
 
-    # Gets Planet mask path if one exists
-    def get_datamask_path(self, path):
-        datamask_template = r'.*{}.*{}.*\.json'.format(self.namecodes.get('[datetime]'), self.sat)
-        for filename in os.listdir(path):
-            search = re.search(datamask_template, filename)
-            if search is not None:
-                self.datamask = search.group().strip()
-        return None
+    datamask_template = r'.*{}.*{}.*\.json'.format(meta.namecodes.get('[datetime]'), meta.sat)
+    for filename in os.listdir(os.path.split(path)[0]):
+        search = re.search(datamask_template, filename)
+        if search is not None:
+            meta.datamask = search.group().strip()
+            break
+
+    return meta

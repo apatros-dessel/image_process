@@ -52,7 +52,22 @@ def sentinel_filenames(source):
         file_names_dict[file_id] = '{}.jp2'.format(file_name)
     return file_names_dict
 
-
+# Reads Sentinel metadata
+def get_meta_sentinel(path, call, check=None, data='text', attrib=None, sing_to_sing=True, digit_to_float=True, mtd=False):
+    if mtd:
+        path = os.path.split(path)[0] + r'\GRANULE'
+        folder_mtd = os.listdir(path)[0]
+        path = path + '\\' + folder_mtd + r'\MTD_TL.xml'
+    try:
+        iter = iter_list(et.parse(path).getroot(), call)
+        result = iter_return(iter, data, attrib)
+        if check is not None:
+            filter = attrib_filter(iter, check)
+            result = list(np.array(result)[filter])
+        result = sing2sing(result, sing_to_sing, digit_to_float)
+    except:
+        raise Exception(('Cannot open file: ' + path))
+    return result
 
 # Landsat-8 metadata
 class sentinel_2:

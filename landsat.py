@@ -17,9 +17,9 @@ import datetime as dtime
 
 from tools import *
 
-filepattern = {
-    'LS8': r'LC08_L1TP_\d{6}_\d{8}_\d{8}_01_T1_MTL.txt'
-}
+templates = (
+    r'LC08_L1TP_\d{6}_\d{8}_\d{8}_01_T1_MTL.txt',
+)
 
 bands = {
     'LS8': {'coastal': '1', 'blue': '2', 'green': '3', 'red': '4', 'nir': '5', 'swir1': '6', 'swir2': '7', 'pan': '8', 'cirrus': '9', 'tirs1': '10', 'tirs2': '11', 'quality': 'QUALITY', 'qa': 'QUALITY'}
@@ -52,6 +52,28 @@ def mtl2orderdict(path):
                     val = val[1:-1]
             orderdict[key] = val
     return orderdict
+
+# Gets Landsat metadata value by key
+def get_meta_landsat(path, call):
+    mtl = open(path).read()
+    mtl_list = re.split('  ', mtl)
+    for i in range(len(mtl_list)):
+        mtl_list[i] = mtl_list[i].strip()
+    while '' in mtl_list:
+        mtl_list.remove('')
+    for i in range(len(mtl_list)):
+        if re.search('.+ = .+', mtl_list[i]) is not None:
+            key = re.search('.+ =', mtl_list[i]).group()[:-2]
+            if key in ['GROUP', 'END_GROUP']:
+                continue
+            if key == call:
+                val = re.search('= .+', mtl_list[i]).group()[2:]
+                try:
+                    val = float(val)
+                except:
+                    if (val.startswith('"') and val.endswith('"')):
+                        val = val[1:-1]
+    return val
 
 # Landsat-8 metadata
 class landsat_8:

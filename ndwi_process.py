@@ -380,6 +380,39 @@ def dos_sentinel(band_array, param):
     band_array[band_array < 0.00] = 0.00
     return band_array
 
+def segmentator(band_array, param):
+    param_list = ['borders', 'max', 'min', 'val']
+    for id in range(4):
+        if param_list[id] in param:
+            param_list[id] = param[param_list[id]]
+        else:
+            param_list[id] = None
+    borders, max_list, min_list, val_list = param_list
+    if min_list is None:
+        if max_list is None:
+            if borders is None:
+                borders = [0]
+            else:
+                max_list = borders + [None]
+                min_list = [None] + borders
+        else:
+            min_list = [None] + max_list
+    elif max_list is None:
+        max_list = min_list + [None]
+    assert len(min_list) == len(max_list)
+    len_ = len(min_list)
+    if val_list is None:
+        val_list = [0,1]
+    print(len_, min_list, max_list, val_list)
+    while len(val_list)<len_:
+        val_list += [np.max(val_list)+1]
+    segmented_array = np.zeros(band_array.shape)
+    segmented_array[band_array<=max_list[0]] = val_list[0]
+    segmented_array[band_array>min_list[len_-1]] = val_list[len_-1]
+    for id in range(1, len_-1):
+        segmented_array[band_array>min_list[id] and band_array<=max_list[id]] = val_list[id]
+    return segmented_array
+
 # Calculates NDVI
 # With chinged input data may be used for calculation of any index with the same formula: NDWI, NDWI_Gao, etc.
 def ndvi(red, nir):
@@ -388,6 +421,80 @@ def ndvi(red, nir):
     ndvi = np.zeros(red.shape, dtype=red.dtype)
     ndvi[denom!=0] = nom[denom!=0] / denom[denom!=0]
     return ndvi
+
+# Deletes all neighbors in path (4-heighbor rule)
+def erode(source_array, iter_num = 1):
+    # In mask_array filled pixels're one, empty ones're zero
+    mask_new = mask_array = np.copy(source_array).astype(int)
+    limits = ([None, -1, None, None, 1, None, None, None],
+              [1, None, None, None, None, -1, None, None],
+              [None, None, 1, None, None, None, None, -1],
+              [None, None, None, -1, None, None, 1, None])
+    iter = 0
+    while iter < iter_num:
+        degrow = 0
+        mask_new = np.copy(mask_array)
+        for l in limits:
+            mask_change = np.zeros(mask_array.shape, dtype=np.bool)
+            mask_change[l[0]:l[1], l[2]:l[3]][
+                mask_array[l[0]:l[1], l[2]:l[3]] > mask_array[l[4]:l[5], l[6]:l[7]]] = True
+            degrow += len(mask_array[mask_change])
+            mask_new[mask_change] = False
+        if degrow > 0:
+            mask_array = mask_new
+            iter += 1
+        else:
+            print('Finished for {} iterations'.format(iter))
+            iter = iter_num
+    return mask_new
+
+# "Floods" the area from the original flood mask filling neighboring pixels with lower elevations
+# All values in DEM must be significant
+def fill_by_mask(dem_array, mask_array, iter_num = 100):
+    # In mask_array filled pixels're one, empty ones're zero
+    assert dem_array.ndim == 2, mask_array.ndim == 2
+    assert dem_array.shape == mask_array.shape
+    mask_array = mask_array.astype(bool)
+    shp = mask_array.shape
+    limits = ([None, -1, None, None, 1, None, None, None],
+              [1, None, None, None, None, -1, None, None],
+              [None, None, 1, None, None, None, None, -1],
+              [None, None, None, -1, None, None, 1, None])
+    iter = 0
+    while iter < iter_num:
+        grow = 0
+        mask_new = np.copy(mask_array)
+        for l in limits:
+            mask_change = np.zeros(shp, dtype=np.bool)
+            mask_change[l[0]:l[1], l[2]:l[3]][
+                mask_array[l[0]:l[1], l[2]:l[3]] < mask_array[l[4]:l[5], l[6]:l[7]]] = True
+            mask_change[l[0]:l[1], l[2]:l[3]][dem_array[l[0]:l[1], l[2]:l[3]] > dem_array[l[4]:l[5], l[6]:l[7]]] = False
+            grow += len(mask_array[mask_change])
+            mask_new[mask_change] = True
+        if grow > 0:
+            mask_array = mask_new
+            iter += 1
+        else:
+            print('Finished for {} iterations'.format(iter))
+            iter = iter_num
+    return mask_new
+
+# Returns an array of 1 - water and 0 - no water
+def ndwi2water(ndwi_array,          # source ndwi array
+               threshold = 0,       # threshold value of water
+               erosion = 0,         # number of erosion operations to the water array by 4-neighbour rule
+               dem_array = None):   # DEM array which pit would be filled if they are lower than neigbouring water. Must be of the same shape as the ndwi_array!
+    water_array = ndwi_array - threshold
+    water_array[water_array > 0] = 0
+    water_array[water_array < 0] = 1
+    if erosion:
+        water_array = erode(water_array, iter_num = erosion)
+    if dem_array is not None:
+        if dem_array.shape == water_array.shape:
+            water_array = fill_by_mask(dem_array, water_array, iter_num=100)
+        else:
+            print("Array shapes do not match, cannot fill by dem")
+    return water_array
 
 # Objects of class "scene" represent single scenes of Landsat or Sentinel defined by a metadata file
 # They contain paths to all the scene files as well as additional objects created from them
@@ -441,6 +548,7 @@ class scene(object):
             self.projection = None
             self.transform = None
             self.array_shape = None
+        self.path2dem = None
 
     def __repr__(self):
         return 'Object of class "scene" with:\n path: {p}\n image_system: {i_s}\n date: {d}\n {l} files are now available'.format(p=self.path, i_s=self.image_system, l=len(self), d=self.date)
@@ -845,6 +953,32 @@ class scene(object):
         self.close('temp_ds')
         return self.outmask[mask_id]
 
+    # Creates a mask from a set listed
+    def merge_mask_from_list(self, mask_list=None, shape=None, invert=False):
+        if mask_list is None or not isinstance(mask_list, list):
+            print('No mask data found')
+            return None
+        if shape is None and len(mask_list) > 0:
+            shape = mask_list[0].shape
+        mask_array = np.zeros(shape).astype(bool)
+        for mask_id in mask_list:
+            if mask_id not in self.outmask.keys():
+                # print('Mask not found: {}'.format(mask_id))
+                continue
+            else:
+                mask_array_ = self.outmask[mask_id].astype(bool)
+                if mask_array.shape != mask_array_.shape:
+                    print('Array shapes does not match, cannot apply mask: {}'.format(mask_array_.shape))
+                    continue
+                else:
+                    mask_array[mask_array_] = True
+        if invert:
+            try:
+                mask_array = - mask_array
+            except:
+                mask_array = ~ mask_array
+        return mask_array
+
     # Filters raster array with a set of masks
     def mask_apply(self, band_array, mask_list, nodata=-9999):
         nodata = check_nodata(band_array.dtype, nodata)
@@ -894,6 +1028,51 @@ class scene(object):
         print('File saved: {}'.format(os.path.abspath(path)))
         return None
 
+    # Saves data from a band in Dataset to polygon shapefile
+    def save_to_shp(self, data_id, path, band_num=1, mask_list=None, dst_fieldname='NoName', classify_param=None):
+        gdal.UseExceptions()
+        data_id = self.check_data_id(data_id)
+        if not os.path.exists(os.path.split(path)[0]):
+            raise Exception('Path not found: {}'.format(os.path.split(path)))
+        if path.endswith('.shp'):
+            dst_layername = path[:-4]
+        else:
+            dst_layername = path
+            path = path + ".shp"
+        drv = ogr.GetDriverByName("ESRI Shapefile")
+        dst_ds = drv.CreateDataSource(path)
+        dst_layer = dst_ds.CreateLayer(dst_layername, srs=None)
+        if dst_fieldname is None:
+            dst_fieldname = 'DN'
+        fd = ogr.FieldDefn(dst_fieldname, ogr.OFTInteger)
+        dst_layer.CreateField(fd)
+        dst_field = 0
+
+        if classify_param is not None:
+            band_array = segmentator(self[data_id].GetRasterBand(band_num).ReadAsArray(), classify_param)
+            data_band = self.array_to_dataset('__temp__', band_array, copy=self[data_id],
+                                                  param={'dtype': 1}).GetRasterBand(1)
+        else:
+            data_band = self[data_id].GetRasterBand(1)
+            band_array = data_band.ReadAsArray()
+
+        if mask_list is not None:
+            mask = self.merge_mask_from_list(mask_list, band_array.shape, invert=True)
+            mask_band = self.array_to_dataset('__temp2__', mask, copy=self[data_id],
+                                                  param={'dtype': 1}).GetRasterBand(1)
+        else:
+            mask_band = None
+
+        gdal.Polygonize(data_band, mask_band, dst_layer, dst_field, [],
+                            callback=gdal.TermProgress_nocb)
+        dst_ds = None
+        prj_handle = open(dst_layername + '.prj', 'w')
+        prj_handle.write(self[data_id].GetProjection())
+        prj_handle.close()
+        self.close('__temp__')
+        self.close('__temp2__')
+        return None
+
     # Creates a new Dataset from a mask
     def mask_dataset(self, mask_id, maskdataset_id=None, copy=None):
         if maskdataset_id is None:
@@ -906,11 +1085,24 @@ class scene(object):
         #s.save('cloudmask', r'C:\sadkov\test.tif')
         return self[maskdataset_id]
 
+    # Returns DEM attached to a specified dataset
+    def get_dem(self, attach_to):
+        if self.path2dem is not None:
+            s_raster = gdal.Open(self.path2dem)
+            if s_raster is not None:
+                return band2raster(s_raster, self[attach_to], method=gdal.GRA_CubicSpline, dtype=6)
+            else:
+                print('DEM raster file not found: {}'.format(self.path2dem))
+        else:
+            print('The scene has no DEM data')
+        return None
+
+
 # Objects of class "process" are sets of Landsats or Sentinel scenes which are to be processed in the same way
 # Each of them must contain an input_list of paths to Landsat or Sentinel metadata files which are used for getting access to their data
 class process(object):
 
-    def __init__(self, input_path='', output_path='', image_system = ['Landsat', 'Sentinel'], image_id = 'L8OLI', work_method = 'Single', ath_corr_method = 'None', return_bands = False, filter_clouds = False):
+    def __init__(self, input_path='', output_path='', image_system = ['Landsat', 'Sentinel'], image_id = 'L8OLI', work_method = 'Single', ath_corr_method = 'None', return_bands = False, filter_clouds = False, vectorize = False):
         self.input_path = input_path #
         self.output_path = output_path # must be dir
         self.image_system = image_system
@@ -919,6 +1111,7 @@ class process(object):
         self.ath_corr_method = ath_corr_method
         self.return_bands = return_bands
         self.filter_clouds = filter_clouds
+        self.vectorize = vectorize
         self.input_list = []
         self.scene = [] # contains scenes
         self.corner_file_list = {
@@ -1174,6 +1367,17 @@ class process(object):
             os.chdir(outfolder)
             for id in range(len(data_ids)):
                 s.save(data_ids[id], filenames[id], mask[id])
+            if self.vectorize:
+                shp_name = '{}\\{}_water_{}.shp'.format(self.output_path, s.descript, self.ath_corr_method)
+                try:
+                    dem_array = s.get_dem(data_ids[0]).ReadAsArray()
+                except:
+                    dem_array = None
+                water = ndwi2water(s[data_ids[0]].ReadAsArray(), dem_array=dem_array, erosion=1)
+                s.array_to_dataset('Water', water, copy=s[data_ids[0]], param={'dtype': 1})
+                s.mask('Water')
+                s.save('Water', shp_name[:-3]+'tif')
+                s.save_to_shp('Water', shp_name, mask_list=['Water'])
         else:
             print('No data found in {}'.format(str(s)))
         return None
@@ -1184,7 +1388,7 @@ class process(object):
             procedure_list = [procedure_list]
         for procedure in procedure_list:
             if procedure not in self.procedures:
-                raise Exception('No procedure found: {}'.format(procedure))
+                print('No procedure found: {}'.format(procedure))
         if self.input_list == []:
             try:
                 self.input()

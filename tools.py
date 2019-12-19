@@ -5,11 +5,22 @@ import re
 import numpy as np
 from collections import OrderedDict
 import xml.etree.ElementTree as et
+import xlwt
 from datetime import datetime
+from copy import deepcopy
 
 default_temp = '{}\image_processor'.format(os.environ['TMP'])
+
 if not os.path.exists(default_temp):
     os.makedirs(default_temp)
+
+# Check existance of file
+def check_exist(path, ignore=False):
+    if not ignore:
+        if os.path.exists(path):
+            print('The file already exists: {}'.format(path))
+            return True
+    return False
 
 # Conversts non-list objects to a list of length 1
 def obj2list(obj):
@@ -17,6 +28,18 @@ def obj2list(obj):
         return obj
     else:
         return [obj]
+
+def lget(iter_obj, id, id2=None):
+    if id2 is not None:
+        val = iter_obj[id, id2]
+        if len(val) == 0:
+            val = iter_obj[-1:]
+    else:
+        try:
+            val = iter_obj[id]
+        except IndexError:
+            val = iter_obj[-1]
+    return val
 
 # Returns a string of proper length cutting the original string and stretching it adding filler symbols if necessary
 def stringoflen(value, length, filler = '0', left = False):
@@ -207,9 +230,14 @@ def fold_finder(path):
 # Doesn't use os.walk to avoid using generators
 def walk_find(path, ids_list, templates_list, id_max=10000):
     #templates_list = listoftype(templates_list, str, export_tuple=True)
-    if os.path.exists(path) and os.path.isdir(path):
+    if os.path.exists(path):
+        if not os.path.isdir(path):
+            path = os.path.split(path)[0]
         path_list = [path]
         path_list = [path_list]
+    else:
+        print('Path does not exist: {}'.format(path))
+        return None
     id = 0
     export_ = []
     while id < len(path_list) < id_max:
@@ -302,20 +330,30 @@ class tdir():
 
     # Create path to a new file
 
-def scroll(obj, print_type=True):
+def winprint(obj, decoding = None):
+    if decoding is not None:
+        try:
+            print(obj.decode(decoding))
+            return None
+        except:
+            print('Error decoding: "{}"'.format(decoding))
+    print(obj)
+    return None
+
+def scroll(obj, print_type=True, decoding=None):
     if print_type:
         print('Object of {}:'.format(type(obj)))
     if hasattr(obj, '__iter__'):
         if len(obj) == 0:
             print('  <empty>')
-        elif isinstance(obj, (dict)):
+        elif isinstance(obj, (dict, OrderedDict)):
             for val in obj:
-                print('  {}: {}'.format(val, obj[val]))
+                winprint('  {}: {}'.format(val, obj[val]), decoding=decoding)
         else:
             for val in obj:
-                print('  {}'.format(val))
+                winprint('  {}'.format(val), decoding=decoding)
     else:
-        print('  {}'.format(obj))
+        winprint('  {}'.format(obj), decoding=decoding)
 
 # Reads .xml file and returns metadata as element tree
 def xml2tree(path):
@@ -405,6 +443,45 @@ def get_from_tree(xml_tree, call, check=None, data='text', attrib=None, sing_to_
     #scroll(sing2sing(result, sing_to_sing, digit_to_float))
     return sing2sing(result, sing_to_sing, digit_to_float)
 
+# Export data to xls
+def dict_to_xls(path2xls, adict): # It's better to use OrderedDict to preserve the order of rows and columns
+
+    wb = xlwt.Workbook()
+    ws = wb.add_sheet('New_Sheet')
+
+    # Find all column names
+    col_list = ['']
+    for row_key in adict:
+        for key in adict.get(row_key).keys():
+            if not key in col_list:
+                col_list.append(key)
+
+    # Write column names
+    row = ws.row(0)
+    for col_num, col_name in enumerate(col_list):
+        row.write(col_num, col_name)
+
+    # Write data
+    for id, row_key in enumerate(adict):
+        row_num = id+1
+        row = ws.row(row_num)
+        rowdata = adict.get(row_key)
+        if isinstance(rowdata, dict):
+            row.write(0, row_key)
+            for key in rowdata:
+                row.write(col_list.index(key), rowdata.get(key))
+        elif hasattr(rowdata, '__iter__'):
+            row.write(0, row_num)
+            for col_id, obj in enumerate(rowdata):
+                row.write(col_id+1, obj)
+        else:
+            row.write(0, row_num)
+            row.write(1, rowdata)
+
+    wb.save(path2xls)
+
+    return None
+
 # Image system data object
 class imsys_data:
 
@@ -436,6 +513,8 @@ class scene_metadata:
         self.container = {}                     # Place to keep source metadata as a dictionary. Filled by the imsys-specific function
 
         self.sat = None                         # Satellite id (Landsat-8, Sentinel-2A, 0e26 (Planet id), etc.) as str
+        self.id = None,                         # A unique scene identifier
+        self.lvl = None,                        # Data processing level
         self.files = OrderedDict()              # Dictionary of file ids
         self.filepaths = OrderedDict()          # Dictionary of filepaths
         self.bands = OrderedDict()              # Dictionary of bands
@@ -451,6 +530,8 @@ class scene_metadata:
             'imsys':        self.imsys is not None,
             'container':    len(self.container) > 0,
             'sat':          self.sat is not None,
+            'id':           isinstance(self.id, str),
+            'lvl':          self.lvl is not None,
             'files':        len(self.files) > 0,
             'filepaths':    len(self.filepaths) > 0,
             #'bands':       len(self.bands) > 0,
@@ -531,3 +612,4 @@ class scene_metadata:
         for key in self.namecodes.keys():
             namestring = namestring.replace(key, self.namecodes.get(key, ''))
         return namestring
+

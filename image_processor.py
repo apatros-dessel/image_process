@@ -198,12 +198,22 @@ class process(object):
                     path2folder = path2scene
                     #print('Path to folder: {}'.format(path2folder))
                 input_list = walk_find(path2folder, globals()['template_dict'].keys(), globals()['template_dict'].values())
-                #print('Input list: {}'.format(input_list))
+                # scroll('Input list: {}'.format(input_list))
                 for newpath2scene in input_list:
-                    #print(newpath2scene)
+                    # print(newpath2scene)
                     newpath, imsys = newpath2scene
                     self.add_scene(newpath, imsys)
         return self
+
+    def get_dates(self):
+        dates_list = []
+        for ascene in self.scenes:
+            # print(ascene.meta.datetime.date())
+            scene_date = ascene.meta.datetime.date()
+            if scene_date not in dates_list:
+                dates_list.append(scene_date)
+        dates_list.sort()
+        return dates_list
 
 # Every space image scene
 class scene:
@@ -269,7 +279,8 @@ class scene:
                             export_path = full_export_path,
                             byfeatures = self.clip_parameters.get('byfeatures', True),
                             exclude = self.clip_parameters.get('exclude', False),
-                            nodata = self.clip_parameters.get('nodata', 0))
+                            nodata = self.clip_parameters.get('nodata', 0),
+                            compress = self.clip_parameters.get('compress'))
 
         self.files.append(file_id)
 
@@ -291,7 +302,7 @@ class scene:
         return (raster_path, band_tuple[1])
 
     # Creates a copy of a scene, cropping the original data with shpapefile
-    def clip(self, path2vector, export_path = None, byfeatures = True, exclude = False, nodata = 0, save_files = False):
+    def clip(self, path2vector, export_path = None, byfeatures = True, exclude = False, nodata = 0, save_files = False, compress = None):
 
         if export_path is None:
             export_path = temp_dir_list.create()
@@ -302,6 +313,7 @@ class scene:
         self.clip_parameters['byfeatures'] = byfeatures
         self.clip_parameters['exclude'] = exclude
         self.clip_parameters['nodata'] = nodata
+        self.clip_parameters['compress'] = compress
 
         if save_files:
             for key in self.meta.filepaths:
@@ -317,36 +329,41 @@ class scene:
         return None
 
     # Creates a composite of a single scene --- change
-    def composite(self, bands, export_path, path2target = None, exclude_nodata = True, enforce_nodata = None):
+    def composite(self, bands, export_path, path2target = None, exclude_nodata = True, enforce_nodata = None, compress = None, overwrite = True):
 
         bandpaths = []
         for band_id in bands:
             bandpaths.append(self.get_band_path(band_id))
 
-        geodata.raster2raster(bandpaths, export_path, path2target = path2target, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata)
+        try:
+            res = geodata.raster2raster(bandpaths, export_path, path2target = path2target, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata, compress = compress, overwrite=overwrite)
+        except:
+            print('Error making composite for: {}'.format(export_path))
+            return 1
 
-        return None
+        return res
 
     # Creates default composite by name ('RGB', 'NIR', etc.)
-    def default_composite(self, comptype, export_path, path2target = None, exclude_nodata = True, enforce_nodata = None):
+    def default_composite(self, comptype, export_path, path2target = None, exclude_nodata = True, enforce_nodata = None, compress = None, overwrite = True):
 
         compdict = globals()['composites_dict']
 
         if comptype in compdict:
-            # self.composite(compdict[comptype], export_path, path2target=path2target, exclude_nodata=exclude_nodata, enforce_nodata=enforce_nodata)
+            # self.composite(compdict[comptype], export_path, path2target=path2target, exclude_nodata=exclude_nodata, enforce_nodata=enforce_nodata, compress = compress)
             try:
-                self.composite(compdict[comptype], export_path, path2target=path2target, exclude_nodata=exclude_nodata, enforce_nodata=enforce_nodata)
-                print('File saved: {}'.format(export_path))
-                return 0
+                res = self.composite(compdict[comptype], export_path, path2target=path2target, exclude_nodata=exclude_nodata, enforce_nodata=enforce_nodata, compress = compress, overwrite=overwrite)
+                if res == 0:
+                    print('{} composite saved: {}'.format(comptype, export_path))
+                return res
             except:
-                print('Cannot make composite: {}'.format(comptype))
+                print('Cannot make composite: {} for scene {}'.format(comptype, self.meta.id))
                 return 1
         else:
             print('Unknown composite: {}'.format(comptype))
             return 1
 
     # Calculates index by id
-    def calculate_index(self, index_id, export_path):
+    def calculate_index(self, index_id, export_path, compress = None, overwrite = True):
 
         index_params = globals()['index_dict'].get(index_id)
 
@@ -361,17 +378,18 @@ class scene:
             if (func is not None) and (not None in bandpath_list):
                 #func(bandpath_list, export_path, dt=dt)
                 try:
-                    func(bandpath_list, export_path)
-                    print('File saved: {}'.format(export_path))
-                    return 0
+                    res = func(bandpath_list, export_path, dt=dt, compress = compress, overwrite=overwrite)
+                    if res == 0:
+                        print('Index raster file saved: {}'.format(export_path))
+                    return res
                 except:
-                    print('Error calculating {}'.format(index_id))
+                    print('Error calculating {} to {}'.format(index_id, export_path))
                     return 1
             else:
                 print('Insuffisient parameters for {} calculation'.format(index_id))
                 return 1
 
-def timecomposite(scenes, band_ids, scene_nums, export_path, path2target = None, exclude_nodata = True):
+def timecomposite(scenes, band_ids, scene_nums, export_path, path2target = None, exclude_nodata = True, compress = None):
 
     assert len(band_ids) == len(scene_nums)
 
@@ -380,6 +398,12 @@ def timecomposite(scenes, band_ids, scene_nums, export_path, path2target = None,
         bandpaths.append(scenes[scene_nums[i]].get_band_path(band_id))
     # scroll(bandpaths)
 
-    geodata.raster2raster(bandpaths, export_path, path2target = path2target, exclude_nodata = exclude_nodata)
+    try:
+        res = geodata.raster2raster(bandpaths, export_path, path2target = path2target, exclude_nodata = exclude_nodata, compress = compress)
+        if res == 0:
+            print('Time composite saved: {}'.format(export_path))
+    except:
+        print('Error saving timecomposite: {}'.format(export_path))
+        return 1
 
-    return None
+    return res

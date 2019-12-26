@@ -20,9 +20,9 @@ threshold = 0.1
 
 band_dict = 0
 
-import landsat
-mtl = landsat.mtl2list('c:\source\landsat\kirenskoie\LC08_L1TP_133020_20160830_20170321_01_T1\LC08_L1TP_133020_20160830_20170321_01_T1_MTL.txt')
+import mylandsat
+mtl = mylandsat.mtl2list('c:\source\landsat\kirenskoie\LC08_L1TP_133020_20160830_20170321_01_T1\LC08_L1TP_133020_20160830_20170321_01_T1_MTL.txt')
 
-x = iter(landsat.mtl_iter(mtl))
+x = iter(mylandsat.mtl_iter(mtl))
 print(next(x))
 

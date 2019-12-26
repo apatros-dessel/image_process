@@ -4,8 +4,8 @@ from tools import *
 
 import geodata
 
-import landsat
-import planet
+import mylandsat
+import myplanet
 
 # Constants
 
@@ -13,9 +13,9 @@ import planet
 default_output = os.getcwd() # default output directory for a process
 
 imsys_dict = {
-    'LST': landsat,
+    'LST': mylandsat,
     #'SNT': sentinel,
-    'PLN': planet,
+    'PLN': myplanet,
 }
 
 # A dictionary of metadata filenames templates
@@ -125,8 +125,8 @@ nameids = {
 
 # Set dictionary of modules to get metadata from different sources
 metalib = {
-    'LST': landsat,
-    'PLN': planet,
+    'LST': mylandsat,
+    'PLN': myplanet,
 }
 
 # Defines image system by path to file or returns None if no one matches

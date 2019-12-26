@@ -22,12 +22,19 @@ def check_exist(path, ignore=False):
             return True
     return False
 
+
 # Conversts non-list objects to a list of length 1
 def obj2list(obj):
     if isinstance(list, obj):
         return obj
     else:
         return [obj]
+
+# Repeats th last value in the list until it has the predefined length
+def list_of_len(list_, len_):
+    while len(list_) < len:
+        list_.append(list_[-1])
+    return list_
 
 def lget(iter_obj, id, id2=None):
     if id2 is not None:
@@ -175,6 +182,8 @@ def fullpath(folder, file, ext=None):
 
 # Creates new path
 def newname(folder, ext = None):
+    # print(os.path.exists(folder), folder)
+    # print(os.path.isdir(folder))
     if os.path.exists(folder) and os.path.isdir(folder):
         i = 0
         path_new = fullpath(folder, i, ext)

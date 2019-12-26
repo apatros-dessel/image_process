@@ -1,6 +1,17 @@
+# -*- coding: utf-8 -*-
+
 # Contains modules for numpy calculations
 
 import numpy as np
+from raster_data import RasterData
+
+# Define limits of array values
+def arrlim(arr, value):
+    assert (value >= 0 and value <= 1)
+    item = int(arr.size * value - 1)
+    if item < 0:
+        item = 0
+    return arr[arr.argsort()[item]]
 
 def make_class_table(min = None, max = None, values = None):
     nomin = (min is None)
@@ -45,24 +56,33 @@ def segmentator(band_array, borders = [[None, 0, 0], [0, None, 1]]):
     return class_array
 
 # Makes a mask from raster array
-def limits_mask(raster_array, lim_list, sign='==', band_mix='AND'):
+def limits_mask(raster_array, lim_list, sign='==', band_mix='AND', include_ = None, exclude_ = None, include_raster_nodata=0):
 
     # lim_list is a list of limits for each band:
     # for sign = '==': [(0,100,1000), (1,2,3)] means match for all values in band 1 equaled 0, 100 and 1000 and for all bands in band 2 equal to 1,2,3
     # for sign = '<': [0,10] means all values greater than 0 in band 1 and all values greater than 10 in band 2
 
-    if (raster_array.ndim < 2) or (raster_array.ndim > 3):
-        print('Error: wrong data: an array of ndim == 3 is needed!')
-        return None
+    if isinstance(raster_array, RasterData):
+        if (raster_array.data != 2):
+            raster_array = raster_array.getting(2)
+        raster_data = raster_array
+
+    else:
+
+        raster_nodata = 0
+
+        if (raster_array.ndim < 2) or (raster_array.ndim > 3):
+            print('Error: wrong data: an array of ndim == 3 is needed!')
+            return None
+
+        if raster_array.ndim == 2:
+            raster_data = [raster_array]
+        else:
+            raster_data = raster_array
 
     if sign not in ('==', '!=', '>', '<', '>=', '<=', '[]', '()', '[)', '(]', '][', ')(', '](', ')['):
         print('Unreckognized sign: {}'.format(sign))
         return None
-
-    if raster_array.ndim == 2:
-        raster_data = [raster_array]
-    else:
-        raster_data = raster_array
 
     if band_mix == 'AND':
         mask = np.ones(raster_data[0].shape).astype(np.bool)
@@ -95,22 +115,23 @@ def limits_mask(raster_array, lim_list, sign='==', band_mix='AND'):
                 if sign in ('[]', '()', '[)', '(]', '][', ')(', '](', ')['):
                     if len(limits) > 2:
                         print('Warning: only first two values will be used for min/max limits')
-                    if sign=='[]':
-                        new_mask[(band >= limits[0]) * (band <= limits[1])]
-                    elif sign=='()':
-                        new_mask[(band > limits[0]) * (band < limits[1])]
-                    elif sign=='[)':
-                        new_mask[(band >= limits[0]) * (band < limits[1])]
-                    elif sign=='(]':
-                        new_mask[(band > limits[0]) * (band <= limits[1])]
-                    elif sign=='][':
-                        new_mask[(band <= limits[0]) + (band >= limits[1])]
-                    elif sign==')(':
-                        new_mask[(band < limits[0]) + (band > limits[1])]
-                    elif sign=='](':
-                        new_mask[(band <= limits[0]) + (band > limits[1])]
-                    elif sign==')[':
-                        new_mask[(band < limits[0]) + (band >= limits[1])]
+                    for band in raster_data:
+                        if sign=='[]':
+                            new_mask[(band >= limits[0]) * (band <= limits[1])]
+                        elif sign=='()':
+                            new_mask[(band > limits[0]) * (band < limits[1])]
+                        elif sign=='[)':
+                            new_mask[(band >= limits[0]) * (band < limits[1])]
+                        elif sign=='(]':
+                            new_mask[(band > limits[0]) * (band <= limits[1])]
+                        elif sign=='][':
+                            new_mask[(band <= limits[0]) + (band >= limits[1])]
+                        elif sign==')(':
+                            new_mask[(band < limits[0]) + (band > limits[1])]
+                        elif sign=='](':
+                            new_mask[(band <= limits[0]) + (band > limits[1])]
+                        elif sign==')[':
+                            new_mask[(band < limits[0]) + (band >= limits[1])]
 
                 else:
                     for band in raster_data:
@@ -139,6 +160,23 @@ def limits_mask(raster_array, lim_list, sign='==', band_mix='AND'):
             elif band_mix == 'OR':
                 mask = mask + new_mask
 
+            del new_mask
+
+            if include_ is not None:
+                mask[band == include_] = True
+
+            if exclude_ is not None:
+                mask[band == exclude_] = False
+
+            if raster_nodata:
+                nodata = raster_data.ds.GetRasterBand(raster_data.bannums[i]).GetNoDataValue()
+                if raster_nodata == 1:
+                    mask[band == nodata] = True
+                elif raster_nodata == -1:
+                    mask[band == nodata] = False
+
+            del band
+
         except:
             error_count += 1
             print('Error masking band {}'.format(i+1))
@@ -148,3 +186,84 @@ def limits_mask(raster_array, lim_list, sign='==', band_mix='AND'):
         return None
 
     return mask
+
+def get_raster_limits(raster_array, method=0, band_limits = None):
+
+    method_list = [
+        'Min/Max',  # Minimum/maximum values of the array
+        'Mean+-SD',  # Mean-Sd/Mean+SD
+        'Count_Cut',  # Percent of all values in the array
+        "Custom",  # User-defined values of min/max
+    ]
+
+    band_limits_defaults = [
+        None,
+        (2, 2),
+        (0.02, 0.98),
+        (1, 255),
+    ]
+
+    if band_limits is None:
+        method = 0
+
+    if (method == method_list[0]) or (method == 0):                # Min/Max
+        min = np.min(raster_array)
+        max = np.max(raster_array)
+
+    elif (method == method_list[1]) or (method == 1):              # Mean+-SD
+        mean = np.mean(raster_array)
+        sd = np.std(raster_array)
+        min = mean - (band_limits[0] * sd)
+        max = mean + (band_limits[1] * sd)
+
+    elif (method == method_list[2]) or (method == 2):              # Count_Cut
+        min = arrlim(raster_array, band_limits[0])
+        max = arrlim(raster_array, band_limits[1])
+
+
+    elif (method == method_list[-1]) or (method == -1):            # Custom
+        min = band_limits[0]
+        max = band_limits[1]
+
+    else:
+        print('Unknown hystogram limits')
+        return None, None
+
+    return  min, max
+
+def data_to_image(raster_array, method=0, band_limits=None, gamma=1):
+
+    min, max = get_raster_limits(raster_array, method=0, band_limits = None)
+
+    # print('min = {}, max = {}'.format(min, max))
+
+    y_min = 1
+    y_max = 255
+    dy = 254
+
+    dx = (max - min)
+    raster_array = raster_array.astype(np.float)
+    raster_array = raster_array - min
+
+    raster_array[raster_array < 0] = 0
+    raster_array[raster_array > dx] = dx
+
+    # print(np.unique(raster_array))
+
+    if gamma == 1:
+        raster_array = (raster_array * (float(dy) / float(dx))).astype(np.int)
+    else:
+        raster_array = raster_array / float(dx)
+        raster_array = raster_array ** gamma
+        raster_array = (raster_array * float(dy)).astype(np.int)
+
+    # print(np.unique(raster_array))
+
+    raster_array = raster_array + y_min
+    raster_array[raster_array < y_min] = y_min
+    raster_array[raster_array > y_max] = y_max
+    raster_array = np.asarray(raster_array)
+
+    # print(np.unique(raster_array))
+
+    return raster_array

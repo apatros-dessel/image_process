@@ -1,7 +1,17 @@
 from geodata import raster_data
+import gdal
+from datetime import datetime
 
-path = r'd:\rks\minprod\planet_new2\20190910_012717_0f46_3B_AnalyticMS_SR_clip.tif'
+input_path = r'c:\sadkov\rzd\severobaikalsk\forclip\Severobaikalsk_20191111_Pleiades.tif'
+output_path = r'c:\sadkov\rzd\severobaikalsk\forclip\test.tif'
 
-x = raster_data(path)
-for x, y, z in x.getting((0,1,2)):
-    print(z)
+s_ds = gdal.Open(input_path)
+t_ds = gdal.Open(output_path, 1)
+
+t = datetime.now()
+gdal.ReprojectImage(s_ds, t_ds)
+print('Total time = {}'.format(datetime.now() - t))
+
+# x = raster_data(input_path)
+# for i in x:
+    # print(i)

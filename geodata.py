@@ -12,9 +12,11 @@ except:
 import numpy as np
 import math
 
-import calc
+from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len
 
-from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy
+from raster_data import RasterData, MultiRasterData
+
+from calc import array3dim, segmentator, limits_mask, data_to_image, get_raster_limits
 
 temp_dir_list = tdir(default_temp)
 
@@ -205,7 +207,7 @@ def save_raster(path, band_array, copypath = None, proj = None, trans = None, dt
         if nodata is None:
             nodata = copy_ds.GetRasterBand(1).GetNoDataValue()
 
-    band_array = calc.array3dim(band_array)
+    band_array = array3dim(band_array)
 
     if dt is None:
         dt = format_to_gdal(band_array.dtype)
@@ -261,6 +263,62 @@ def clip_raster(path2raster, path2vector, export_path = None, byfeatures = True,
 
 # The code below has been take from 'merge_raster' plugin by S.Sadkov, I havent checked correspondence with other functions here
 interpol_method = [gdal.GRA_NearestNeighbour, gdal.GRA_Average, gdal.GRA_Bilinear, gdal.GRA_Cubic, gdal.GRA_CubicSpline, gdal.GRA_Lanczos]
+
+def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, editable = False, overwrite=True):
+
+    if path is None:
+        path = ''
+        driver_name = 'MEM'
+    elif check_exist(path, ignore=overwrite):
+        return None
+
+    xsize = 1
+    ysize = 1
+    bandnum = 1
+    dt = 0
+    prj = ''
+    geotrans = (0,1,0,0,0,1)
+    nodata = 0
+
+    if copypath is not None:
+        copy_ds = gdal.Open(copypath)
+        if copy_ds is not None:
+            xsize = copy_ds.RasterXSize
+            ysize = copy_ds.RasterYSize
+            bandnum = copy_ds.RasterCount
+            dt = copy_ds.GetRasterBand(1).DataType
+            prj = copy_ds.GetProjection()
+            geotrans = copy_ds.GetGeoTransform()
+            nodata = copy_ds.GetRasterBand(1).GetNoDataValue()
+
+    if options is not None:
+        xsize = options.pop('xsize', xsize)
+        ysize = options.pop('ysize', ysize)
+        bandnum = options.pop('bandnum', bandnum)
+        dt = options.pop('dt', dt)
+        prj = options.pop('prj', prj)
+        geotrans = options.pop('geotrans', geotrans)
+        nodata = options.pop('nodata', nodata)
+
+        if 'compress' in options:
+            options = gdal_options(options.get('compress'))
+
+    print(options)
+
+    driver = gdal.GetDriverByName(driver_name)
+    raster_ds = driver.Create(path, xsize, ysize, bandnum, dt, options = options)
+    raster_ds.SetProjection(prj)
+    raster_ds.SetGeoTransform(geotrans)
+
+    if nodata is not None:
+        raster_ds.GetRasterBand(1).SetNoDataValue(nodata)
+
+    if editable and (driver_name != 'MEM'):
+        raster_ds = None
+        raster_ds = gdal.Open(path, 1)
+
+    return raster_ds
+
 
 def create_virtual_dataset(proj, geotrans, shape_, num_bands):
     y_res, x_res = shape_
@@ -398,7 +456,7 @@ def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, class
     #print(path2raster)
     raster_ds = gdal.Open(path2raster)
     if classify_table is not None:
-        band_array = calc.segmentator(raster_ds.GetRasterBand(band_num).ReadAsArray(), classify_table)
+        band_array = segmentator(raster_ds.GetRasterBand(band_num).ReadAsArray(), classify_table)
         temp_ds = create_virtual_dataset(raster_ds.GetProjection(), raster_ds.GetGeoTransform(), band_array.shape, 1)
         temp_ds.GetRasterBand(1).WriteArray(band_array)
         data_band = temp_ds.GetRasterBand(1)
@@ -577,13 +635,13 @@ def vector_mask(path2raster, path2save_raster_mask, path2shp, limits, sign, noda
 
     # Create mask as an array
     try:
-        mask = calc.limits_mask(raster_ds.ReadAsArray(), limits, sign)
+        mask = limits_mask(raster_ds.ReadAsArray(), limits, sign)
 
     except MemoryError:
         print('Memory Error, try to process raster by bands')
         mask = np.zeros((raster_ds.RasterYSize, raster_ds.RasterXSize)).astype(np.bool)
         for band_num in range(1, raster_ds.RasterCount+1):
-            mask_band = calc.limits_mask(raster_ds.GetRasterBand(band_num), limits[band_num-1:band_num], sign)
+            mask_band = limits_mask(raster_ds.GetRasterBand(band_num), limits[band_num-1:band_num], sign)
             mask[mask_band] = True
             del(mask_band)
 
@@ -709,31 +767,27 @@ def mosaic(import_list, path2export, prj, geotrans, xsize, ysize, band_num, dt, 
 
     return None
 
-def alpha(path2raster, path2export, use_raster_nodata=True, use_limits_mask=False, lim_list=[(0)], sign='==', band_mix = 'OR'):
+def alpha(path2raster, path2export, use_raster_nodata=True, use_limits_mask=False, lim_list=[(0)], sign='!=', band_mix = 'OR', options = None, overwrite = True):
 
-    raster_ds = gdal.Open(path2raster)
+    raster_data = RasterData(path2raster, data=1)
 
-    if raster_ds is None:
-        print('Cannot open file: {}'.format(path2raster))
-        return None
-
-    if band_mix == 'AND':
-        mask = np.ones(raster_data[0].shape).astype(np.bool)
-    elif band_mix == 'OR':
-        mask = np.zeros(raster_data[0].shape).astype(np.bool)
+    if use_limits_mask:
+        lim_list = list_of_len(lim_list, raster_data.len)
     else:
-        print('Unknown band_mix - {}, "AND" or "OR" is needed'.format(band_mix))
-        return None
-    mask = np.zeros((raster_ds.RasterYSize, raster_ds.RasterXSize)).astype(np.bool)
+        lim_list = list_of_len([None], raster_data.len)
 
-    for id in range(raster_ds.RasterCount):
-        band_array = raster_ds.GetRasterBand(id + 1).ReadAsArray()
-        if use_raster_nodata:
-            mask_new = band_array==raster_ds.GetNoDataValue()
-        if use_limits_mask:
-            lims =  lget(lim_list, id, id+1)
-            mask_new = calc.limits_mask(band_array, lims, sign=sign)
+    mask = limits_mask(RasterData(path2raster), lim_list, sign=sign, band_mix=band_mix, include_raster_nodata=-use_raster_nodata)
 
+    if mask is not None:
+        raster_ds = ds(path=path2export, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
+        raster_ds.AddBand(1)
+        raster_ds.GetRasterBand(raster_ds.RasterCount).WriteArray(mask*255)
+        raster_ds = None
+        return 0
+
+    else:
+        print('Error creating alpha channel')
+        return 1
 
 
 class bandpath:
@@ -762,59 +816,169 @@ class bandpath:
             return array3dim(band.ReadAsArray())
 
 
-class raster_data:
 
-    def __init__(self, path2raster, data=0):
+
+def RasterToImage(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True, enforce_nodata = None, band_order = [1,2,3], compress = None, overwrite = True, alpha=False):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    options = {
+        'dt': 1,
+        'nodata': 0,
+        'compress': compress,
+        'bandnum': [3, 4][alpha],
+    }
+
+    t_ds = ds(path=path2export, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
+
+    source = RasterData(path2raster)
+
+    error_count = 0
+    band_num = 0
+
+    if alpha:
+        t_ds.GetRasterBand(4).WriteArray(np.full((source.ds.RasterYSize, source.ds.RasterXSize), 255))
+
+    for band_id, raster_array, nodata in source.getting((0,2,3), band_order = band_order):
+
+        res = 0
+
+        band_num += 1
+
+        if exclude_nodata and (nodata is not None):
+            if enforce_nodata is not None:
+                mask = (raster_array!=nodata) * (raster_array!=enforce_nodata)
+            else:
+                mask = raster_array!=nodata
+        else:
+            if enforce_nodata is not None:
+                mask = raster_array!=enforce_nodata
+            else:
+                mask = None
+
+        if np.min(mask) == True:
+            mask = None
+
+        if mask is not None:
+            data = raster_array[mask]
+        else:
+            data = raster_array
+
+        data = data_to_image(data, method=method, band_limits=band_limits, gamma=gamma)
+
+        if data is None:
+            print('Error calculating band %i' % band_id)
+            error_count += 1
+            continue
+
+        if (mask is not None):
+            raster_array[mask] = data
+            raster_array[~ mask] = 0
+
+        del data
+
+        t_ds.GetRasterBand(band_num).WriteArray(raster_array)
+
+        del raster_array
+
+        if alpha and (mask is not None):
+            oldmask = t_ds.GetRasterBand(4).ReadAsArray()
+            oldmask[~ mask] = 0
+            t_ds.GetRasterBand(4).WriteArray(oldmask)
+
+        del mask
+
+    if error_count == t_ds.RasterCount:
+        res = 1
+
+    t_ds = None
+
+    return res
+
+def Mosaic(path2raster_list, export_path, band_num=1, options=None):
+
+    # t_ds = gdal.BuildVRT(export_path, path2raster_list)
+
+    tfolder = globals()['temp_dir_list'].create()
+    tpath = newname(tfolder, 'tif')
+    vrt = gdal.BuildVRT(tpath, path2raster_list)
+    driver = gdal.GetDriverByName('GTiff')
+    t_ds = driver.CreateCopy(export_path, vrt, band_num, options = options)
+    t_ds = None
+
+    print('Started mosaic of %i images' % len(path2raster_list))
+
+    t_ds = gdal.Open(export_path, 1)
+    for path2raster in path2raster_list:
+        s_ds = gdal.Open(path2raster)
+        gdal.ReprojectImage(s_ds, t_ds)
+        print('Added to mosaic: {}'.format(path2raster))
+        s_ds = None
+
+    t_ds = None
+    print('Finished mosaic of %i images' % len(path2raster_list))
+
+    return 0
+
+def RasterLimits(path2raster_list, method=0, band_limits=None, band_num = 3, exclude_nodata = True, enforce_nodata = None, mixing_method = 0):
+
+    raster_bands_limits = []
+
+    for path2raster in path2raster_list:
+
         raster_ds = gdal.Open(path2raster)
+
         if raster_ds is None:
-            print('Raster dataset not found by path: {}, cannot create raster iterator'.format(path2raster))
-            del self
-        else:
-            self.path = path2raster
-            self.ds = raster_ds
-            self.data = data
-            self.len = raster_ds.RasterCount
-            self.id = 0
+            print('Cannot open raster: {}'.format(path2raster))
+            continue
 
-    def __iter__(self):
-        self.id = 0
-        return self
+        raster_limits = []
 
-    def __next__(self):
-        if self.id < self.len:
-            self.id += 1
-            return self.getget(self.id)
-        else:
-            raise StopIteration
+        for i in range(band_num):
 
-    def next(self):
-        return self.__next__()
+            if i > raster_ds.RasterCount:
+                raster_limits.append(np.full((1,2), np.nan))
 
-    def getget(self, band_id):
-        if isinstance(self.data, (tuple, list)):
-            export = []
-            for data_id in self.data:
-                export.append(self.get(band_id, data_id))
-            return tuple(export)
-        else:
-            return self.get(band_id, self.data)
+            raster_array = raster_ds.GetRasterBand(i+1).ReadAsArray()
+            if exclude_nodata:
+                raster_array = raster_array[raster_array != raster_ds.GetRasterBand(i+1).GetNoDataValue()]
+            if enforce_nodata is not None:
+                raster_array = raster_array[raster_array != enforce_nodata]
 
-    def get(self, band_id, data):
-        if data == 0:
-            return self.ds.GetRasterBand(band_id)
-        elif data == 1:
-            return self.ds.GetRasterBand(band_id).ReadAsArray()
-        elif data == 2:
-            return self.ds.GetRasterBand(band_id).DataType
-        else:
-            print('Incorrect data: {}'.format(data))
-            return None
+            min, max = get_raster_limits(raster_array, method=method, band_limits=band_limits)
+            if min is None:
+                min = np.nan
+            if max is None:
+                max = np.nan
+            raster_limits.append(np.array([min, max]).reshape((1,2)))
 
-    def restart(self):
-        self.id = 0
+        raster_bands_limits.append(np.hstack(raster_limits))
 
-    def getting(self, data):
-        copy = raster_data(self.path, data)
-        return copy
+        print('Got raster limits: {}'.format(raster_limits))
 
+        del raster_limits
+        raster_ds = None
 
+    raster_bands_limits = np.vstack(raster_bands_limits)
+
+    print(raster_bands_limits)
+
+    band_limits = []
+
+    for i in range(band_num):
+
+        min_col = raster_bands_limits[:,2*i]
+        max_col = raster_bands_limits[:,2*i+1]
+
+        if mixing_method == 0:
+            min = np.min(min_col)
+            max = np.max(max_col)
+
+        elif mixing_method == 1:
+            min = np.mean(min_col)
+            max = np.mean(max_col)
+
+        band_limits.append((min, max))
+
+    return band_limits

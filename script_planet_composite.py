@@ -48,7 +48,7 @@ def make_composites_from_list(ascene, complist, folder, name_template = '[id]_[c
 report = OrderedDict()
 
 for ascene in proc.scenes:
-    # print(scene_date, dates_list)
+    marker = (ascene.meta.name('[date]'), i)
     print(ascene.meta.lvl)
     if scene_date in dates_list:
         folder = r'C:\sadkov\minprod\planet\composites\{}'.format(scene_date)

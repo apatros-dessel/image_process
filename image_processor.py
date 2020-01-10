@@ -182,7 +182,7 @@ class process(object):
             self.scenes.append(newscene)
         return self
 
-    def input(self, path, search_scenes = True):
+    def input(self, path, search_scenes = True, imsys_list = None):
         path = listoftype(path, str)
         #print('Path: {}'.format(path))
         if path is None:
@@ -202,6 +202,12 @@ class process(object):
                 for newpath2scene in input_list:
                     # print(newpath2scene)
                     newpath, imsys = newpath2scene
+
+                    # Filter scenes by imsys
+                    if imsys_list is not None:
+                        if imsys not in imsys_list:
+                            continue
+
                     self.add_scene(newpath, imsys)
         return self
 

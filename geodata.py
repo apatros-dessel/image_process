@@ -320,6 +320,35 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
     return raster_ds
 
 
+# Create ogr vector dataset
+def shp(path2shp, dst_fieldname, editable = False):
+
+    gdal.UseExceptions()
+
+    if not os.path.exists(os.path.split(path2shp)[0]):
+        os.makedirs(os.path.split(path2shp)[0])
+
+    if path2shp.endswith('.shp'):
+        dst_layername = path2shp[:-4]
+    else:
+        dst_layername = path2shp
+        path2shp = path2shp + ".shp"
+
+    drv = ogr.GetDriverByName("ESRI Shapefile")
+    dst_ds = drv.CreateDataSource(path2shp)
+    dst_layer = dst_ds.CreateLayer(dst_layername, srs=None)
+
+    if dst_fieldname is None:
+        dst_fieldname = 'DN'
+    fd = ogr.FieldDefn(dst_fieldname, ogr.OFTInteger)
+    dst_layer.CreateField(fd)
+    dst_field = 0
+
+    if not editable:
+        dst_ds = None
+
+    return dst_ds
+
 def create_virtual_dataset(proj, geotrans, shape_, num_bands):
     y_res, x_res = shape_
     ds = gdal.GetDriverByName('MEM').Create('', x_res, y_res, num_bands, gdal.GDT_Byte)
@@ -432,7 +461,7 @@ def percent(path2raster, export_path, band1 = 1, band2 = 1, nodata = 0, compress
     return res
 
 # Saves data from a band in Dataset to polygon shapefile
-def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, classify_table = None, export_values = None):
+def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, classify_table = None, export_values = None, overwrite = True):
 
     # Create ogr vector dataset
     gdal.UseExceptions()
@@ -982,3 +1011,108 @@ def RasterLimits(path2raster_list, method=0, band_limits=None, band_num = 3, exc
         band_limits.append((min, max))
 
     return band_limits
+
+# Saves raster data mask to shapefile
+def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata = None, alpha=None, dst_fieldname = None, overwrite = True):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    s_ds = gdal.Open(path2raster)
+    if s_ds is None:
+        return 1
+
+    tfolder = globals()['temp_dir_list'].create()
+    tpath = newname(tfolder, 'tif')
+
+    options = {
+        'dt': 1,
+        'nodata': 0,
+        'compress': 'LERC_DEFLATE',
+        'bandnum': 1,
+    }
+
+    mask_ds = ds(path=tpath, copypath=path2raster, options=options, overwrite=overwrite, editable=True)
+
+    band_list = list(range(1, s_ds.RasterCount+1))
+    mask_array = None
+
+    if alpha is not None:
+        alpha = int(alpha)
+        if (alpha>0 and alpha<=s_ds.RasterCount):
+            mask_array = s_ds.GetRasterBand(alpha).ReadAsArray().astype(np.bool)
+            band_list.pop(alpha+1)
+
+    if mask_array is None:
+        mask_array = np.ones((s_ds.RasterYSize, s_ds.RasterXSize)).astype(np.bool)
+
+    if use_nodata or (enforce_nodata is not None):
+        for band in RasterData(path2raster).getting(1, band_order=band_list):
+            band_array = None
+            if use_nodata and (band.GetNoDataValue() is not None):
+                band_array = band.ReadAsArray()
+                mask_array[band_array==band.GetNoDataValue()] = False
+            if enforce_nodata is not None:
+                if band_array is None:
+                    band_array = band.ReadAsArray()
+                mask_array[band_array==enforce_nodata] = False
+            band_array = None
+
+    mask_band = mask_ds.GetRasterBand(1)
+
+    mask_band.WriteArray(mask_array)
+
+    shp_ds = shp(path2export, dst_fieldname, editable = True)
+    lyr = shp_ds.GetLayer()
+
+    # save_raster(path2export[:-4] + '.tif', mask_array, copypath=tpath, compress='LERC_DEFLATE', overwrite=True)
+
+    gdal.Polygonize(mask_band, mask_band, lyr, 0, [], callback=gdal.TermProgress_nocb)
+    shp_ds = None
+
+    # Write projection
+    write_prj(path2export[:-4] + '.prj', s_ds.GetProjection())
+
+    return 0
+
+# Unites geometry from shapefiles
+def Unite(path2shp_list, path2export, proj=None, overwrite=True):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    for path2shp in path2shp_list:
+
+        s_ds = ogr.Open(path2shp)
+
+        if s_ds is None:
+            continue
+
+        s_lyr = s_ds.GetLayer()
+
+        if s_lyr is None:
+            continue
+
+        if proj is None:
+            proj = s_lyr.GetSpatialRef().ExportToWkt()
+
+        for feat in s_ds.GetLayer():
+
+            if t_geom is None:
+                t_geom = feat.GetGeometryRef()
+            else:
+                t_geom = t_geom.Union(feat)
+
+    t_feat = ogr.FeatureDefn()
+    t_feat.AddGeomFieldDefn(t_geom)
+
+    shp_ds = shp(path2export, editable=True)
+    lyr = shp_ds.GetLayer()
+    lyr.AddFeature(t_feat)
+
+    shp_ds = None
+
+    # Write projection
+    write_prj(path2export[:-4] + '.prj', proj)
+
+    return 0

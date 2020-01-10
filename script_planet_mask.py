@@ -2,16 +2,21 @@
 
 from image_processor import *
 
-path = r'd:\rks\tver'
-# print(path)
-output_path = r'c:\sadkov\planet_tverskaya\borders\fall'
-shp_name = r'tver_planet_cover_fall.shp'
-report_name = r'tver_planet_cover_fall.xls'
+# input_path = r'c:\sadkov\toropez\planet\20190516'
+input_path_list = [r'c:\sadkov\toropez\planet',
+                   r'd:\rks\toropez\planet']
+output_path = r'c:\sadkov\toropez\image_test\full'
 
-# os.chdir(path)
+path2composite = r'{}\composite'.format(output_path)
+path2rgb = r'{}\rgb'.format(output_path)
 
 proc = process(output_path=output_path)
-proc.input(path)
+# proc.input(input_path)
+for in_path in input_path_list:
+    proc.input(in_path, imsys_list=['PLN'])
+
+shp_name = r'planet_cover.shp'
+report_name = r'planet_cover.xls'
 
 '''
 def date_covers(proc):

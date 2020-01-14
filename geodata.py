@@ -631,23 +631,6 @@ def unite_vector(path2vector_list, path2export): # No georeference check is used
                     # pass
             #print(newfeat.keys())
 
-            '''
-            newfeat = t_lyr.GetNextFeature()
-            count = feat.GetFieldCount()
-            print(count)
-            for i in range(count):
-                name = feat.GetFieldDefnRef(i).GetName()
-                field = feat.GetFieldAsString(i)
-                # print('  {}: {}'.format(name, field))
-                if t_lyr.FindFieldIndex(name, 1) == -1:
-                    t_lyr.CreateField(feat.GetFieldDefnRef(i))
-                newfeat.SetField(i, field)
-                name = newfeat.GetFieldDefnRef(i).GetName()
-                field = newfeat.GetFieldAsString(i)
-                print('  {}: {}'.format(name, field))
-                # print(t_lyr.FindFieldIndex(name, 1))
-            '''
-
     t_ds = None
 
     write_prj(path2export[:-4] + '.prj', s_lyr.GetSpatialRef().ExportToWkt())
@@ -818,7 +801,6 @@ def alpha(path2raster, path2export, use_raster_nodata=True, use_limits_mask=Fals
         print('Error creating alpha channel')
         return 1
 
-
 class bandpath:
 
     def __init__(self, filepath, bandnum, name = None):
@@ -843,9 +825,6 @@ class bandpath:
         band = self.getband()
         if band is not None:
             return array3dim(band.ReadAsArray())
-
-
-
 
 def RasterToImage(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True, enforce_nodata = None, band_order = [1,2,3], compress = None, overwrite = True, alpha=False):
 
@@ -1081,6 +1060,8 @@ def Unite(path2shp_list, path2export, proj=None, overwrite=True):
     if check_exist(path2export, ignore=overwrite):
         return 1
 
+    t_geom = None
+
     for path2shp in path2shp_list:
 
         s_ds = ogr.Open(path2shp)
@@ -1099,16 +1080,24 @@ def Unite(path2shp_list, path2export, proj=None, overwrite=True):
         for feat in s_ds.GetLayer():
 
             if t_geom is None:
-                t_geom = feat.GetGeometryRef()
+                o_feat = feat
+                t_geom = o_feat.GetGeometryRef()
             else:
-                t_geom = t_geom.Union(feat)
+                # o_geom = t_geom
+                n_geom = feat.GetGeometryRef()
+                # print('in')
+                t_geom = t_geom.Union(n_geom)
+                # print('out')
 
-    t_feat = ogr.FeatureDefn()
-    t_feat.AddGeomFieldDefn(t_geom)
+    return Geom2Shape(path2export, t_geom, proj=proj)
 
-    shp_ds = shp(path2export, editable=True)
+    # t_feat_defn = ogr.FeatureDefn()
+    t_feat = ogr.Feature(ogr.FeatureDefn())
+    t_feat.SetGeometry(t_geom)
+
+    shp_ds = shp(path2export, None, editable=True)
     lyr = shp_ds.GetLayer()
-    lyr.AddFeature(t_feat)
+    lyr.CreateFeature(t_feat)
 
     shp_ds = None
 
@@ -1116,3 +1105,68 @@ def Unite(path2shp_list, path2export, proj=None, overwrite=True):
     write_prj(path2export[:-4] + '.prj', proj)
 
     return 0
+
+# Returns intersection of two polygons in two different shapefiles of length == 1
+def IntersectCovers(path2shp1, path2shp2, path2export, proj=None, overwrite=True):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    shp1_ds = ogr.Open(path2shp1)
+    if shp1_ds is None:
+        print('Cannot open shapefile: {}'.format(path2shp1))
+        return 1
+
+    shp2_ds = ogr.Open(path2shp2)
+    if shp2_ds is None:
+        print('Cannot open shapefile: {}'.format(path2shp2))
+        return 1
+
+    if (len(shp1_ds)!=1) or (len(shp2_ds)!=1):
+        print('Each shape must have one polygon!')
+        return 1
+
+    lyr1 = shp1_ds.GetLayer()
+    feat1 = lyr1.GetNextFeature()
+    geom1 = feat1.GetGeometryRef()
+
+    lyr2 = shp2_ds.GetLayer()
+    feat2 = lyr2.GetNextFeature()
+    geom2 = feat2.GetGeometryRef()
+
+    if geom1.Intersects(geom2):
+
+        t_geom = geom1.Intersection(geom2)
+
+        # Deletes all geometry types except MultiPolygons
+        t_geom = del_geom_by_type(t_geom, 6)
+
+        if proj is None:
+            proj = lyr1.GetSpatialRef().ExportToWkt()
+
+        return Geom2Shape(path2export, t_geom, proj)
+
+    else:
+        print('Source geometries dont intersect')
+        return 1
+
+# Writes a single geometry object to a single shapefile without attributes
+def Geom2Shape(path2export, geom, proj=None):
+    t_feat = ogr.Feature(ogr.FeatureDefn())
+    t_feat.SetGeometry(geom)
+    shp_ds = shp(path2export, None, editable=True)
+    lyr = shp_ds.GetLayer()
+    lyr.CreateFeature(t_feat)
+    shp_ds = None
+    if proj is not None:
+        write_prj(path2export[:-4] + '.prj', proj)
+    return 0
+
+def del_geom_by_type(old_geom, type):
+    if old_geom.GetGeometryType == type:
+        return old_geom
+    else:
+        new_geom = ogr.Geometry(type)
+        for geom in old_geom:
+            new_geom.AddGeometry(geom)
+        return new_geom

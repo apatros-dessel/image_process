@@ -221,6 +221,23 @@ class process(object):
         dates_list.sort()
         return dates_list
 
+    def get_paths(self):
+        paths_dict = OrderedDict()
+        for ascene in self.scenes:
+            paths_dict[ascene.meta.id] = ascene.path
+        return paths_dict
+
+    # Returns a dictionary of scene covers shapefiles list
+    def get_cover_paths(self):
+        covers_dict = OrderedDict()
+        for ascene in self.scenes:
+            datamask = ascene.datamask()
+            if datamask is not None:
+                covers_dict[ascene.meta.id] = r'{}\{}'.format(ascene.path, datamask)
+            else:
+                print('Datamask not found for {}'.format(ascene.meta.id))
+        return covers_dict
+
 # Every space image scene
 class scene:
 
@@ -334,6 +351,12 @@ class scene:
         self.clip_parameters = {}
         return None
 
+    def datamask(self):
+        if self.meta.datamask is not None:
+            return self.meta.datamask
+        else:
+            return None
+
     # Creates a composite of a single scene --- change
     def composite(self, bands, export_path, path2target = None, exclude_nodata = True, enforce_nodata = None, compress = None, overwrite = True):
 
@@ -413,3 +436,4 @@ def timecomposite(scenes, band_ids, scene_nums, export_path, path2target = None,
         return 1
 
     return res
+

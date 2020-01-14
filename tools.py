@@ -172,6 +172,30 @@ def list_orderdict(dict_tuple, newvals2tuples = False):
             result[key] = newval
     return result
 
+# Returns a new dictionary with all values with unique keys and sum of values with different keys
+def sumdict(a, b):
+    assert isinstance(a, dict) and isinstance(b, dict)
+    if isinstance(a, OrderedDict) or isinstance(b, OrderedDict):
+        c = OrderedDict()
+    else:
+        c = dict()
+    keys = list(a.keys())
+    for newkey in b.keys():
+        if newkey not in keys:
+            key.append(newkey)
+    for key in keys:
+        vals = [a.get(key), b.get(key)]
+        if vals[0] is None:
+            c[key] = vals[1]
+        elif vals[1] is None:
+            c[key] = vals[0]
+        else:
+            try:
+                c[key] = vals[0] + vals[1]
+            except:
+                c[key] = vals
+        return c
+
 # Create fullpath from folder, file and extension
 def fullpath(folder, file, ext=None):
     if ext is None:

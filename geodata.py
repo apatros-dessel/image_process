@@ -12,7 +12,7 @@ except:
 import numpy as np
 import math
 
-from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len
+from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len, list_ex
 
 from raster_data import RasterData, MultiRasterData
 
@@ -320,8 +320,8 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
     return raster_ds
 
 
-# Create ogr vector dataset
-def shp(path2shp, dst_fieldname, editable = False):
+# Create shapefile vector dataset
+def shp(path2shp, editable = False):
 
     gdal.UseExceptions()
 
@@ -338,11 +338,32 @@ def shp(path2shp, dst_fieldname, editable = False):
     dst_ds = drv.CreateDataSource(path2shp)
     dst_layer = dst_ds.CreateLayer(dst_layername, srs=None)
 
-    if dst_fieldname is None:
-        dst_fieldname = 'DN'
-    fd = ogr.FieldDefn(dst_fieldname, ogr.OFTInteger)
-    dst_layer.CreateField(fd)
-    dst_field = 0
+    if not editable:
+        dst_ds = None
+
+    return dst_ds
+
+# Create GeoJSON vector dataset
+def json(path2json, editable = False):
+
+    gdal.UseExceptions()
+
+    if not os.path.exists(os.path.split(path2json)[0]):
+        os.makedirs(os.path.split(path2json)[0])
+
+    if path2json.endswith('.json'):
+        dst_layername = path2json[:-4]
+    else:
+        dst_layername = path2json
+        path2shp = path2json + ".json"
+
+    drv = ogr.GetDriverByName("GeoJSON")
+
+    if os.path.exists(path2json):
+        drv.DeleteDataSource(path2json)
+
+    dst_ds = drv.CreateDataSource(path2json)
+    dst_layer = dst_ds.CreateLayer('', srs=None)
 
     if not editable:
         dst_ds = None
@@ -992,7 +1013,7 @@ def RasterLimits(path2raster_list, method=0, band_limits=None, band_num = 3, exc
     return band_limits
 
 # Saves raster data mask to shapefile
-def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata = None, alpha=None, dst_fieldname = None, overwrite = True):
+def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata = None, alpha=None, overwrite = True):
 
     if check_exist(path2export, ignore=overwrite):
         return 1
@@ -1041,7 +1062,7 @@ def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata =
 
     mask_band.WriteArray(mask_array)
 
-    shp_ds = shp(path2export, dst_fieldname, editable = True)
+    shp_ds = shp(path2export, editable = True)
     lyr = shp_ds.GetLayer()
 
     # save_raster(path2export[:-4] + '.tif', mask_array, copypath=tpath, compress='LERC_DEFLATE', overwrite=True)
@@ -1095,7 +1116,7 @@ def Unite(path2shp_list, path2export, proj=None, overwrite=True):
     t_feat = ogr.Feature(ogr.FeatureDefn())
     t_feat.SetGeometry(t_geom)
 
-    shp_ds = shp(path2export, None, editable=True)
+    shp_ds = shp(path2export, editable=True)
     lyr = shp_ds.GetLayer()
     lyr.CreateFeature(t_feat)
 
@@ -1154,7 +1175,7 @@ def IntersectCovers(path2shp1, path2shp2, path2export, proj=None, overwrite=True
 def Geom2Shape(path2export, geom, proj=None):
     t_feat = ogr.Feature(ogr.FeatureDefn())
     t_feat.SetGeometry(geom)
-    shp_ds = shp(path2export, None, editable=True)
+    shp_ds = shp(path2export, editable=True)
     lyr = shp_ds.GetLayer()
     lyr.CreateFeature(t_feat)
     shp_ds = None
@@ -1170,3 +1191,255 @@ def del_geom_by_type(old_geom, type):
         for geom in old_geom:
             new_geom.AddGeometry(geom)
         return new_geom
+
+# Get feature data as dictionary
+def feature_dict(feat):
+    attr_dict = OrderedDict()
+    for key in feat.keys():
+        attr_dict[key] = feat.GetField(key)
+        print('{}: {}'.format(key, type(feat.GetField(key))))
+    return attr_dict
+
+# Get feature data type as dictionary
+def feature_data_type_dict(feat):
+    dt_dict = OrderedDict()
+    for key in feat.keys():
+        dt_dict[key] = feat.GetFieldType(key)
+    return dt_dict
+
+# Get layer from vector file
+def get_lyr_by_path(path):
+
+    ds = ogr.Open(path)
+
+    if ds is None:
+        print('Cannot open file: {}'.format(path2shp2))
+        return (None, None)
+
+    lyr = ds.GetLayer()
+
+    if lyr is None:
+        print('Cannot get layer from: {}'.format(path))
+
+    return (ds, lyr)
+
+
+def JoinShapesByAttribute(path2shape_list, path2export, attribute, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}, overwrite = True):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    # t_ds = shp(path2export, editable=True)
+    t_ds = json(path2export, editable=True)
+    t_lyr = t_ds.GetLayer()
+
+    feat_dict = OrderedDict()
+    attr_val_list = []
+
+    for path2shape in path2shape_list:
+
+        print('Started %s' % path2shape)
+
+        s_ds, s_lyr = get_lyr_by_path(path2shape)
+
+        if s_lyr is None:
+            continue
+
+        for feat in s_lyr:
+
+            keys = feat.keys()
+
+            # scroll(feature_dict(feat))
+
+            for key in keys:
+                if t_lyr.FindFieldIndex(key, 1) == -1:
+                    # t_lyr.CreateField(s_lyr.GetLayerDefn().GetFieldDefn(s_lyr.FindFieldIndex(key, 1)))
+                    pass
+
+            if attribute in keys:
+                attr_val = feat.GetField(attribute)
+                if attr_val in attr_val_list:
+                    feat_id = attr_val_list.index(attr_val)
+                    t_ds = None
+                    t_ds = ogr.Open(path2export, 1)
+                    t_lyr = t_ds.GetLayer()
+                    old_feat = t_lyr.GetFeature(feat_id)
+                    if old_feat is not None:
+                        new_feat = join_feature(old_feat, feat, geom_rule=geom_rule, attr_rule=attr_rule, attr_rule_dict=attr_rule_dict)
+                    # scroll(feature_dict(new_feat))
+                    # feat_dict[attr_val] = new_feat
+                    if new_feat is not None:
+                        t_lyr.SetFeature(new_feat)
+                else:
+                    feat_id = len(attr_val_list)
+                    attr_val_list.append(attr_val)
+                    feat_id = attr_val_list.index(attr_val)
+                    # scroll(feature_dict(feat))
+                    feat.SetFID(feat_id)
+                    t_lyr.CreateFeature(feat)
+                    # scroll(feature_dict(t_lyr.GetFeature(0)))
+                    # scroll(feature_dict(feat_dict[attr_val]))
+                # t_ds = None
+
+    # scroll(feat_dict)
+
+    # for export_feat in feat_dict:
+        # t_lyr.CreateFeature(export_feat)
+
+    t_ds = None
+
+    t_ds = ogr.Open(path2export)
+    t_lyr = t_ds.GetLayer()
+    t_lyr.ResetReading()
+    for feat in t_lyr:
+        print(feat.GetFID())
+
+    return 0
+
+def join_feature(feat1, feat2, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}, attr_list=None, ID = None):
+
+    geom1 = feat1.GetGeometryRef()
+    geom2 = feat2.GetGeometryRef()
+
+    if geom_rule == 0:
+        new_geom = geom1.Intersection(geom2)
+    elif geom_rule == 1:
+        new_geom = geom1.Union(geom2)
+    elif geom_rule == 2:
+        new_geom = geom1.Difference(geom2)
+    elif geom_rule == 3:
+        new_geom = geom1.SymmetricDifference(geom2)
+    elif geom_rule == 4:
+        new_geom = geom1.UnionCascaded(geom2)
+    else:
+        print('Unreckognized geom_rule: {}'.format(geom_rule))
+        return None
+
+    new_attr_dict = feature_dict(feat1)
+    join_attr_dict = feature_dict(feat2)
+
+    if attr_list is None:
+        attr_list = new_attr_dict.keys()
+
+    for i, key in enumerate(new_attr_dict):
+
+        join_attr_val = join_attr_dict.get(key)
+
+        if join_attr_val is None:
+            continue
+        else:
+            old_attr_val = new_attr_dict.get(key)
+
+        rule = attr_rule_dict.get(key, attr_rule)
+
+        if isinstance(rule, str):
+            if rule == 'MEAN_BY_LENGTH':
+                weight1 = geom1.Length()
+                weight2 = geom2.Length()
+            elif rule == 'MEAN_BY_AREA':
+                weight1 = geom1.Area()
+                weight2 = geom2.Area()
+            else:
+                print('Cannot calculate weights for rule: {}'.format(rule))
+                weight1 = weight2 = 1
+
+            weight_min = min([weight1, weight2])
+            weight1 = weight1 / weight_min
+            weight2 = weight2 / weight_min
+
+            new_attr_dict[key] = ruled_operator(old_attr_val, join_attr_val, 100, x_weight=weight1, y_weight=weight2)
+
+        else:
+            new_attr_dict[key] = ruled_operator(old_attr_val, join_attr_val, rule)
+    '''
+    for i, key in enumerate(feat1.keys()):
+        field_defn = feat1.GetFieldDefnRef(i)
+        if field_defn is None:
+            new_feat.SetFieldNull(key)
+            continue
+        data_type = field_defn.GetType()
+        if data_type in (0, 1,):
+            new_feat.SetFieldIntegerList(i, int(new_attr_dict.get(key)))
+        elif data_type in (2, 3):
+            new_feat.SetFieldDoubleList(i, float(new_attr_dict.get(key)))
+        elif data_type in (4, 5, 6, 7):
+            new_feat.SetFieldStringList(i, str(new_attr_dict.get(key)))
+        else:
+            print('Unrecognised data_type: %s for %s' % (str(data_type), str(key)))
+            new_feat.SetFieldNull(i)
+    '''
+
+    new_feat = feature(geom=new_geom, attr=new_attr_dict)
+
+    if ID is not None:
+        new_feat.SetFID(ID)
+    else:
+        new_feat.SetFID(feat1.GetFID())
+
+    return new_feat
+
+def ruled_operator(x, y, rule, x_weight = 1, y_weight = 1):
+
+    # 0 - Save old value
+    if rule == 0:
+        result = x
+    # 1 - Save new value
+    elif rule == 1:
+        result = y
+    # 2 - Save sum
+    elif rule == 2:
+        result = x + y
+    # 3 - Save difference
+    elif rule == 3:
+        result = x - y
+    # 4 - Save production
+    elif rule == 4:
+        result = x * y
+    # 5 - Save ratio
+    elif rule == 5:
+        result = x / y
+    # 6 - Save exponent
+    elif rule == 6:
+        result = x ** y
+    # 7 - Save logarithm
+    elif rule == 7:
+        result = math.log(x,y)
+    # 8 - Save mean
+    elif rule == 8:
+        result = (x + y) / 2
+    # 9 - Save geometric mean
+    elif rule == 9:
+        result = (x * y) ** 0.5
+
+    # 100 - Save weighted mean
+    elif rule == 100:
+        result = (x * x_weight + y * y_weight) / (x_weight + y_weight)
+
+    else:
+        print('Unreckognized attr_rule: {}'.format(rule))
+        result = x
+
+    return result
+
+def feature(geom = None, attr = None, attr_type = 0, attr_type_dict = {}):
+
+    # feat = ogr.Feature(ogr.FeatureDefn(geom_type))
+    feat = ogr.Feature(ogr.FeatureDefn())
+
+    if geom is not None:
+        feat.SetGeometry(geom)
+
+    if attr is not None:
+        for key in attr.keys():
+            val = attr[key]
+
+            if isinstance(val, int):
+                fd = ogr.FieldDefn(dst_fieldname, ogr.OFTInteger)
+
+            # at = attr_type_dict.get(key, attr_type) -- check if other ogr functions are needed
+            feat.SetField(key, attr[key])
+            pass
+
+    return feat
+
+

@@ -22,7 +22,6 @@ def check_exist(path, ignore=False):
             return True
     return False
 
-
 # Conversts non-list objects to a list of length 1
 def obj2list(obj):
     if isinstance(list, obj):
@@ -34,6 +33,14 @@ def obj2list(obj):
 def list_of_len(list_, len_):
     while len(list_) < len:
         list_.append(list_[-1])
+    return list_
+
+# Returns list with excluded values
+def list_ex(list_, exclude_):
+    exclude_ = obj2list(exclude_)
+    for i in range(len(list_)-1, -1, -1):
+        if (list_[i] in exclude_):
+            list_.pop(i)
     return list_
 
 def lget(iter_obj, id, id2=None):

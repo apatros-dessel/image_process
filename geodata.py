@@ -1197,7 +1197,7 @@ def feature_dict(feat):
     attr_dict = OrderedDict()
     for key in feat.keys():
         attr_dict[key] = feat.GetField(key)
-        print('{}: {}'.format(key, type(feat.GetField(key))))
+        # print('{}: {}'.format(key, type(feat.GetField(key))))
     return attr_dict
 
 # Get feature data type as dictionary
@@ -1257,7 +1257,9 @@ def JoinShapesByAttribute(path2shape_list, path2export, attribute, geom_rule = 0
                     pass
 
             if attribute in keys:
+
                 attr_val = feat.GetField(attribute)
+
                 if attr_val in attr_val_list:
                     feat_id = attr_val_list.index(attr_val)
                     t_ds = None
@@ -1265,34 +1267,21 @@ def JoinShapesByAttribute(path2shape_list, path2export, attribute, geom_rule = 0
                     t_lyr = t_ds.GetLayer()
                     old_feat = t_lyr.GetFeature(feat_id)
                     if old_feat is not None:
-                        new_feat = join_feature(old_feat, feat, geom_rule=geom_rule, attr_rule=attr_rule, attr_rule_dict=attr_rule_dict)
-                    # scroll(feature_dict(new_feat))
-                    # feat_dict[attr_val] = new_feat
+                        new_feat = join_feature(old_feat, feat, geom_rule=geom_rule, attr_rule=attr_rule, attr_rule_dict=attr_rule_dict, ID=feat_id)
+                    else:
+                        new_feat = None
                     if new_feat is not None:
+                        print(new_feat.GetFID())
                         t_lyr.SetFeature(new_feat)
+                    else:
+                        print('Cannot make new feature')
                 else:
-                    feat_id = len(attr_val_list)
                     attr_val_list.append(attr_val)
                     feat_id = attr_val_list.index(attr_val)
-                    # scroll(feature_dict(feat))
-                    feat.SetFID(feat_id)
+                    feat.SetFID(-1) # Works correctly with json only if original FID is deleted. The field is found by its location
                     t_lyr.CreateFeature(feat)
-                    # scroll(feature_dict(t_lyr.GetFeature(0)))
-                    # scroll(feature_dict(feat_dict[attr_val]))
-                # t_ds = None
-
-    # scroll(feat_dict)
-
-    # for export_feat in feat_dict:
-        # t_lyr.CreateFeature(export_feat)
 
     t_ds = None
-
-    t_ds = ogr.Open(path2export)
-    t_lyr = t_ds.GetLayer()
-    t_lyr.ResetReading()
-    for feat in t_lyr:
-        print(feat.GetFID())
 
     return 0
 
@@ -1309,8 +1298,8 @@ def join_feature(feat1, feat2, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}
         new_geom = geom1.Difference(geom2)
     elif geom_rule == 3:
         new_geom = geom1.SymmetricDifference(geom2)
-    elif geom_rule == 4:
-        new_geom = geom1.UnionCascaded(geom2)
+    # elif geom_rule == 4:
+        # new_geom = geom1.UnionCascaded(geom2)
     else:
         print('Unreckognized geom_rule: {}'.format(geom_rule))
         return None
@@ -1350,31 +1339,19 @@ def join_feature(feat1, feat2, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}
             new_attr_dict[key] = ruled_operator(old_attr_val, join_attr_val, 100, x_weight=weight1, y_weight=weight2)
 
         else:
-            new_attr_dict[key] = ruled_operator(old_attr_val, join_attr_val, rule)
-    '''
-    for i, key in enumerate(feat1.keys()):
-        field_defn = feat1.GetFieldDefnRef(i)
-        if field_defn is None:
-            new_feat.SetFieldNull(key)
-            continue
-        data_type = field_defn.GetType()
-        if data_type in (0, 1,):
-            new_feat.SetFieldIntegerList(i, int(new_attr_dict.get(key)))
-        elif data_type in (2, 3):
-            new_feat.SetFieldDoubleList(i, float(new_attr_dict.get(key)))
-        elif data_type in (4, 5, 6, 7):
-            new_feat.SetFieldStringList(i, str(new_attr_dict.get(key)))
-        else:
-            print('Unrecognised data_type: %s for %s' % (str(data_type), str(key)))
-            new_feat.SetFieldNull(i)
-    '''
+            try:
+                new_attr_dict[key] = ruled_operator(old_attr_val, join_attr_val, rule)
+            except:
+                new_attr_dict[key] = old_attr_val
 
-    new_feat = feature(geom=new_geom, attr=new_attr_dict)
+    new_feat = feature(feature_defn=feat1.GetDefnRef(), geom=new_geom, attr=new_attr_dict)
 
+    # print(new_feat.GetFID())
     if ID is not None:
         new_feat.SetFID(ID)
     else:
         new_feat.SetFID(feat1.GetFID())
+    # print(new_feat.GetFID())
 
     return new_feat
 
@@ -1421,10 +1398,16 @@ def ruled_operator(x, y, rule, x_weight = 1, y_weight = 1):
 
     return result
 
-def feature(geom = None, attr = None, attr_type = 0, attr_type_dict = {}):
+def feature(feature_defn = None, geom = None, attr = None, attr_type = 0, attr_type_dict = {}, ID = None):
+
+    if feature_defn is None:
+        feature_defn = ogr.FeatureDefn
 
     # feat = ogr.Feature(ogr.FeatureDefn(geom_type))
-    feat = ogr.Feature(ogr.FeatureDefn())
+    feat = ogr.Feature(feature_defn)
+
+    if ID is not None:
+        feat.SetFID(ID)
 
     if geom is not None:
         feat.SetGeometry(geom)
@@ -1433,8 +1416,12 @@ def feature(geom = None, attr = None, attr_type = 0, attr_type_dict = {}):
         for key in attr.keys():
             val = attr[key]
 
-            if isinstance(val, int):
-                fd = ogr.FieldDefn(dst_fieldname, ogr.OFTInteger)
+            field_id = feature_defn.GetFieldIndex(key)
+            print(field_id)
+            if field_id != (-1):
+                field_defn = feature_defn.GetFieldDefn(field_id)
+            else:
+                continue
 
             # at = attr_type_dict.get(key, attr_type) -- check if other ogr functions are needed
             feat.SetField(key, attr[key])

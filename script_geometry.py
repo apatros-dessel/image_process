@@ -11,4 +11,13 @@ path2shape_list = [
 path2export = r'c:\sadkov\toropez\image_test\test_json.json'
 
 # geodata.IntersectCovers(path2shp1, path2shp2, r'c:\sadkov\toropez\image_test\test.shp')
-geodata.JoinShapesByAttribute(path2shape_list, path2export, geom_rule=1, attribute='anomalous_pixels')
+geodata.JoinShapesByAttribute(path2shape_list, path2export, geom_rule=2, attr_rule=2, attribute='anomalous_pixels')
+
+'''
+js = geodata.ogr.Open(path2export, 1)
+lyr = js.GetLayer()
+for i, feat in enumerate(lyr):
+    feat.SetFID(i)
+    # print(feat.GetFID())
+js = None
+'''

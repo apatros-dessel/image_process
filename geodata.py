@@ -12,7 +12,7 @@ except:
 import numpy as np
 import math
 
-from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len, list_ex
+from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len, list_ex, obj2list
 
 from raster_data import RasterData, MultiRasterData
 
@@ -1224,16 +1224,17 @@ def get_lyr_by_path(path):
     return (ds, lyr)
 
 
-def JoinShapesByAttribute(path2shape_list, path2export, attribute, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}, overwrite = True):
+def JoinShapesByAttributes(path2shape_list, path2export, attributes, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}, overwrite = True):
 
     if check_exist(path2export, ignore=overwrite):
         return 1
 
+    attributes = obj2list(attributes)
+
     # t_ds = shp(path2export, editable=True)
-    t_ds = json(path2export, editable=True)
+    t_ds = json(path2export, editable=True) # It's better to use json because ESRI_Shapefile works incorrectly with long field names
     t_lyr = t_ds.GetLayer()
 
-    feat_dict = OrderedDict()
     attr_val_list = []
 
     for path2shape in path2shape_list:
@@ -1249,19 +1250,20 @@ def JoinShapesByAttribute(path2shape_list, path2export, attribute, geom_rule = 0
 
             keys = feat.keys()
 
-            # scroll(feature_dict(feat))
+            attr_check = []
 
-            for key in keys:
-                if t_lyr.FindFieldIndex(key, 1) == -1:
-                    # t_lyr.CreateField(s_lyr.GetLayerDefn().GetFieldDefn(s_lyr.FindFieldIndex(key, 1)))
-                    pass
+            for attribute in attributes:
+                if attribute in keys:
+                    attr_check.append(feat.GetField(attribute))
+                else:
+                    attr_check = None
+                    break
 
-            if attribute in keys:
+            # print(attr_check)
 
-                attr_val = feat.GetField(attribute)
-
-                if attr_val in attr_val_list:
-                    feat_id = attr_val_list.index(attr_val)
+            if attr_check is not None:
+                if attr_check in attr_val_list:
+                    feat_id = attr_val_list.index(attr_check)
                     t_ds = None
                     t_ds = ogr.Open(path2export, 1)
                     t_lyr = t_ds.GetLayer()
@@ -1271,13 +1273,13 @@ def JoinShapesByAttribute(path2shape_list, path2export, attribute, geom_rule = 0
                     else:
                         new_feat = None
                     if new_feat is not None:
-                        print(new_feat.GetFID())
+                        # print(new_feat.GetFID())
                         t_lyr.SetFeature(new_feat)
                     else:
                         print('Cannot make new feature')
                 else:
-                    attr_val_list.append(attr_val)
-                    feat_id = attr_val_list.index(attr_val)
+                    attr_val_list.append(attr_check)
+                    feat_id = attr_val_list.index(attr_check)
                     feat.SetFID(-1) # Works correctly with json only if original FID is deleted. The field is found by its location
                     t_lyr.CreateFeature(feat)
 
@@ -1321,28 +1323,10 @@ def join_feature(feat1, feat2, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}
 
         rule = attr_rule_dict.get(key, attr_rule)
 
-        if isinstance(rule, str):
-            if rule == 'MEAN_BY_LENGTH':
-                weight1 = geom1.Length()
-                weight2 = geom2.Length()
-            elif rule == 'MEAN_BY_AREA':
-                weight1 = geom1.Area()
-                weight2 = geom2.Area()
-            else:
-                print('Cannot calculate weights for rule: {}'.format(rule))
-                weight1 = weight2 = 1
-
-            weight_min = min([weight1, weight2])
-            weight1 = weight1 / weight_min
-            weight2 = weight2 / weight_min
-
-            new_attr_dict[key] = ruled_operator(old_attr_val, join_attr_val, 100, x_weight=weight1, y_weight=weight2)
-
-        else:
-            try:
-                new_attr_dict[key] = ruled_operator(old_attr_val, join_attr_val, rule)
-            except:
-                new_attr_dict[key] = old_attr_val
+        try:
+            new_attr_dict[key] = ruled_operator(old_attr_val, join_attr_val, rule)
+        except:
+            new_attr_dict[key] = old_attr_val
 
     new_feat = feature(feature_defn=feat1.GetDefnRef(), geom=new_geom, attr=new_attr_dict)
 
@@ -1413,19 +1397,22 @@ def feature(feature_defn = None, geom = None, attr = None, attr_type = 0, attr_t
         feat.SetGeometry(geom)
 
     if attr is not None:
+        '''
         for key in attr.keys():
             val = attr[key]
 
             field_id = feature_defn.GetFieldIndex(key)
-            print(field_id)
+            # print(field_id)
             if field_id != (-1):
-                field_defn = feature_defn.GetFieldDefn(field_id)
-            else:
-                continue
+                feat.SetField(key, attr[key])
+        '''
 
-            # at = attr_type_dict.get(key, attr_type) -- check if other ogr functions are needed
-            feat.SetField(key, attr[key])
-            pass
+        for i, key in enumerate(feat.keys()):
+
+            if key in attr.keys():
+                feat.SetField(key, attr[key])
+            else:
+                feat.SetFieldNull(key)
 
     return feat
 

@@ -24,7 +24,7 @@ def check_exist(path, ignore=False):
 
 # Conversts non-list objects to a list of length 1
 def obj2list(obj):
-    if isinstance(list, obj):
+    if isinstance(obj, list):
         return obj
     else:
         return [obj]

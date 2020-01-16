@@ -233,7 +233,7 @@ class process(object):
         for ascene in self.scenes:
             datamask = ascene.datamask()
             if datamask is not None:
-                covers_dict[ascene.meta.id] = r'{}\{}'.format(ascene.path, datamask)
+                covers_dict[ascene.meta.id] =  fullpath(ascene.path, datamask)
             else:
                 print('Datamask not found for {}'.format(ascene.meta.id))
         return covers_dict

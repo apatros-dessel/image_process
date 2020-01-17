@@ -4,8 +4,8 @@ from tools import *
 
 import geodata
 
-import landsat
-import planet
+import mylandsat
+import myplanet
 
 # Constants
 
@@ -13,9 +13,9 @@ import planet
 default_output = os.getcwd() # default output directory for a process
 
 imsys_dict = {
-    'LST': landsat,
+    'LST': mylandsat,
     #'SNT': sentinel,
-    'PLN': planet,
+    'PLN': myplanet,
 }
 
 # A dictionary of metadata filenames templates
@@ -125,8 +125,8 @@ nameids = {
 
 # Set dictionary of modules to get metadata from different sources
 metalib = {
-    'LST': landsat,
-    'PLN': planet,
+    'LST': mylandsat,
+    'PLN': myplanet,
 }
 
 # Defines image system by path to file or returns None if no one matches
@@ -182,7 +182,7 @@ class process(object):
             self.scenes.append(newscene)
         return self
 
-    def input(self, path, search_scenes = True):
+    def input(self, path, search_scenes = True, imsys_list = None):
         path = listoftype(path, str)
         #print('Path: {}'.format(path))
         if path is None:
@@ -198,12 +198,45 @@ class process(object):
                     path2folder = path2scene
                     #print('Path to folder: {}'.format(path2folder))
                 input_list = walk_find(path2folder, globals()['template_dict'].keys(), globals()['template_dict'].values())
-                #print('Input list: {}'.format(input_list))
+                # scroll('Input list: {}'.format(input_list))
                 for newpath2scene in input_list:
-                    #print(newpath2scene)
+                    # print(newpath2scene)
                     newpath, imsys = newpath2scene
+
+                    # Filter scenes by imsys
+                    if imsys_list is not None:
+                        if imsys not in imsys_list:
+                            continue
+
                     self.add_scene(newpath, imsys)
         return self
+
+    def get_dates(self):
+        dates_list = []
+        for ascene in self.scenes:
+            # print(ascene.meta.datetime.date())
+            scene_date = ascene.meta.datetime.date()
+            if scene_date not in dates_list:
+                dates_list.append(scene_date)
+        dates_list.sort()
+        return dates_list
+
+    def get_paths(self):
+        paths_dict = OrderedDict()
+        for ascene in self.scenes:
+            paths_dict[ascene.meta.id] = ascene.path
+        return paths_dict
+
+    # Returns a dictionary of scene covers shapefiles list
+    def get_cover_paths(self):
+        covers_dict = OrderedDict()
+        for ascene in self.scenes:
+            datamask = ascene.datamask()
+            if datamask is not None:
+                covers_dict[ascene.meta.id] =  fullpath(ascene.path, datamask)
+            else:
+                print('Datamask not found for {}'.format(ascene.meta.id))
+        return covers_dict
 
 # Every space image scene
 class scene:
@@ -318,6 +351,12 @@ class scene:
         self.clip_parameters = {}
         return None
 
+    def datamask(self):
+        if self.meta.datamask is not None:
+            return self.meta.datamask
+        else:
+            return None
+
     # Creates a composite of a single scene --- change
     def composite(self, bands, export_path, path2target = None, exclude_nodata = True, enforce_nodata = None, compress = None, overwrite = True):
 
@@ -397,3 +436,4 @@ def timecomposite(scenes, band_ids, scene_nums, export_path, path2target = None,
         return 1
 
     return res
+

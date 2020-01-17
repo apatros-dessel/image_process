@@ -12,9 +12,11 @@ except:
 import numpy as np
 import math
 
-import calc
+from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len, list_ex, obj2list, returnnone
 
-from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist
+from raster_data import RasterData, MultiRasterData
+
+from calc import array3dim, segmentator, limits_mask, data_to_image, get_raster_limits
 
 temp_dir_list = tdir(default_temp)
 
@@ -36,8 +38,8 @@ tiff_compress_list = [
 ]
 
 ogr_dt_dict = {
-    int:                0,      # ogr.OFTInteger
-    #                   1,      # ogr.OFTIntegerList
+    # int:              0,      # ogr.OFTInteger
+    int:                1,      # ogr.OFTIntegerList
     float:              2,      # ogr.OFTReal
     #                   3,      # ogr.OFTRealList
     str:                4,      # ogr.OFTString
@@ -205,7 +207,7 @@ def save_raster(path, band_array, copypath = None, proj = None, trans = None, dt
         if nodata is None:
             nodata = copy_ds.GetRasterBand(1).GetNoDataValue()
 
-    band_array = calc.array3dim(band_array)
+    band_array = array3dim(band_array)
 
     if dt is None:
         dt = format_to_gdal(band_array.dtype)
@@ -262,6 +264,112 @@ def clip_raster(path2raster, path2vector, export_path = None, byfeatures = True,
 # The code below has been take from 'merge_raster' plugin by S.Sadkov, I havent checked correspondence with other functions here
 interpol_method = [gdal.GRA_NearestNeighbour, gdal.GRA_Average, gdal.GRA_Bilinear, gdal.GRA_Cubic, gdal.GRA_CubicSpline, gdal.GRA_Lanczos]
 
+def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, editable = False, overwrite=True):
+
+    if path is None:
+        path = ''
+        driver_name = 'MEM'
+    elif check_exist(path, ignore=overwrite):
+        return None
+
+    xsize = 1
+    ysize = 1
+    bandnum = 1
+    dt = 0
+    prj = ''
+    geotrans = (0,1,0,0,0,1)
+    nodata = 0
+
+    if copypath is not None:
+        copy_ds = gdal.Open(copypath)
+        if copy_ds is not None:
+            xsize = copy_ds.RasterXSize
+            ysize = copy_ds.RasterYSize
+            bandnum = copy_ds.RasterCount
+            dt = copy_ds.GetRasterBand(1).DataType
+            prj = copy_ds.GetProjection()
+            geotrans = copy_ds.GetGeoTransform()
+            nodata = copy_ds.GetRasterBand(1).GetNoDataValue()
+
+    if options is not None:
+        xsize = options.pop('xsize', xsize)
+        ysize = options.pop('ysize', ysize)
+        bandnum = options.pop('bandnum', bandnum)
+        dt = options.pop('dt', dt)
+        prj = options.pop('prj', prj)
+        geotrans = options.pop('geotrans', geotrans)
+        nodata = options.pop('nodata', nodata)
+
+        if 'compress' in options:
+            options = gdal_options(options.get('compress'))
+
+    print(options)
+
+    driver = gdal.GetDriverByName(driver_name)
+    raster_ds = driver.Create(path, xsize, ysize, bandnum, dt, options = options)
+    raster_ds.SetProjection(prj)
+    raster_ds.SetGeoTransform(geotrans)
+
+    if nodata is not None:
+        raster_ds.GetRasterBand(1).SetNoDataValue(nodata)
+
+    if editable and (driver_name != 'MEM'):
+        raster_ds = None
+        raster_ds = gdal.Open(path, 1)
+
+    return raster_ds
+
+
+# Create shapefile vector dataset
+def shp(path2shp, editable = False):
+
+    gdal.UseExceptions()
+
+    if not os.path.exists(os.path.split(path2shp)[0]):
+        os.makedirs(os.path.split(path2shp)[0])
+
+    if path2shp.endswith('.shp'):
+        dst_layername = path2shp[:-4]
+    else:
+        dst_layername = path2shp
+        path2shp = path2shp + ".shp"
+
+    drv = ogr.GetDriverByName("ESRI Shapefile")
+    dst_ds = drv.CreateDataSource(path2shp)
+    dst_layer = dst_ds.CreateLayer(dst_layername, srs=None)
+
+    if not editable:
+        dst_ds = None
+
+    return dst_ds
+
+# Create GeoJSON vector dataset
+def json(path2json, editable = False):
+
+    gdal.UseExceptions()
+
+    if not os.path.exists(os.path.split(path2json)[0]):
+        os.makedirs(os.path.split(path2json)[0])
+
+    if path2json.endswith('.json'):
+        dst_layername = path2json[:-4]
+    else:
+        dst_layername = path2json
+        path2shp = path2json + ".json"
+
+    drv = ogr.GetDriverByName("GeoJSON")
+
+    if os.path.exists(path2json):
+        drv.DeleteDataSource(path2json)
+
+    dst_ds = drv.CreateDataSource(path2json)
+    dst_layer = dst_ds.CreateLayer('', srs=None)
+
+    if not editable:
+        dst_ds = None
+
+    return dst_ds
+
 def create_virtual_dataset(proj, geotrans, shape_, num_bands):
     y_res, x_res = shape_
     ds = gdal.GetDriverByName('MEM').Create('', x_res, y_res, num_bands, gdal.GDT_Byte)
@@ -284,7 +392,7 @@ def reproject_band(band, s_proj, s_trans, t_proj, t_trans, t_shape, dtype, metho
     gdal.ReprojectImage(s_ds, t_ds, None, None, method)
     return t_ds.ReadAsArray()
 
-def band2raster(bandpath, t_raster, method, exclude_nodata = True, enforce_nodata = None):
+def band2raster(bandpath, t_raster, method, exclude_nodata = True, enforce_nodata = None, t_band_num = None, make_mask = False):
 
     s_raster_path, s_band_num = bandpath
 
@@ -299,15 +407,25 @@ def band2raster(bandpath, t_raster, method, exclude_nodata = True, enforce_nodat
         s_band_num = s_raster.RasterCount
     s_band_array = s_raster.GetRasterBand(s_band_num).ReadAsArray()
     dtype = s_raster.GetRasterBand(s_band_num).DataType
+    if make_mask:
+        mask_array = reproject_band((s_band_array != 0).astype(np.int8), s_proj, s_trans, t_proj, t_trans, t_shape, dtype, method).astype(bool)
     t_band_array = reproject_band(s_band_array, s_proj, s_trans,t_proj, t_trans, t_shape, dtype, method)
-    t_raster.AddBand(dtype)
+    if t_band_num is None:
+        t_raster.AddBand(dtype)
+        t_band_num = t_raster.RasterCount
+    elif t_band_num > t_raster.RasterCount:
+        t_band_num = t_raster.RasterCount
     if exclude_nodata:
         if enforce_nodata is None:
             enforce_nodata = s_raster.GetRasterBand(s_band_num).GetNoDataValue()
         if enforce_nodata is not None:
             t_raster.GetRasterBand(t_raster.RasterCount).SetNoDataValue(enforce_nodata)
-    t_raster.GetRasterBand(t_raster.RasterCount).WriteArray(t_band_array)
-    return t_raster.RasterCount
+    # t_raster.GetRasterBand(t_raster.RasterCount).WriteArray(t_band_array)
+    t_raster.GetRasterBand(t_band_num).WriteArray(t_band_array)
+    if make_mask:
+        return mask_array
+    else:
+        return t_raster.RasterCount
 
 def raster2raster(path2bands, path2export, path2target=None,  method = gdal.GRA_Bilinear, exclude_nodata = True, enforce_nodata = None, compress = None, overwrite = True):
 
@@ -318,6 +436,11 @@ def raster2raster(path2bands, path2export, path2target=None,  method = gdal.GRA_
         path2target = path2bands[0][0]
 
     t_raster = gdal.Open(path2target)
+
+    if t_raster is None:
+        print('Cannot read dataset: {}'.format(path2target))
+        return 1
+
     t_proj = t_raster.GetProjection()
     t_trans = t_raster.GetGeoTransform()
     t_shape = (t_raster.RasterYSize, t_raster.RasterXSize)
@@ -359,7 +482,7 @@ def percent(path2raster, export_path, band1 = 1, band2 = 1, nodata = 0, compress
     return res
 
 # Saves data from a band in Dataset to polygon shapefile
-def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, classify_table = None, export_values = None):
+def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, classify_table = None, export_values = None, overwrite = True):
 
     # Create ogr vector dataset
     gdal.UseExceptions()
@@ -383,7 +506,7 @@ def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, class
     #print(path2raster)
     raster_ds = gdal.Open(path2raster)
     if classify_table is not None:
-        band_array = calc.segmentator(raster_ds.GetRasterBand(band_num).ReadAsArray(), classify_table)
+        band_array = segmentator(raster_ds.GetRasterBand(band_num).ReadAsArray(), classify_table)
         temp_ds = create_virtual_dataset(raster_ds.GetProjection(), raster_ds.GetGeoTransform(), band_array.shape, 1)
         temp_ds.GetRasterBand(1).WriteArray(band_array)
         data_band = temp_ds.GetRasterBand(1)
@@ -529,23 +652,6 @@ def unite_vector(path2vector_list, path2export): # No georeference check is used
                     # pass
             #print(newfeat.keys())
 
-            '''
-            newfeat = t_lyr.GetNextFeature()
-            count = feat.GetFieldCount()
-            print(count)
-            for i in range(count):
-                name = feat.GetFieldDefnRef(i).GetName()
-                field = feat.GetFieldAsString(i)
-                # print('  {}: {}'.format(name, field))
-                if t_lyr.FindFieldIndex(name, 1) == -1:
-                    t_lyr.CreateField(feat.GetFieldDefnRef(i))
-                newfeat.SetField(i, field)
-                name = newfeat.GetFieldDefnRef(i).GetName()
-                field = newfeat.GetFieldAsString(i)
-                print('  {}: {}'.format(name, field))
-                # print(t_lyr.FindFieldIndex(name, 1))
-            '''
-
     t_ds = None
 
     write_prj(path2export[:-4] + '.prj', s_lyr.GetSpatialRef().ExportToWkt())
@@ -562,13 +668,13 @@ def vector_mask(path2raster, path2save_raster_mask, path2shp, limits, sign, noda
 
     # Create mask as an array
     try:
-        mask = calc.limits_mask(raster_ds.ReadAsArray(), limits, sign)
+        mask = limits_mask(raster_ds.ReadAsArray(), limits, sign)
 
     except MemoryError:
         print('Memory Error, try to process raster by bands')
         mask = np.zeros((raster_ds.RasterYSize, raster_ds.RasterXSize)).astype(np.bool)
         for band_num in range(1, raster_ds.RasterCount+1):
-            mask_band = calc.limits_mask(raster_ds.GetRasterBand(band_num), limits[band_num-1:band_num], sign)
+            mask_band = limits_mask(raster_ds.GetRasterBand(band_num), limits[band_num-1:band_num], sign)
             mask[mask_band] = True
             del(mask_band)
 
@@ -588,6 +694,133 @@ def vector_mask(path2raster, path2save_raster_mask, path2shp, limits, sign, noda
     save_to_shp(path2save_raster_mask, path2shp, export_values=[1])
 
     return None
+
+def raster_to_image(path2raster, path2export, band_limits, gamma=1, exclude_nodata = True, enforce_nodata = None, compress=None):
+
+    raster_ds = gdal.Open(path2raster)
+
+    num_bands = min(raster_ds.RasterCount, len(band_limits))
+
+    driver = gdal.GetDriverByName('GTiff')
+    options = gdal_options(compress=compress)
+    export_ds = driver.Create(path2export, raster_ds.RasterXSize, raster_ds.RasterYSize, num_bands, 1, options = options)
+    export_ds.SetProjection(raster_ds.GetProjection())
+    export_ds.SetGeoTransform(raster_ds.GetGeoTransform())
+    export_ds = None
+
+    export_ds = gdal.Open(path2export, 1)
+
+    for i in range(num_bands):
+        band_num = i+1
+        band_array = raster_ds.GetRasterBand(band_num).ReadAsArray()
+
+        y_min = 1
+        y_max = 255
+        dy = 254
+        x_min, x_max = band_limits[i][:2]
+        dx = (x_max - x_min)
+        band_array = band_array.astype(np.float)
+        band_array = band_array - x_min
+        # band_array = None
+        band_array[band_array < 0] = 0
+        band_array[band_array > dx ] = dx
+
+        if gamma == 1:
+            band_array = band_array * (dy/dx)
+        else:
+            band_array = band_array / dx
+            band_array = band_array ** gamma
+            band_array = band_array * dy
+
+        band_array = band_array + y_min
+        band_array[band_array < y_min] = y_min
+        band_array[band_array > y_max] = y_max
+        band_array = np.asarray(band_array)
+
+        if exclude_nodata:
+            nodata = raster_ds.GetRasterBand(band_num).GetNoDataValue()
+            band_array[raster_ds.GetRasterBand(band_num).ReadAsArray()==nodata] = 0
+
+            if enforce_nodata is not None:
+                band_array[raster_ds.GetRasterBand(band_num).ReadAsArray()==enforce_nodata] = 0
+
+            export_ds.GetRasterBand(band_num).SetNoDataValue(0)
+
+        export_ds.GetRasterBand(band_num).WriteArray(band_array)
+
+        band_array = None
+
+    export_ds = None
+
+    return None
+
+def mosaic(import_list, path2export, prj, geotrans, xsize, ysize, band_num, dt, nptype=np.int8, method=gdal.GRA_CubicSpline, exclude_nodata=True, enforce_nodata=None, compress = None):
+
+    driver = gdal.GetDriverByName('GTiff')
+    options = gdal_options(compress=compress)
+    temp_path = r'{}\{}'.format(os.path.split(path2export)[0], 'temp.tif')
+    export_ds = driver.Create(temp_path, xsize, ysize, 1, dt, options=options)
+    export_ds.SetProjection(prj)
+    export_ds.SetGeoTransform(geotrans)
+    export_ds = None
+
+    fin_ds = driver.Create(path2export, xsize, ysize, band_num, dt, options=options)
+    fin_ds.SetProjection(prj)
+    fin_ds.SetGeoTransform(geotrans)
+    fin_ds = None
+
+    export_ds = gdal.Open(temp_path, 1)
+
+    for band_id in range(1, band_num + 1):
+
+        export_band = np.zeros((ysize, xsize)).astype(nptype)
+
+        for path2raster in import_list:
+            new_band_mask = band2raster((path2raster, band_id), export_ds, method=method, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata, t_band_num = 1, make_mask = True)
+            new_band_data = export_ds.GetRasterBand(1).ReadAsArray()
+            # print('new_band_data: {}'.format(np.unique(new_band_data, return_counts=True)))
+            # new_band_mask = [new_band_data != 0]
+            # print(np.mean(export_band))
+            # print(np.mean(new_band_data))
+            # print(np.mean(new_band_mask))
+            export_band[new_band_mask] = new_band_data[new_band_mask]
+            # print('export_band: {}'.format(np.unique('export_band: {}'.format(np.unique(new_band_data, return_counts=True)), return_counts=True)))
+            new_band_data = None
+            new_band_mask = None
+            print('Done: {}'.format(os.path.basename(path2raster)))
+
+        print('Export_band:\n {}'.format(np.unique(export_band, return_counts=True)))
+        fin_ds = gdal.Open(path2export, 1)
+        fin_ds.GetRasterBand(band_id).WriteArray(export_band)
+        fin_ds = None
+        export_band = None
+        print('\nFinished export band %i\n' % band_id)
+
+    export_ds = None
+
+    return None
+
+def alpha(path2raster, path2export, use_raster_nodata=True, use_limits_mask=False, lim_list=[(0)], sign='!=', band_mix = 'OR', options = None, overwrite = True):
+
+    raster_data = RasterData(path2raster, data=1)
+
+    if use_limits_mask:
+        lim_list = list_of_len(lim_list, raster_data.len)
+    else:
+        lim_list = list_of_len([None], raster_data.len)
+
+    mask = limits_mask(RasterData(path2raster), lim_list, sign=sign, band_mix=band_mix, include_raster_nodata=-use_raster_nodata)
+
+    if mask is not None:
+        raster_ds = ds(path=path2export, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
+        raster_ds.AddBand(1)
+        raster_ds.GetRasterBand(raster_ds.RasterCount).WriteArray(mask*255)
+        raster_ds = None
+        return 0
+
+    else:
+        print('Error creating alpha channel')
+        return 1
 
 class bandpath:
 
@@ -614,3 +847,676 @@ class bandpath:
         if band is not None:
             return array3dim(band.ReadAsArray())
 
+def RasterToImage(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True, enforce_nodata = None, band_order = [1,2,3], compress = None, overwrite = True, alpha=False):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    options = {
+        'dt': 1,
+        'nodata': 0,
+        'compress': compress,
+        'bandnum': [3, 4][alpha],
+    }
+
+    t_ds = ds(path=path2export, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
+
+    source = RasterData(path2raster)
+
+    error_count = 0
+    band_num = 0
+
+    if alpha:
+        t_ds.GetRasterBand(4).WriteArray(np.full((source.ds.RasterYSize, source.ds.RasterXSize), 255))
+
+    for band_id, raster_array, nodata in source.getting((0,2,3), band_order = band_order):
+
+        res = 0
+
+        band_num += 1
+
+        if exclude_nodata and (nodata is not None):
+            if enforce_nodata is not None:
+                mask = (raster_array!=nodata) * (raster_array!=enforce_nodata)
+            else:
+                mask = raster_array!=nodata
+        else:
+            if enforce_nodata is not None:
+                mask = raster_array!=enforce_nodata
+            else:
+                mask = None
+
+        if np.min(mask) == True:
+            mask = None
+
+        if mask is not None:
+            data = raster_array[mask]
+        else:
+            data = raster_array
+
+        data = data_to_image(data, method=method, band_limits=band_limits, gamma=gamma)
+
+        if data is None:
+            print('Error calculating band %i' % band_id)
+            error_count += 1
+            continue
+
+        if (mask is not None):
+            raster_array[mask] = data
+            raster_array[~ mask] = 0
+
+        del data
+
+        t_ds.GetRasterBand(band_num).WriteArray(raster_array)
+
+        del raster_array
+
+        if alpha and (mask is not None):
+            oldmask = t_ds.GetRasterBand(4).ReadAsArray()
+            oldmask[~ mask] = 0
+            t_ds.GetRasterBand(4).WriteArray(oldmask)
+
+        del mask
+
+    if error_count == t_ds.RasterCount:
+        res = 1
+
+    t_ds = None
+
+    return res
+
+def Mosaic(path2raster_list, export_path, band_num=1, options=None):
+
+    # t_ds = gdal.BuildVRT(export_path, path2raster_list)
+
+    tfolder = globals()['temp_dir_list'].create()
+    tpath = newname(tfolder, 'tif')
+    vrt = gdal.BuildVRT(tpath, path2raster_list)
+    driver = gdal.GetDriverByName('GTiff')
+    t_ds = driver.CreateCopy(export_path, vrt, band_num, options = options)
+    t_ds = None
+
+    print('Started mosaic of %i images' % len(path2raster_list))
+
+    t_ds = gdal.Open(export_path, 1)
+    for path2raster in path2raster_list:
+        s_ds = gdal.Open(path2raster)
+        gdal.ReprojectImage(s_ds, t_ds)
+        print('Added to mosaic: {}'.format(path2raster))
+        s_ds = None
+
+    t_ds = None
+    print('Finished mosaic of %i images' % len(path2raster_list))
+
+    return 0
+
+def RasterLimits(path2raster_list, method=0, band_limits=None, band_num = 3, exclude_nodata = True, enforce_nodata = None, mixing_method = 0):
+
+    raster_bands_limits = []
+
+    for path2raster in path2raster_list:
+
+        raster_ds = gdal.Open(path2raster)
+
+        if raster_ds is None:
+            print('Cannot open raster: {}'.format(path2raster))
+            continue
+
+        raster_limits = []
+
+        for i in range(band_num):
+
+            if i > raster_ds.RasterCount:
+                raster_limits.append(np.full((1,2), np.nan))
+
+            raster_array = raster_ds.GetRasterBand(i+1).ReadAsArray()
+            if exclude_nodata:
+                raster_array = raster_array[raster_array != raster_ds.GetRasterBand(i+1).GetNoDataValue()]
+            if enforce_nodata is not None:
+                raster_array = raster_array[raster_array != enforce_nodata]
+
+            min, max = get_raster_limits(raster_array, method=method, band_limits=band_limits)
+            if min is None:
+                min = np.nan
+            if max is None:
+                max = np.nan
+            raster_limits.append(np.array([min, max]).reshape((1,2)))
+
+        raster_bands_limits.append(np.hstack(raster_limits))
+
+        print('Got raster limits: {}'.format(raster_limits))
+
+        del raster_limits
+        raster_ds = None
+
+    raster_bands_limits = np.vstack(raster_bands_limits)
+
+    print(raster_bands_limits)
+
+    band_limits = []
+
+    for i in range(band_num):
+
+        min_col = raster_bands_limits[:,2*i]
+        max_col = raster_bands_limits[:,2*i+1]
+
+        if mixing_method == 0:
+            min = np.min(min_col)
+            max = np.max(max_col)
+
+        elif mixing_method == 1:
+            min = np.mean(min_col)
+            max = np.mean(max_col)
+
+        band_limits.append((min, max))
+
+    return band_limits
+
+# Saves raster data mask to shapefile
+def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata = None, alpha=None, overwrite = True):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    s_ds = gdal.Open(path2raster)
+    if s_ds is None:
+        return 1
+
+    tfolder = globals()['temp_dir_list'].create()
+    tpath = newname(tfolder, 'tif')
+
+    options = {
+        'dt': 1,
+        'nodata': 0,
+        'compress': 'LERC_DEFLATE',
+        'bandnum': 1,
+    }
+
+    mask_ds = ds(path=tpath, copypath=path2raster, options=options, overwrite=overwrite, editable=True)
+
+    band_list = list(range(1, s_ds.RasterCount+1))
+    mask_array = None
+
+    if alpha is not None:
+        alpha = int(alpha)
+        if (alpha>0 and alpha<=s_ds.RasterCount):
+            mask_array = s_ds.GetRasterBand(alpha).ReadAsArray().astype(np.bool)
+            band_list.pop(alpha+1)
+
+    if mask_array is None:
+        mask_array = np.ones((s_ds.RasterYSize, s_ds.RasterXSize)).astype(np.bool)
+
+    if use_nodata or (enforce_nodata is not None):
+        for band in RasterData(path2raster).getting(1, band_order=band_list):
+            band_array = None
+            if use_nodata and (band.GetNoDataValue() is not None):
+                band_array = band.ReadAsArray()
+                mask_array[band_array==band.GetNoDataValue()] = False
+            if enforce_nodata is not None:
+                if band_array is None:
+                    band_array = band.ReadAsArray()
+                mask_array[band_array==enforce_nodata] = False
+            band_array = None
+
+    mask_band = mask_ds.GetRasterBand(1)
+
+    mask_band.WriteArray(mask_array)
+
+    shp_ds = shp(path2export, editable = True)
+    lyr = shp_ds.GetLayer()
+
+    # save_raster(path2export[:-4] + '.tif', mask_array, copypath=tpath, compress='LERC_DEFLATE', overwrite=True)
+
+    gdal.Polygonize(mask_band, mask_band, lyr, 0, [], callback=gdal.TermProgress_nocb)
+    shp_ds = None
+
+    # Write projection
+    write_prj(path2export[:-4] + '.prj', s_ds.GetProjection())
+
+    return 0
+
+# Unites geometry from shapefiles
+def Unite(path2shp_list, path2export, proj=None, overwrite=True):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    t_geom = None
+
+    for path2shp in path2shp_list:
+
+        s_ds = ogr.Open(path2shp)
+
+        if s_ds is None:
+            continue
+
+        s_lyr = s_ds.GetLayer()
+
+        if s_lyr is None:
+            continue
+
+        if proj is None:
+            proj = s_lyr.GetSpatialRef().ExportToWkt()
+
+        for feat in s_ds.GetLayer():
+
+            if t_geom is None:
+                o_feat = feat
+                t_geom = o_feat.GetGeometryRef()
+            else:
+                # o_geom = t_geom
+                n_geom = feat.GetGeometryRef()
+                # print('in')
+                t_geom = t_geom.Union(n_geom)
+                # print('out')
+
+    return Geom2Shape(path2export, t_geom, proj=proj)
+
+    # t_feat_defn = ogr.FeatureDefn()
+    t_feat = ogr.Feature(ogr.FeatureDefn())
+    t_feat.SetGeometry(t_geom)
+
+    shp_ds = shp(path2export, editable=True)
+    lyr = shp_ds.GetLayer()
+    lyr.CreateFeature(t_feat)
+
+    shp_ds = None
+
+    # Write projection
+    write_prj(path2export[:-4] + '.prj', proj)
+
+    return 0
+
+# Returns intersection of two polygons in two different shapefiles of length == 1
+def IntersectCovers(path2shp1, path2shp2, path2export, proj=None, overwrite=True):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    shp1_ds = ogr.Open(path2shp1)
+    if shp1_ds is None:
+        print('Cannot open shapefile: {}'.format(path2shp1))
+        return 1
+
+    shp2_ds = ogr.Open(path2shp2)
+    if shp2_ds is None:
+        print('Cannot open shapefile: {}'.format(path2shp2))
+        return 1
+
+    if (len(shp1_ds)!=1) or (len(shp2_ds)!=1):
+        print('Each shape must have one polygon!')
+        return 1
+
+    lyr1 = shp1_ds.GetLayer()
+    feat1 = lyr1.GetNextFeature()
+    geom1 = feat1.GetGeometryRef()
+
+    lyr2 = shp2_ds.GetLayer()
+    feat2 = lyr2.GetNextFeature()
+    geom2 = feat2.GetGeometryRef()
+
+    if geom1.Intersects(geom2):
+
+        t_geom = geom1.Intersection(geom2)
+
+        # Deletes all geometry types except MultiPolygons
+        t_geom = del_geom_by_type(t_geom, 6)
+
+        if proj is None:
+            proj = lyr1.GetSpatialRef().ExportToWkt()
+
+        return Geom2Shape(path2export, t_geom, proj)
+
+    else:
+        print('Source geometries dont intersect')
+        return 1
+
+# Writes a single geometry object to a single shapefile without attributes
+def Geom2Shape(path2export, geom, proj=None):
+    t_feat = ogr.Feature(ogr.FeatureDefn())
+    t_feat.SetGeometry(geom)
+    shp_ds = shp(path2export, editable=True)
+    lyr = shp_ds.GetLayer()
+    lyr.CreateFeature(t_feat)
+    shp_ds = None
+    if proj is not None:
+        write_prj(path2export[:-4] + '.prj', proj)
+    return 0
+
+def del_geom_by_type(old_geom, type):
+    if old_geom.GetGeometryType == type:
+        return old_geom
+    else:
+        new_geom = ogr.Geometry(type)
+        for geom in old_geom:
+            new_geom.AddGeometry(geom)
+        return new_geom
+
+# Get feature data as dictionary
+def feature_dict(feat):
+    attr_dict = OrderedDict()
+    for key in feat.keys():
+        attr_dict[key] = feat.GetField(key)
+        # print('{}: {}'.format(key, type(feat.GetField(key))))
+    return attr_dict
+
+# Get feature data type as dictionary
+def feature_data_type_dict(feat):
+    dt_dict = OrderedDict()
+    for key in feat.keys():
+        dt_dict[key] = feat.GetFieldType(key)
+    return dt_dict
+
+# Get layer from vector file
+def get_lyr_by_path(path):
+
+    ds = ogr.Open(path)
+
+    if ds is None:
+        print('Cannot open file: {}'.format(path2shp2))
+        return (None, None)
+
+    lyr = ds.GetLayer()
+
+    if lyr is None:
+        print('Cannot get layer from: {}'.format(path))
+
+    return (ds, lyr)
+
+
+def JoinShapesByAttributes(path2shape_list,
+                           path2export,
+                           attributes,
+                           new_attributes = None,     # {new_attr1_key: (attr1_key, function1, new_field1_defn),
+                                                            #  new_attr2_key: (attr2_key, function2, new_field2_defn),
+                                                            #  new_attr3_key: (attr1_key, function3, new_field3_defn),}
+                           geom_rule = 0,
+                           attr_rule = 0,
+                           attr_rule_dict = {},
+                           overwrite = True):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    attributes = obj2list(attributes)
+    new_attr_call = isinstance(new_attributes, NewFieldsDict)
+
+    # t_ds = shp(path2export, editable=True)
+    t_ds = json(path2export, editable=True) # It's better to use json because ESRI_Shapefile works incorrectly with long field names
+    t_lyr = t_ds.GetLayer()
+
+    attr_val_list = []
+
+    for path2shape in path2shape_list:
+
+        print('Started %s' % path2shape)
+
+        s_ds, s_lyr = get_lyr_by_path(path2shape)
+
+        if s_lyr is None:
+            continue
+
+        for feat in s_lyr:
+
+            keys = feat.keys()
+
+            attr_check = []
+
+            # Collect all the attributes
+            for attribute in attributes:
+                if attribute in keys:
+                    attr_check.append(feat.GetField(attribute))
+                else:
+                    attr_check = None
+                    break
+
+            if (attr_check is not None) and new_attr_call:
+                new_attr = new_attributes.ValuesList(feat)
+                attr_check.extend(new_attr)
+
+            print(attr_check)
+
+            if attr_check is not None:
+
+                if attr_check in attr_val_list:
+
+                    # Mix two features
+                    feat_id = attr_val_list.index(attr_check)
+                    t_ds = None
+                    t_ds = ogr.Open(path2export, 1)
+                    t_lyr = t_ds.GetLayer()
+                    old_feat = t_lyr.GetFeature(feat_id)
+                    if old_feat is not None:
+                        new_feat = join_feature(old_feat, feat, geom_rule=geom_rule, attr_rule=attr_rule, attr_rule_dict=attr_rule_dict, ID=feat_id)
+                    else:
+                        new_feat = None
+                    if new_feat is not None:
+                        # print(new_feat.GetFID())
+                        if new_attr_call:
+                            # new_feat = new_attributes.AddFields(new_feat, new_attr)
+                            new_feat = new_attributes.AddFields(new_feat)
+                        t_lyr.SetFeature(new_feat)
+                    else:
+                        print('Cannot make new feature')
+
+                else:
+
+                    # Add a new feature
+                    attr_val_list.append(attr_check)
+                    feat_id = attr_val_list.index(attr_check)
+                    feat.SetFID(-1) # Works correctly with json only if original FID is deleted. The field is found by its location
+                    if new_attr_call:
+                        # feat = new_attributes.AddFields(feat, new_attr)
+                        feat = new_attributes.AddFields(feat)
+                    t_lyr.CreateFeature(feat)
+
+    t_ds = None
+
+    if new_attributes is not None:
+        print(new_attributes.add)
+
+    return 0
+
+def join_feature(feat1, feat2, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}, attr_list=None, ID = None):
+
+    geom1 = feat1.GetGeometryRef()
+    geom2 = feat2.GetGeometryRef()
+
+    if geom_rule == 0:
+        new_geom = geom1.Intersection(geom2)
+    elif geom_rule == 1:
+        new_geom = geom1.Union(geom2)
+    elif geom_rule == 2:
+        new_geom = geom1.Difference(geom2)
+    elif geom_rule == 3:
+        new_geom = geom1.SymmetricDifference(geom2)
+    # elif geom_rule == 4:
+        # new_geom = geom1.UnionCascaded(geom2)
+    else:
+        print('Unreckognized geom_rule: {}'.format(geom_rule))
+        return None
+
+    new_attr_dict = feature_dict(feat1)
+    join_attr_dict = feature_dict(feat2)
+
+    if attr_list is None:
+        attr_list = new_attr_dict.keys()
+
+    for i, key in enumerate(new_attr_dict):
+
+        join_attr_val = join_attr_dict.get(key)
+
+        if join_attr_val is None:
+            continue
+        else:
+            old_attr_val = new_attr_dict.get(key)
+
+        rule = attr_rule_dict.get(key, attr_rule)
+
+        try:
+            new_attr_dict[key] = ruled_operator(old_attr_val, join_attr_val, rule)
+        except:
+            new_attr_dict[key] = old_attr_val
+
+    new_feat = feature(feature_defn=feat1.GetDefnRef(), geom=new_geom, attr=new_attr_dict)
+
+    # print(new_feat.GetFID())
+    if ID is not None:
+        new_feat.SetFID(ID)
+    else:
+        new_feat.SetFID(feat1.GetFID())
+    # print(new_feat.GetFID())
+
+    return new_feat
+
+def ruled_operator(x, y, rule, x_weight = 1, y_weight = 1):
+
+    # 0 - Save old value
+    if rule == 0:
+        result = x
+    # 1 - Save new value
+    elif rule == 1:
+        result = y
+    # 2 - Save sum
+    elif rule == 2:
+        result = x + y
+    # 3 - Save difference
+    elif rule == 3:
+        result = x - y
+    # 4 - Save production
+    elif rule == 4:
+        result = x * y
+    # 5 - Save ratio
+    elif rule == 5:
+        result = x / y
+    # 6 - Save exponent
+    elif rule == 6:
+        result = x ** y
+    # 7 - Save logarithm
+    elif rule == 7:
+        result = math.log(x,y)
+    # 8 - Save mean
+    elif rule == 8:
+        result = (x + y) / 2
+    # 9 - Save geometric mean
+    elif rule == 9:
+        result = (x * y) ** 0.5
+
+    # 100 - Save weighted mean
+    elif rule == 100:
+        result = (x * x_weight + y * y_weight) / (x_weight + y_weight)
+
+    else:
+        print('Unreckognized attr_rule: {}'.format(rule))
+        result = x
+
+    return result
+
+def feature(feature_defn = None, geom = None, attr = None, attr_type = 0, attr_type_dict = {}, ID = None):
+
+    if feature_defn is None:
+        feature_defn = ogr.FeatureDefn
+
+    # feat = ogr.Feature(ogr.FeatureDefn(geom_type))
+    feat = ogr.Feature(feature_defn)
+
+    if ID is not None:
+        feat.SetFID(ID)
+
+    if geom is not None:
+        feat.SetGeometry(geom)
+
+    if attr is not None:
+        '''
+        for key in attr.keys():
+            val = attr[key]
+
+            field_id = feature_defn.GetFieldIndex(key)
+            # print(field_id)
+            if field_id != (-1):
+                feat.SetField(key, attr[key])
+        '''
+
+        for i, key in enumerate(feat.keys()):
+
+            if key in attr.keys():
+                feat.SetField(key, attr[key])
+            else:
+                feat.SetFieldNull(key)
+
+    return feat
+
+class NewFieldsDict():
+
+    def __init__(self):
+        self.keys = []
+        self.input_keys = OrderedDict()
+        self.functions = OrderedDict()
+        self.fields = OrderedDict()
+        self.defaults = OrderedDict()
+        self.add = OrderedDict()
+
+    def __bool__(self):
+        return bool(len(self))
+
+    # Define a new field generator
+    def NewField(self, key, input_key, func, field_defn = None, default_value = None, add = False):
+
+        if key in self.keys:
+            index = self.keys.index(key)
+            self.keys.pop(index)
+            self.keys.insert(index, key)
+        else:
+            self.keys.append(key)
+
+        assert isinstance(input_key, str)
+        assert hasattr(func, '__call__')
+
+
+        self.input_keys[key] = input_key
+        self.functions[key] = func
+        self.fields[key] = field_defn
+        self.defaults[key] = default_value
+        self.add[key] = bool(add)
+
+    def CheckNaming(self, check_names = None):
+
+        if hasattr(check_names, '__iter__'):
+           for key in self.keys:
+                if key in self.input_keys:
+                    print('Wrong naming, cannot add field: {}'.format(key))
+                    self.add[key] = False
+
+    # Returns a value of a function
+    def Value(self, key, input_value):
+        if key in self.keys:
+            try:
+                return self.functions.get(key)(input_value)
+            except:
+                return self.defaults.get(key)
+
+    # Returns a list of values for a feature
+    def ValuesList(self, feat):
+
+        val_list = []
+
+        for key in self.keys:
+            input_value = feat.GetField(self.input_keys[key]) or None
+            if input_value is not None:
+                val_list.append(self.Value(key, input_value))
+            else:
+                val_list.append(None)
+
+        return val_list
+
+    def AddFields(self, feat, new_fields = {}):
+
+        for key in self.keys:
+            if self.add[key]:
+                new_value = new_fields.get(key)
+                if new_value is None:
+                    input_value = feat.GetField(self.input_keys[key]) or None
+                    new_value = self.Value(key, input_value)
+                feat.SetField(key, input_value)
+
+        return feat

@@ -7,11 +7,20 @@ from collections import OrderedDict
 import xml.etree.ElementTree as et
 import xlwt
 from datetime import datetime
+from copy import deepcopy
 
 default_temp = '{}\image_processor'.format(os.environ['TMP'])
 
 if not os.path.exists(default_temp):
     os.makedirs(default_temp)
+
+# Function always returning None
+def returnnone(obj):
+    return None
+
+# Function always returning object
+def returnobj(obj):
+    return obj
 
 # Check existance of file
 def check_exist(path, ignore=False):
@@ -23,10 +32,36 @@ def check_exist(path, ignore=False):
 
 # Conversts non-list objects to a list of length 1
 def obj2list(obj):
-    if isinstance(list, obj):
+    if isinstance(obj, list):
         return obj
     else:
         return [obj]
+
+# Repeats th last value in the list until it has the predefined length
+def list_of_len(list_, len_):
+    while len(list_) < len:
+        list_.append(list_[-1])
+    return list_
+
+# Returns list with excluded values
+def list_ex(list_, exclude_):
+    exclude_ = obj2list(exclude_)
+    for i in range(len(list_)-1, -1, -1):
+        if (list_[i] in exclude_):
+            list_.pop(i)
+    return list_
+
+def lget(iter_obj, id, id2=None):
+    if id2 is not None:
+        val = iter_obj[id, id2]
+        if len(val) == 0:
+            val = iter_obj[-1:]
+    else:
+        try:
+            val = iter_obj[id]
+        except IndexError:
+            val = iter_obj[-1]
+    return val
 
 # Returns a string of proper length cutting the original string and stretching it adding filler symbols if necessary
 def stringoflen(value, length, filler = '0', left = False):
@@ -152,6 +187,30 @@ def list_orderdict(dict_tuple, newvals2tuples = False):
             result[key] = newval
     return result
 
+# Returns a new dictionary with all values with unique keys and sum of values with different keys
+def sumdict(a, b):
+    assert isinstance(a, dict) and isinstance(b, dict)
+    if isinstance(a, OrderedDict) or isinstance(b, OrderedDict):
+        c = OrderedDict()
+    else:
+        c = dict()
+    keys = list(a.keys())
+    for newkey in b.keys():
+        if newkey not in keys:
+            key.append(newkey)
+    for key in keys:
+        vals = [a.get(key), b.get(key)]
+        if vals[0] is None:
+            c[key] = vals[1]
+        elif vals[1] is None:
+            c[key] = vals[0]
+        else:
+            try:
+                c[key] = vals[0] + vals[1]
+            except:
+                c[key] = vals
+        return c
+
 # Create fullpath from folder, file and extension
 def fullpath(folder, file, ext=None):
     if ext is None:
@@ -162,6 +221,8 @@ def fullpath(folder, file, ext=None):
 
 # Creates new path
 def newname(folder, ext = None):
+    # print(os.path.exists(folder), folder)
+    # print(os.path.isdir(folder))
     if os.path.exists(folder) and os.path.isdir(folder):
         i = 0
         path_new = fullpath(folder, i, ext)
@@ -217,9 +278,14 @@ def fold_finder(path):
 # Doesn't use os.walk to avoid using generators
 def walk_find(path, ids_list, templates_list, id_max=10000):
     #templates_list = listoftype(templates_list, str, export_tuple=True)
-    if os.path.exists(path) and os.path.isdir(path):
+    if os.path.exists(path):
+        if not os.path.isdir(path):
+            path = os.path.split(path)[0]
         path_list = [path]
         path_list = [path_list]
+    else:
+        print('Path does not exist: {}'.format(path))
+        return None
     id = 0
     export_ = []
     while id < len(path_list) < id_max:
@@ -312,7 +378,17 @@ class tdir():
 
     # Create path to a new file
 
-def scroll(obj, print_type=True):
+def winprint(obj, decoding = None):
+    if decoding is not None:
+        try:
+            print(obj.decode(decoding))
+            return None
+        except:
+            print('Error decoding: "{}"'.format(decoding))
+    print(obj)
+    return None
+
+def scroll(obj, print_type=True, decoding=None):
     if print_type:
         print('Object of {}:'.format(type(obj)))
     if hasattr(obj, '__iter__'):
@@ -320,12 +396,12 @@ def scroll(obj, print_type=True):
             print('  <empty>')
         elif isinstance(obj, (dict, OrderedDict)):
             for val in obj:
-                print('  {}: {}'.format(val, obj[val]))
+                winprint('  {}: {}'.format(val, obj[val]), decoding=decoding)
         else:
             for val in obj:
-                print('  {}'.format(val))
+                winprint('  {}'.format(val), decoding=decoding)
     else:
-        print('  {}'.format(obj))
+        winprint('  {}'.format(obj), decoding=decoding)
 
 # Reads .xml file and returns metadata as element tree
 def xml2tree(path):
@@ -437,9 +513,18 @@ def dict_to_xls(path2xls, adict): # It's better to use OrderedDict to preserve t
     for id, row_key in enumerate(adict):
         row_num = id+1
         row = ws.row(row_num)
-        row.write(0, row_key)
-        for key in adict.get(row_key):
-            row.write(col_list.index(key), adict.get(row_key).get(key))
+        rowdata = adict.get(row_key)
+        if isinstance(rowdata, dict):
+            row.write(0, row_key)
+            for key in rowdata:
+                row.write(col_list.index(key), rowdata.get(key))
+        elif hasattr(rowdata, '__iter__'):
+            row.write(0, row_num)
+            for col_id, obj in enumerate(rowdata):
+                row.write(col_id+1, obj)
+        else:
+            row.write(0, row_num)
+            row.write(1, rowdata)
 
     wb.save(path2xls)
 
@@ -575,4 +660,3 @@ class scene_metadata:
         for key in self.namecodes.keys():
             namestring = namestring.replace(key, self.namecodes.get(key, ''))
         return namestring
-

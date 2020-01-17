@@ -1,16 +1,56 @@
 from image_processor import *
 from shutil import copyfile
+import gdal
 
 path = r'C:\source\planet'
 pathlist = [
 
 ]
 
-path2raster = r'C:/sadkov/planet_tverskaya/composite/spring/Tver_20190428_083154_1008_RGB_LERC_DEFLATE.tif'
-path2mask = r'C:\sadkov\playground\test/Tver_20190428_083154_1008_CLOUDS!.tif'
-path2shp = r'C:\sadkov\playground\test/Tver_20190428_083154_1008_CLOUDS.shp'
+# path2raster = r'C:/sadkov/planet_tverskaya/composite/spring/Tver_20190428_083154_1008_RGB_LERC_DEFLATE.tif'
+# path2mask = r'C:\sadkov\playground\test/Tver_20190428_083154_1008_CLOUDS!.tif'
+# path2shp = r'C:\sadkov\playground\test/Tver_20190428_083154_1008_CLOUDS.shp'
+# path2export = r'C:\sadkov\playground\test/Tver_20190428_083154_1008_IMAGE.tif'
 
-geodata.vector_mask(path2raster, path2mask, path2shp, [None, 5900, 7000], '>', nodata=0)
+# geodata.vector_mask(path2raster, path2mask, path2shp, [None, 5900, 7000], '>', nodata=0)
+
+# geodata.raster_to_image(path2raster, path2export, [(2500, 6600), (3500, 7800), (4000, 8500)], gamma=0.85, compress='LERC_DEFLATE')
+
+# path2composite = r'c:\sadkov\planet_tverskaya\composite\spring'
+path2synthesis = r'c:\sadkov\planet_tverskaya\synthesis\spring'
+path2template = r'c:\sadkov\planet_tverskaya\mosaic_test_10m.tif'
+path2export = r'c:\sadkov\planet_tverskaya\mosaic_test_RGB_10m.tif'
+
+t = datetime.now()
+# error_count = 0
+# for name in os.listdir(path2composite):
+    # if '_RGB_' in name:
+        # try:
+            # t2 = datetime.now()
+            # path2raster = fullpath(path2composite, name)
+            # path2export = fullpath(path2synthesis, name[:-17] + '.tif')
+            # geodata.raster_to_image(path2raster, path2export, [(2500, 6600), (3500, 7800), (4000, 8500)], gamma=0.85, compress='LERC_DEFLATE')
+            # t2 = datetime.now() - t2
+            # print('Time to save {}: {}'.format(path2export, t2))
+        # except:
+            # print('Error making synthesis for {}'.format(name))
+            # error_count += 1
+
+source = gdal.Open(path2template)
+prj = source.GetProjection()
+geotrans = source.GetGeoTransform()
+xsize = source.RasterXSize
+ysize = source.RasterYSize
+
+
+import_list = []
+import_names = os.listdir(path2synthesis)
+for name in os.listdir(path2synthesis):
+        import_list.append(fullpath(path2synthesis, name))
+
+geodata.mosaic(import_list, path2export, prj, geotrans, xsize, ysize, 3, 1, nptype=np.int8, compress='LERC_DEFLATE')
+
+print('Total time = {}'.format(datetime.now()-t))
 
 # proc = process(output_path=r'C:\sadkov\planet_tverskaya\borders\spring')
 # proc.input(path)
@@ -68,7 +108,7 @@ def count_indices_from_list(ascene, indexlist, folder, compress = None):
 
 # path2vector_list = []
 
-t = datetime.now()
+# t = datetime.now()
 #report = OrderedDict()
 #for ascene in proc.scenes:
     #t2 = datetime.now()
@@ -89,7 +129,7 @@ t = datetime.now()
 
 
 
-print('Total time = {}'.format(datetime.now()-t))
+# print('Total time = {}'.format(datetime.now()-t))
 
 # try:
     # dict_to_xls(r'C:\sadkov\planet_tverskaya\composite\spring\test_report.xls', report)

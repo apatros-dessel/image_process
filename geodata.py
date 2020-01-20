@@ -12,7 +12,7 @@ except:
 import numpy as np
 import math
 
-from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len, list_ex, obj2list
+from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len, list_ex, obj2list, returnnone, newname2, listfull
 
 from raster_data import RasterData, MultiRasterData
 
@@ -1192,20 +1192,148 @@ def del_geom_by_type(old_geom, type):
             new_geom.AddGeometry(geom)
         return new_geom
 
+def feature_fid(lyr):
+    fid_list = [-1]
+    for feat in lyr:
+        fid = feat.GetFID()
+        if fid in fid_list:
+            fid = max(fid_list) + 1
+        fid_list.append(fid)
+    fid_list.pop(0)
+    return fid_list
+
+def add_fid(feat, fid_list):
+    fid = feat.GetFID()
+    if fid in fid_list:
+        fid = max(fid_list) + 1
+    fid_list.append(fid)
+    return fid, fid_list
+
 # Get feature data as dictionary
-def feature_dict(feat):
+def feature_dict(feat, keys=None, geom_col_name=None):
+
+    if keys is None:
+        keys = feat.keys()
+    else:
+        keys = obj2list(keys)
+
+    if geom_col_name in keys:
+        geom_col_name = newname2(geom_col_name, keys)
+
     attr_dict = OrderedDict()
-    for key in feat.keys():
+
+    for key in keys:
         attr_dict[key] = feat.GetField(key)
         # print('{}: {}'.format(key, type(feat.GetField(key))))
+
+    if geom_col_name is not None:
+        attr_dict[geom_col_name] = feat.GetGeometryRef()
+
+    print(attr_dict)
+
     return attr_dict
 
 # Get feature data type as dictionary
-def feature_data_type_dict(feat):
+def feature_data_type_dict(feat, keys=None):
+
+    if keys is None:
+        keys = feat.keys()
+    else:
+        keys = obj2list(keys)
+
+    attr_dict = OrderedDict()
+
     dt_dict = OrderedDict()
+
     for key in feat.keys():
         dt_dict[key] = feat.GetFieldType(key)
+
     return dt_dict
+
+# Get column data as ordered dictionary
+def column_dict(lyr, key, default = None):
+
+    col_dict = OrderedDict()
+
+    fid_list = lyr.GetFIDColumn()
+
+    for feat in lyr:
+
+        fid = feat.GetFID(key)
+        if fid == (-1):
+            fid = max(fid_list) + 1
+            fid_list.append(fid)
+
+        value = feat.GetField(key)
+        if value is None:
+            value = default
+
+        col_dict[fid] = value
+
+    return col_dict
+
+# Get layer data as ordered dictionary
+def layer_column_dict(lyr, columns=None, geom_col_name=None, lyr_defn_name=None, field_defn_col_name=None, columns_as_arrays=False):
+
+    fid_list = [-1]
+
+    if columns is None:
+        key_list = []
+    else:
+        key_list = obj2list(columns)                    # !!!! It's better to preserve predefined geometry column names
+        if geom_col_name in key_list:
+            geom_col_name, key_list = newname2(geom_col_name, key_list, update_list=True)
+        if lyr_defn_name in key_list:
+            lyr_defn_name, key_list = newname2(lyr_defn_name, key_list, update_list=True)
+        if field_defn_col_name in key_list:
+            geom_col_name, key_list = newname2(field_defn_col_name, key_list, update_list=True)
+
+    lyr_dict = OrderedDict()
+
+    lyr.ResetReading()
+
+    for i, feat in enumerate(lyr):
+
+        fid, fid_list = add_fid(feat, fid_list)
+
+        feat_dict = feature_dict(feat, keys=columns, geom_col_name=geom_col_name)
+
+        if columns is None:
+            new_key_list = feat_dict.keys()
+            for key in new_key_list:
+                if key not in key_list:
+                    key_list.append(key)
+
+        for key in key_list:
+            if key in lyr_dict:
+                lyr_dict[key].append(feat_dict[key])
+            else:
+                new_col_list = listfull(i, None)
+                new_col_list.append(feat_dict[key])
+                lyr_dict[key] = new_col_list
+
+    if (lyr_defn_name is not None) or (field_defn_col_name is not None):
+        feat_defn = lyr.GetLayerDefn()
+
+        if lyr_defn_name is not None:
+            if lyr_defn_name in lyr_dict.keys():
+                lyr_defn_name = newname2(lyr_defn_name, lyr_dict.keys())
+            lyr_dict[lyr_defn_name] = feat_defn
+
+        if field_defn_col_name is not None:
+            if field_defn_col_name in lyr_dict.keys():
+                lyr_defn_name = newname2(field_defn_col_name, lyr_dict.keys())
+            field_defn_list = []
+            for key in feat_defn:
+                field_defn_list.append(feat_defn.GetFieldDefn())
+            lyr_dict[field_defn_col_name] = field_defn_list
+
+    if columns_as_arrays:
+        for key in lyr_dict:
+            if lyr_dict[key] is list:
+                lyr_dict[key] = np.array(lyr_dict[key])
+
+    return lyr_dict
 
 # Get layer from vector file
 def get_lyr_by_path(path):
@@ -1224,12 +1352,22 @@ def get_lyr_by_path(path):
     return (ds, lyr)
 
 
-def JoinShapesByAttributes(path2shape_list, path2export, attributes, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}, overwrite = True):
+def JoinShapesByAttributes(path2shape_list,
+                           path2export,
+                           attributes,
+                           new_attributes = None,     # {new_attr1_key: (attr1_key, function1, new_field1_defn),
+                                                            #  new_attr2_key: (attr2_key, function2, new_field2_defn),
+                                                            #  new_attr3_key: (attr1_key, function3, new_field3_defn),}
+                           geom_rule = 0,
+                           attr_rule = 0,
+                           attr_rule_dict = {},
+                           overwrite = True):
 
     if check_exist(path2export, ignore=overwrite):
         return 1
 
     attributes = obj2list(attributes)
+    new_attr_call = isinstance(new_attributes, NewFieldsDict)
 
     # t_ds = shp(path2export, editable=True)
     t_ds = json(path2export, editable=True) # It's better to use json because ESRI_Shapefile works incorrectly with long field names
@@ -1252,6 +1390,7 @@ def JoinShapesByAttributes(path2shape_list, path2export, attributes, geom_rule =
 
             attr_check = []
 
+            # Collect all the attributes
             for attribute in attributes:
                 if attribute in keys:
                     attr_check.append(feat.GetField(attribute))
@@ -1259,10 +1398,17 @@ def JoinShapesByAttributes(path2shape_list, path2export, attributes, geom_rule =
                     attr_check = None
                     break
 
-            # print(attr_check)
+            if (attr_check is not None) and new_attr_call:
+                new_attr = new_attributes.ValuesList(feat)
+                attr_check.extend(new_attr)
+
+            print(attr_check)
 
             if attr_check is not None:
+
                 if attr_check in attr_val_list:
+
+                    # Mix two features
                     feat_id = attr_val_list.index(attr_check)
                     t_ds = None
                     t_ds = ogr.Open(path2export, 1)
@@ -1274,16 +1420,35 @@ def JoinShapesByAttributes(path2shape_list, path2export, attributes, geom_rule =
                         new_feat = None
                     if new_feat is not None:
                         # print(new_feat.GetFID())
+                        if new_attr_call:
+                            # new_feat = new_attributes.AddFields(new_feat, new_attr)
+                            new_feat = new_attributes.AddFields(new_feat)
                         t_lyr.SetFeature(new_feat)
                     else:
                         print('Cannot make new feature')
+
                 else:
+
+                    # Add a new feature
                     attr_val_list.append(attr_check)
                     feat_id = attr_val_list.index(attr_check)
                     feat.SetFID(-1) # Works correctly with json only if original FID is deleted. The field is found by its location
+                    if new_attr_call:
+                        # feat = new_attributes.AddFields(feat, new_attr)
+                        feat = new_attributes.AddFields(feat)
                     t_lyr.CreateFeature(feat)
 
     t_ds = None
+
+    if new_attributes is not None:
+        print(new_attributes.add)
+
+    return 0
+
+def TimeCovers(path2vec, path2export, time_column, time_limit=0, min_area=0, attr_rule=0, overwrite = True):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
 
     return 0
 
@@ -1416,4 +1581,78 @@ def feature(feature_defn = None, geom = None, attr = None, attr_type = 0, attr_t
 
     return feat
 
+# Calculates values for new fields in GDAL features preserving FieldDefn data if nessessary
+class NewFieldsDict():
 
+    def __init__(self):
+        self.keys = []
+        self.input_keys = OrderedDict()
+        self.functions = OrderedDict()
+        self.fields = OrderedDict()
+        self.defaults = OrderedDict()
+        self.add = OrderedDict()
+
+    def __bool__(self):
+        return bool(len(self))
+
+    # Define a new field generator
+    def NewField(self, key, input_key, func, field_defn = None, default_value = None, add = False):
+
+        if key in self.keys:
+            index = self.keys.index(key)
+            self.keys.pop(index)
+            self.keys.insert(index, key)
+        else:
+            self.keys.append(key)
+
+        assert isinstance(input_key, str)
+        assert hasattr(func, '__call__')
+
+
+        self.input_keys[key] = input_key
+        self.functions[key] = func
+        self.fields[key] = field_defn
+        self.defaults[key] = default_value
+        self.add[key] = bool(add)
+
+    def CheckNaming(self, check_names = None):
+
+        if hasattr(check_names, '__iter__'):
+           for key in self.keys:
+                if key in self.input_keys:
+                    print('Wrong naming, cannot add field: {}'.format(key))
+                    self.add[key] = False
+
+    # Returns a value of a function
+    def Value(self, key, input_value):
+        if key in self.keys:
+            try:
+                return self.functions.get(key)(input_value)
+            except:
+                return self.defaults.get(key)
+
+    # Returns a list of values for a feature
+    def ValuesList(self, feat):
+
+        val_list = []
+
+        for key in self.keys:
+            input_value = feat.GetField(self.input_keys[key]) or None
+            if input_value is not None:
+                val_list.append(self.Value(key, input_value))
+            else:
+                val_list.append(None)
+
+        return val_list
+
+    def AddFields(self, feat, new_fields = {}):
+
+        for key in self.keys:
+            if self.add[key]:
+                new_value = new_fields.get(key)
+                if new_value is None:
+                    input_value = feat.GetField(self.input_keys[key]) or None
+                    new_value = self.Value(key, input_value)
+                feat.SetField(key, input_value)
+
+        return feat

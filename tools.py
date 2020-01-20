@@ -14,6 +14,14 @@ default_temp = '{}\image_processor'.format(os.environ['TMP'])
 if not os.path.exists(default_temp):
     os.makedirs(default_temp)
 
+# Function always returning None
+def returnnone(obj):
+    return None
+
+# Function always returning object
+def returnobj(obj):
+    return obj
+
 # Check existance of file
 def check_exist(path, ignore=False):
     if not ignore:
@@ -210,6 +218,21 @@ def fullpath(folder, file, ext=None):
     else:
         ext = ('.' + str(ext).replace('.', ''))
     return r'{}\{}{}'.format(folder, file, ext)
+
+# Creates new name to avoid same names as in the list
+def newname2(name, name_list, update_list=False):
+
+    i = 2
+    newname = '{}_{}'.format(name, i)
+    while newname in name_list:
+        newname = '{}_{}'.format(name, i)
+        i += 1
+
+    if update_list:
+        name_list.append(newname)
+        return newname, name_list
+    else:
+        return newname
 
 # Creates new path
 def newname(folder, ext = None):
@@ -652,4 +675,3 @@ class scene_metadata:
         for key in self.namecodes.keys():
             namestring = namestring.replace(key, self.namecodes.get(key, ''))
         return namestring
-

@@ -18,25 +18,18 @@ cover_paths = proc.get_cover_paths()
 scroll(cover_paths)
 t = datetime.now()
 # geodata.IntersectCovers(path2shp1, path2shp2, r'c:\sadkov\toropez\image_test\test.shp')
-geodata.JoinShapesByAttributes(cover_paths.values(), r'c:\sadkov\toropez\image_test\temp_json.json', ['id'], geom_rule=1, attr_rule=0, )
-'''
-temp_ds = geodata.ogr.Open(r'c:\sadkov\toropez\image_test\temp_json.json', 1)
-temp_lyr = temp_ds.GetLayer()
-field_defn = geodata.ogr.FieldDefn('date', geodata.ogr.OFTString)
-field_defn.SetWidth(10)
-temp_lyr.CreateField(field_defn)
+geodata.JoinShapesByAttributes(cover_paths.values(), r'c:\sadkov\toropez\image_test\temp_json.json', ['id'], geom_rule=1, attr_rule=0)
 
-temp_ds = None
-temp_ds = geodata.ogr.Open(r'c:\sadkov\toropez\image_test\temp_json.json', 1)
-temp_lyr = temp_ds.GetLayer()
+def get_date(str_):
+    return str_[:10]
 
-for feat in temp_lyr:
-    feat.GetDefnRef().AddFieldDefn(field_defn)
-    feat.SetField('date', feat.GetFieldAsString(feat.GetFieldIndex('aquired')))
+new_attributes = geodata.NewFieldsDict()
+new_attributes.NewField('date', 'acquired', get_date, add = True)
 
-temp_ds = None
-'''
-geodata.JoinShapesByAttributes([r'c:\sadkov\toropez\image_test\temp_json.json'], path2export, ['satellite_id', 'strip_id'], geom_rule=1, attr_rule=0, )
+geodata.JoinShapesByAttributes([r'c:\sadkov\toropez\image_test\temp_json.json'], path2export, [], new_attributes=new_attributes, geom_rule=1, attr_rule=0, )
+
+geodata.JoinShapesByAttributes([r'c:\sadkov\toropez\image_test\test_json.json'], r'c:\sadkov\toropez\image_test\intersect_json.json', ['columns'], geom_rule=0, attr_rule=0, attr_rule_dict={'id': 2})
+
 print(datetime.now()-t)
 
 '''

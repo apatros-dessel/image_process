@@ -7,7 +7,7 @@ from collections import OrderedDict
 import xml.etree.ElementTree as et
 import xlwt
 from datetime import datetime
-from copy import deepcopy
+from copy import copy, deepcopy
 
 default_temp = '{}\image_processor'.format(os.environ['TMP'])
 
@@ -32,10 +32,144 @@ def check_exist(path, ignore=False):
 
 # Conversts non-list objects to a list of length 1
 def obj2list(obj):
-    if isinstance(obj, list):
-        return obj
+    new_obj = copy(obj)
+    if isinstance(new_obj, list):
+        return new_obj
     else:
-        return [obj]
+        return [new_obj]
+
+# Returns list values by order
+def list_order(orig_list):
+
+    sorted_list = copy(orig_list)
+    sorted_list.sort()
+
+    order_list = []
+    prev_val = sorted_list[0]
+    prev_id = orig_list.index(prev_val)
+    order_list.append(prev_id)
+    copy_list = copy(orig_list)
+    repeat_num = 0
+
+    for val in sorted_list[1:]:
+
+        id = orig_list.index(val)
+
+        if id==prev_id:
+            copy_list.pop(id)
+            repeat_num += 1
+            prev_id = copy_list.index(val) + repeat_num
+            order_list.append(prev_id)
+        else:
+            order_list.append(id)
+            prev_id = id
+            copy_list = copy(orig_list)
+            repeat_num = 0
+
+    return order_list
+
+def array_order_2(arr):
+
+    order_list = []
+    values_list = []
+
+    for line in arr:
+        # order_list.append(np.argsort(line))
+        values_list.append(np.unique(line).sort())
+
+    order_fin = []
+
+    while True:
+        filter = []
+        while True:
+            match = filter_by_values(arr, filter)
+            if np.sum(match) > 1:
+                order_fin.append()
+
+
+
+    position_length = np.zeros()
+    for order1_val in order_list[0]:
+        order_len =
+        if
+
+def filter_by_values(arr, col):
+    match = np.ones(arr.shape[1:])
+    for line, value in zip(arr, col):
+        match = match * (line==value)
+    return match
+
+def list_order_2(list_of_lists):
+
+    # for list_ in list_of_lists[1:]:
+        # assert len(list_)==len(list_of_lists[0])
+
+    order_list = []
+
+    for list_ in list_of_lists:
+        assert len(list_) == len(list_of_lists[0])
+        order_list.append(list_order(list_))
+
+    count = 0
+    for i, pos in (order_list[0]):
+        res, value = order_for_val(list_of_lists, list_of_lists[pos])
+
+
+
+        if i < count:
+            continue
+        val = list_of_lists[0][pos]
+        temp_count = 1
+        while val == list_of_lists[0][pos+temp_count]:
+            temp_count += 1
+        if temp_count == 1:
+            order_list.append(pos)
+
+
+
+
+    return order_list
+
+def order_for_val(list_of_lists, match_value, level=0):
+    match_list = []
+    for i, val in enumerate(match_list[level]):
+        if match_value == val:
+            match_list.append(i)
+    if len(match_list) == 0:
+        return 0, None
+    elif len(match_list) == 1:
+        return 1, [match_list[0]]
+    else:
+        next_level_list = []
+        for old_list in list_of_lists[1:]:
+            new_list = []
+            for id in match_list:
+                new_list.append(match_list[id])
+            next_level_list.append(new_list)
+        return 2, order_for_level(next_level_list)
+
+def order_for_level(list_of_lists):
+    count = 0
+    export_order_list = []
+    order_list = list_order(list_of_lists[0])
+    for id, pos in enumerate(order_list):
+        if id < count:
+            continue
+        else:
+            res, value = order_for_val(list_of_lists, list_of_lists[pos])
+            if res == 0:
+                continue
+            elif res == 1:
+                order_list.extend(value)
+                count += 1
+            elif res == 2:
+                order_list.extend(value)
+                count += len(value)
+            else:
+                print('Unknown res: {}'.format(res))
+                raise Exception()
+
+
 
 # Repeats th last value in the list until it has the predefined length
 def list_of_len(list_, len_):
@@ -113,6 +247,23 @@ def iter_list(root, call):
     for obj in root.iter(call):
         iter_list.append({obj.tag: {'attrib': obj.attrib, 'text': obj.text}})
     return iter_list
+
+# Removes all values x in list
+def remove_in_list(orig_list, x):
+    new_list = copy(orig_list)
+    while x in new_list:
+        i = new_list.index(x)
+        new_list.pop(i)
+    return new_list
+
+# Replaces all values x in list to y
+def replace_in_list(orig_list, x, y):
+    new_list = copy(orig_list)
+    while x in new_list:
+        i = new_list.index(x)
+        new_list.pop(i)
+        new_list.insert(y)
+    return new_list
 
 # Processes the iter_list created by iter_list() to return list of values of a proper kind
 def iter_return(iter_list, data='text', attrib=None):

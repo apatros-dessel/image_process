@@ -12,7 +12,7 @@ except:
 import numpy as np
 import math
 
-from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len, list_ex, obj2list, returnnone, newname2, listfull
+from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len, list_ex, obj2list, returnnone, newname2, listfull, replace_in_list
 
 from raster_data import RasterData, MultiRasterData
 
@@ -81,6 +81,21 @@ def array3dim(raster_array):
     elif raster_array.ndim != 3:
         raise Exception('Incorrect band_array shape: {}'.format(raster_array.shape))
     return raster_array
+
+# Creates an ordered dictionary of forbidden column names
+def forbid_names_dict(geom_col_name=None, lyr_defn_name=None, field_defn_col_name=None, orignames=[]):
+
+    rep_names_dict = {}
+
+    for name in [geom_col_name, lyr_defn_name, field_defn_col_name]:
+        if name is not None:
+            rep_names_dict[name] = newname2(name, orignames)
+
+    if len(rep_names_dict) == 0:
+        return None
+    else:
+        return rep_names_dict
+
 
 # Converts data format to a proper gdal format index
 def format_to_gdal(dtype_in):
@@ -1210,26 +1225,35 @@ def add_fid(feat, fid_list):
     return fid, fid_list
 
 # Get feature data as dictionary
-def feature_dict(feat, keys=None, geom_col_name=None):
+def feature_dict(feat, keys=None, geom_col_name=None, rep_keys_dict=None):
 
     if keys is None:
         keys = feat.keys()
     else:
         keys = obj2list(keys)
 
-    if geom_col_name in keys:
-        geom_col_name = newname2(geom_col_name, keys)
+    if rep_keys_dict is not None:
+        feat_rep_keys_dict = {}
+        for key in rep_keys_dict.key():
+            if key in keys:
+                feat_rep_keys_dict[key] = rep_keys_dict[key]
+        if len(feat_rep_keys_dict) == 0:
+            feat_rep_keys_dict = None
+    else:
+        feat_rep_keys_dict = None
 
     attr_dict = OrderedDict()
 
     for key in keys:
-        attr_dict[key] = feat.GetField(key)
+        if feat_rep_keys_dict is not None:
+            fin_key = feat_rep_keys_dict.get(key, key)
+            attr_dict[fin_key] = feat.GetField(key)
+        else:
+            attr_dict[key] = feat.GetField(key)
         # print('{}: {}'.format(key, type(feat.GetField(key))))
 
     if geom_col_name is not None:
         attr_dict[geom_col_name] = feat.GetGeometryRef()
-
-    print(attr_dict)
 
     return attr_dict
 
@@ -1281,22 +1305,24 @@ def layer_column_dict(lyr, columns=None, geom_col_name=None, lyr_defn_name=None,
         key_list = []
     else:
         key_list = obj2list(columns)                    # !!!! It's better to preserve predefined geometry column names
-        if geom_col_name in key_list:
-            geom_col_name, key_list = newname2(geom_col_name, key_list, update_list=True)
-        if lyr_defn_name in key_list:
-            lyr_defn_name, key_list = newname2(lyr_defn_name, key_list, update_list=True)
-        if field_defn_col_name in key_list:
-            geom_col_name, key_list = newname2(field_defn_col_name, key_list, update_list=True)
+
+    if geom_col_name is not None:
+        key_list.append(geom_col_name)
+
+    rep_keys_dict = forbid_names_dict(geom_col_name=None, lyr_defn_name=None, field_defn_col_name=None, orignames=key_list)
+    # The new key list is created here to avoid mistakes if different features would have different column names
+    # If a feature has column name same as one of new_names from rep_keys_dict, this date would be lost
+    # To avoid this it's better to create keys list before using the function
 
     lyr_dict = OrderedDict()
-
     lyr.ResetReading()
 
     for i, feat in enumerate(lyr):
 
-        fid, fid_list = add_fid(feat, fid_list)
-
-        feat_dict = feature_dict(feat, keys=columns, geom_col_name=geom_col_name)
+        # fid, fid_list = add_fid(feat, fid_list)
+        # print(columns)
+        feat_dict = feature_dict(feat, keys=columns, geom_col_name=geom_col_name, rep_keys_dict=rep_keys_dict)
+        # print(columns)
 
         if columns is None:
             new_key_list = feat_dict.keys()
@@ -1316,24 +1342,32 @@ def layer_column_dict(lyr, columns=None, geom_col_name=None, lyr_defn_name=None,
         feat_defn = lyr.GetLayerDefn()
 
         if lyr_defn_name is not None:
-            if lyr_defn_name in lyr_dict.keys():
-                lyr_defn_name = newname2(lyr_defn_name, lyr_dict.keys())
             lyr_dict[lyr_defn_name] = feat_defn
 
         if field_defn_col_name is not None:
-            if field_defn_col_name in lyr_dict.keys():
-                lyr_defn_name = newname2(field_defn_col_name, lyr_dict.keys())
-            field_defn_list = []
-            for key in feat_defn:
-                field_defn_list.append(feat_defn.GetFieldDefn())
-            lyr_dict[field_defn_col_name] = field_defn_list
+            field_defn_dict = {}
+            for key in key_list:
+                field_id = feat_defn.GetFieldIndex(key)
+                if field_id != (-1):
+                    field_defn_dict[key] = feat_defn.GetFieldDefn(field_id)
+            lyr_dict[field_defn_col_name] = field_defn_dict
 
     if columns_as_arrays:
         for key in lyr_dict:
-            if lyr_dict[key] is list:
+            if isinstance(lyr_dict[key], list):
                 lyr_dict[key] = np.array(lyr_dict[key])
 
     return lyr_dict
+
+# Creates a new lyr_dict of time masks
+def time_mask_lyr_dict(lyr_dict, time_col, geom_col):
+
+    tm_lyr_dict = OrderedDict()
+
+    for i in range(len)
+
+    return tm_lyr_dict
+
 
 # Get layer from vector file
 def get_lyr_by_path(path):
@@ -1445,12 +1479,48 @@ def JoinShapesByAttributes(path2shape_list,
 
     return 0
 
-def TimeCovers(path2vec, path2export, time_column, time_limit=0, min_area=0, attr_rule=0, overwrite = True):
+def TimeCovers(path2vec, path2export, time_column, sort_columns=None, time_limit=0, min_area=0, attr_rule=0, overwrite = True):
 
     if check_exist(path2export, ignore=overwrite):
         return 1
 
+    s_ds, s_lyr = get_lyr_by_path(path2vec)
+
+    if s_lyr is None:
+        return 1
+
+    vec_dict = layer_column_dict(s_lyr, columns=[time_column], geom_col_name=['geom_'])
+
+    times = np.array(vec_dict.get(time_column))
+    geoms = np.array(vec_dict.get('geom_'))
+
+    data_list = [geoms, times]
+
+    if sort_columns is not None:
+        for key in sort_columns:
+            new_col = vec_dict.get(key)
+            if new_col is not None:
+                data_list.append(np.array(new_col))
+
+    data_array = np.vstack(data_list)
+
+    # times_array = np.array(times)
+    times_list = np.unique(times)
+    times_list.sort()
+
+    upper_cover_list = []
+
+    for date in times_list:
+        date_filter = data_array[1] == date
+        date_data = data_array[:, date_filter]
+        for i, new_geom in enumerate(date_data[0]):
+            for j, old_feat in upper_cover_list:
+                if
+
     return 0
+
+def daily_cover(date_array):
+
 
 def join_feature(feat1, feat2, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}, attr_list=None, ID = None):
 

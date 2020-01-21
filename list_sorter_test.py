@@ -29,15 +29,24 @@ def list_order(orig_list):
 
     return order_list
 
-def order_for_val(list_of_lists, match_value, level=0):
+def order_for_val(list_of_lists, match_value, level=0, reposition_2 = None):
     match_list = []
     for i, val in enumerate(list_of_lists[level]):
         if match_value == val:
             match_list.append(i)
     if len(match_list) == 0:
+        print(None)
         return 0, None
     elif len(match_list) == 1:
+        print(match_list[0])
         return 1, match_list[0]
+    elif len(list_of_lists) == 1:
+        print(match_list)
+        if reposition_2 is not None:
+            export_list = []
+            for val in match_list:
+                export_list.append(reposition_2[val])
+        return 2, export_list
     else:
         next_level_list = []
         for old_list in list_of_lists[1:]:
@@ -56,7 +65,7 @@ def order_for_level(list_of_lists, reposition=None):
             continue
         else:
             # print('{} -- {}'.format(list_of_lists, list_of_lists[0][pos]))
-            res, value = order_for_val(list_of_lists, list_of_lists[0][pos])
+            res, value = order_for_val(list_of_lists, list_of_lists[0][pos], reposition_2=reposition)
             # print(value)
             if reposition is not None:
                 print('{} -- {} -- {} -- {}'.format(list_of_lists, reposition, list_of_lists[0][pos], value))
@@ -77,11 +86,67 @@ def order_for_level(list_of_lists, reposition=None):
                 raise Exception()
     return export_order_list
 
+def sort_multilist(list_of_lists):
+
+    def order_for_val(list_of_lists, match_value, level=0, reposition_2=None):
+        match_list = []
+        for i, val in enumerate(list_of_lists[level]):
+            if match_value == val:
+                match_list.append(i)
+        if len(match_list) == 0:
+            return 0, None
+        elif len(match_list) == 1:
+            return 1, match_list[0]
+        elif len(list_of_lists) == 1:
+            if reposition_2 is not None:
+                export_list = []
+                for val in match_list:
+                    export_list.append(reposition_2[val])
+            return 2, export_list
+        else:
+            next_level_list = []
+            for old_list in list_of_lists[1:]:
+                new_list = []
+                for id in match_list:
+                    new_list.append(old_list[id])
+                next_level_list.append(new_list)
+            return 2, order_for_level(next_level_list, reposition=match_list)
+
+    def order_for_level(list_of_lists, reposition=None):
+        count = 0
+        export_order_list = []
+        order_list = list_order(list_of_lists[0])
+        for id, pos in enumerate(order_list):
+            if id < count:
+                continue
+            else:
+                res, value = order_for_val(list_of_lists, list_of_lists[0][pos], reposition_2=reposition)
+                if res == 0:
+                    continue
+                elif res == 1:
+                    if reposition is not None:
+                        value = reposition[value]
+                    export_order_list.append(value)
+                    count += 1
+                elif res == 2:
+                    for val in value:
+                        export_order_list.append(val)
+                    count += len(value)
+                else:
+                    print('Unknown res: {}'.format(res))
+                    raise Exception()
+        return export_order_list
+
+    return order_for_level(list_of_lists)
+
+
 list_1 = [1,3,5,6,2,6,8,3]
-list_2 = [5,list_sorter_test.py,0,7,0,1,9,3]
+list_2 = [5,3,0,7,0,1,9,3]
 
 correct = [0,4,7,1,2,5,3,6]
 
 list_of_lists = [list_1, list_2]
 
-print(order_for_level(list_of_lists))
+# print(order_for_level(list_of_lists))
+
+print(sort_multilist(list_of_lists))

@@ -38,8 +38,6 @@ def order_for_val(list_of_lists, match_value, level=0):
         return 0, None
     elif len(match_list) == 1:
         return 1, match_list[0]
-    elif len(list_of_lists) == 1:
-        return 2, match_list
     else:
         next_level_list = []
         for old_list in list_of_lists[1:]:

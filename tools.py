@@ -99,36 +99,59 @@ def filter_by_values(arr, col):
         match = match * (line==value)
     return match
 
-def list_order_2(list_of_lists):
+# Sort list of lists (of the same length): the previous lists have higher priority
+def sort_multilist(list_of_lists):
 
-    # for list_ in list_of_lists[1:]:
-        # assert len(list_)==len(list_of_lists[0])
+    def order_for_val(list_of_lists, match_value, level=0, reposition_2=None):
+        match_list = []
+        for i, val in enumerate(list_of_lists[level]):
+            if match_value == val:
+                match_list.append(i)
+        if len(match_list) == 0:
+            return 0, None
+        elif len(match_list) == 1:
+            return 1, match_list[0]
+        elif len(list_of_lists) == 1:
+            if reposition_2 is not None:
+                export_list = []
+                for val in match_list:
+                    export_list.append(reposition_2[val])
+            return 2, export_list
+        else:
+            next_level_list = []
+            for old_list in list_of_lists[1:]:
+                new_list = []
+                for id in match_list:
+                    new_list.append(old_list[id])
+                next_level_list.append(new_list)
+            return 2, order_for_level(next_level_list, reposition=match_list)
 
-    order_list = []
+    def order_for_level(list_of_lists, reposition=None):
+        count = 0
+        export_order_list = []
+        order_list = list_order(list_of_lists[0])
+        for id, pos in enumerate(order_list):
+            if id < count:
+                continue
+            else:
+                res, value = order_for_val(list_of_lists, list_of_lists[0][pos], reposition_2=reposition)
+                if res == 0:
+                    continue
+                elif res == 1:
+                    if reposition is not None:
+                        value = reposition[value]
+                    export_order_list.append(value)
+                    count += 1
+                elif res == 2:
+                    for val in value:
+                        export_order_list.append(val)
+                    count += len(value)
+                else:
+                    print('Unknown res: {}'.format(res))
+                    raise Exception()
+        return export_order_list
 
-    for list_ in list_of_lists:
-        assert len(list_) == len(list_of_lists[0])
-        order_list.append(list_order(list_))
-
-    count = 0
-    for i, pos in (order_list[0]):
-        res, value = order_for_val(list_of_lists, list_of_lists[pos])
-
-
-
-        if i < count:
-            continue
-        val = list_of_lists[0][pos]
-        temp_count = 1
-        while val == list_of_lists[0][pos+temp_count]:
-            temp_count += 1
-        if temp_count == 1:
-            order_list.append(pos)
-
-
-
-
-    return order_list
+    return order_for_level(list_of_lists)
 
 def order_for_val(list_of_lists, match_value, level=0):
     match_list = []

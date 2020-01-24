@@ -12,7 +12,7 @@ except:
 import numpy as np
 import math
 
-from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len, list_ex, obj2list, returnnone, newname2, listfull, replace_in_list
+from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len, list_ex, obj2list, returnnone, newname2, listfull, replace_in_list, sort_multilist, copy
 
 from raster_data import RasterData, MultiRasterData
 
@@ -1249,6 +1249,7 @@ def feature_dict(feat, keys=None, geom_col_name=None, rep_keys_dict=None):
             fin_key = feat_rep_keys_dict.get(key, key)
             attr_dict[fin_key] = feat.GetField(key)
         else:
+            # print(key, feat.GetFieldIndex(key))
             attr_dict[key] = feat.GetField(key)
         # print('{}: {}'.format(key, type(feat.GetField(key))))
 
@@ -1359,23 +1360,13 @@ def layer_column_dict(lyr, columns=None, geom_col_name=None, lyr_defn_name=None,
 
     return lyr_dict
 
-# Creates a new lyr_dict of time masks
-def time_mask_lyr_dict(lyr_dict, time_col, geom_col):
-
-    tm_lyr_dict = OrderedDict()
-
-    for i in range(len)
-
-    return tm_lyr_dict
-
-
 # Get layer from vector file
-def get_lyr_by_path(path):
+def get_lyr_by_path(path, editable = False):
 
-    ds = ogr.Open(path)
+    ds = ogr.Open(path, editable)
 
     if ds is None:
-        print('Cannot open file: {}'.format(path2shp2))
+        print('Cannot open file: {}'.format(path))
         return (None, None)
 
     lyr = ds.GetLayer()
@@ -1489,7 +1480,14 @@ def TimeCovers(path2vec, path2export, time_column, sort_columns=None, time_limit
     if s_lyr is None:
         return 1
 
-    vec_dict = layer_column_dict(s_lyr, columns=[time_column], geom_col_name=['geom_'])
+    vec_dict = layer_column_dict(s_lyr, geom_col_name='geom_')
+
+    for i, acq_date in enumerate(vec_dict.get('acquired')):
+        vec_dict['date'][i] = int(str(acq_date)[:10].replace(r'/', ''))
+    # scroll(vec_dict['date'])
+
+    keys_list = list(vec_dict.keys())
+    keys_list.pop(keys_list.index('geom_'))
 
     times = np.array(vec_dict.get(time_column))
     geoms = np.array(vec_dict.get('geom_'))
@@ -1501,26 +1499,205 @@ def TimeCovers(path2vec, path2export, time_column, sort_columns=None, time_limit
             new_col = vec_dict.get(key)
             if new_col is not None:
                 data_list.append(np.array(new_col))
+    else:
+        sort_columns = keys_list
 
-    data_array = np.vstack(data_list)
+    # data_array = np.vstack(data_list)
 
     # times_array = np.array(times)
-    times_list = np.unique(times)
+    times_list = list(np.unique(times))
     times_list.sort()
+    # times_list.reverse()
 
-    upper_cover_list = []
+    upper_cover_dict = OrderedDict()
+    daily_cover_geom_dict = OrderedDict()
+
+    export_cover_dict = OrderedDict()
+    export_cover_dict['geom_'] = []
+
+    for key in keys_list:
+        export_cover_dict['%s_old' % key] = []
+        export_cover_dict['%s_new' % key] = []
+
+    # scroll(times_list)
 
     for date in times_list:
-        date_filter = data_array[1] == date
-        date_data = data_array[:, date_filter]
-        for i, new_geom in enumerate(date_data[0]):
-            for j, old_feat in upper_cover_list:
-                if
+
+        print(date)
+
+        source_date_dict = OrderedDict()
+
+        for key in (keys_list + ['geom_']):
+            source_date_dict[key]=[]
+        add_ids = []
+        for id, scene_date in enumerate(times):
+            if scene_date == date:
+                add_ids.append(id)
+        for add_id in add_ids:
+            source_date_dict['geom_'].append(vec_dict['geom_'][add_id])
+            for key in keys_list:
+                source_date_dict[key].append(vec_dict[key][add_id])
+
+        # date_filter = data_array[1] == date
+        # date_data = data_array[:, date_filter]
+
+        # full_cover_geom, cover_lyr = make_cover(date_data, 'geom_', sort_columns)
+        # scroll(source_date_dict.keys())
+        # scroll(source_date_dict['date'])
+
+        full_cover_geom, cover_lyr = make_cover(source_date_dict, 'geom_', sort_columns)
+
+        # scroll(source_date_dict['date'])
+
+        daily_cover_geom_dict[date] = full_cover_geom
+
+        # scroll(source_date_dict['date'])
+
+        if len(upper_cover_dict)==0:
+            upper_cover_dict = cover_lyr
+            continue
+
+        # scroll(source_date_dict['date'])
+
+        for under_id, under_geom in enumerate(cover_lyr['geom_']):
+
+            for upper_id, upper_geom in enumerate(upper_cover_dict['geom_']):
+
+                if (upper_cover_dict.get(time_column)[upper_id] - upper_cover_dict.get(time_column)) < time_limit:
+
+                    if upper_geom.Intersect(under_geom):
+
+                        intersect_geom = upper_geom.Intersection(under_geom)
+
+                        if intersect_geom.Area() > min_area:
+
+                            export_cover_dict['geom_'].append(intersect_geom)
+                            upper_cover_dict['geom_'].append(intersect_geom)
+
+                            for key in keys_list:
+                                export_cover_dict['%s_new' % key].append(upper_cover_dict[key][upper_id])
+
+                            if intersect_geom.Equals(upper_geom):
+                                for key in upper_cover_dict:
+                                    upper_cover_dict[key].pop(upper_id)
+                            else:
+                                upper_cover_dict['geom_'][upper_id] = upper_geom.Difference(intersect_geom)
+
+                            for key in keys_list:
+                                value = cover_lyr.get(key)[under_id]
+                                upper_cover_dict[key].append(value)
+                                export_cover_dict['%s_old' % key].append(value)
+
+                            if intersect_geom.Equals(under_geom):
+                                break
+                            else:
+                                under_geom = under_geom.Difference(intersect_geom)
+
+    if len(export_cover_dict['geom_']) > 0:
+        exp_ds = json(path2export, 1)
+        exp_lyr = json.GetLayer()
+
+        exp_lyr_defn = s_lyr.GetLayerDefn()
+        new_keys = []
+
+        for key in keys_list:
+            field_id = exp_lyr_defn.GetFieldIndex(key)
+            new_field_defn = exp_lyr_defn.GetFieldDefn(field_id)
+
+            old_new_key = '%s_old' % key
+            exp_lyr.CreateField(new_field_defn.SetName('%s_old' % key))
+            new_keys.append(old_new_key)
+
+            new_new_key = '%s_new' % key
+            exp_lyr.CreateField(new_field_defn.SetName('%s_new' % key))
+            new_keys.append(new_new_key)
+
+        exp_ds = None
+        exp_ds, exp_lyr = get_lyr_by_path(path2export, 1)
+        feat_defn = exp_lyr
+
+        for feat_id, feat_geom in range(export_cover_dict['geom_']):
+
+            feat_attr = OrderedDict()
+
+            for key in new_keys:
+                feat_attr[key] = export_cover_dict.get(key)[feat_id]
+
+            feat = feature(feat_defn, geom=feat_geom, attr=feat_attr)
+
+            exp_lyr.CreateFeature(feat)
+
+        exp_ds = None
 
     return 0
 
-def daily_cover(date_array):
+def make_cover(lyr_dict, geom_col_name, sort_columns, save_columns=None, new_columns=None):
 
+    if geom_col_name in lyr_dict:
+        geom_list = lyr_dict[geom_col_name]
+    else:
+        print ('No geometry column found, unable to build cover')
+        return None
+
+
+    # scroll(geom_list)
+
+    sort_col_list = []
+    for sort_col_name in sort_columns:
+        if sort_col_name in lyr_dict:
+            sort_col_list.append(list(lyr_dict[sort_col_name]))
+
+    if len(sort_col_list) == 0:
+        print('No sorting columns found')
+        return None
+
+    order_list = sort_multilist(sort_col_list)
+
+    if save_columns is None:
+        save_columns = list(lyr_dict.keys())
+        save_columns.pop(save_columns.index(geom_col_name))
+
+    save_col_list = []
+    for col_name in save_columns:
+        if col_name in lyr_dict:
+            if isinstance(lyr_dict[col_name], list):
+                save_col_list.append(col_name)
+
+    cover_lyr = OrderedDict()
+    cover_lyr['geom_'] = []
+
+    for col_name in save_col_list:
+        cover_lyr[col_name] = []
+
+    full_cover_geom = None
+
+    # scroll(lyr_dict['date'])
+
+    print(order_list)
+
+    print(geom_list[0:1])
+
+    for id in order_list:
+
+        new_geom = geom_list[id]
+
+        print(new_geom)
+
+        if full_cover_geom is None:
+            add = True
+            full_cover_geom = new_geom
+        else:
+            add = full_cover_geom.Contains(new_geom)
+
+        if add:
+            cover_lyr[geom_col_name].append(new_geom.Difference(full_cover_geom))
+            full_cover_geom = full_cover_geom.Union(new_geom)
+            for col_name in save_col_list:
+                cover_lyr[col_name] = lyr_dict[col_name][id]
+
+    scroll(lyr_dict['date'])
+
+    return full_cover_geom, cover_lyr
 
 def join_feature(feat1, feat2, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}, attr_list=None, ID = None):
 
@@ -1620,7 +1797,7 @@ def ruled_operator(x, y, rule, x_weight = 1, y_weight = 1):
 def feature(feature_defn = None, geom = None, attr = None, attr_type = 0, attr_type_dict = {}, ID = None):
 
     if feature_defn is None:
-        feature_defn = ogr.FeatureDefn
+        feature_defn = ogr.FeatureDefn()
 
     # feat = ogr.Feature(ogr.FeatureDefn(geom_type))
     feat = ogr.Feature(feature_defn)

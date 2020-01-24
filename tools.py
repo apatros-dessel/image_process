@@ -68,31 +68,6 @@ def list_order(orig_list):
 
     return order_list
 
-def array_order_2(arr):
-
-    order_list = []
-    values_list = []
-
-    for line in arr:
-        # order_list.append(np.argsort(line))
-        values_list.append(np.unique(line).sort())
-
-    order_fin = []
-
-    while True:
-        filter = []
-        while True:
-            match = filter_by_values(arr, filter)
-            if np.sum(match) > 1:
-                order_fin.append()
-
-
-
-    position_length = np.zeros()
-    for order1_val in order_list[0]:
-        order_len =
-        if
-
 def filter_by_values(arr, col):
     match = np.ones(arr.shape[1:])
     for line, value in zip(arr, col):
@@ -102,7 +77,7 @@ def filter_by_values(arr, col):
 # Sort list of lists (of the same length): the previous lists have higher priority
 def sort_multilist(list_of_lists):
 
-    def order_for_val(list_of_lists, match_value, level=0, reposition_2=None):
+    def order_for_val(list_of_lists, match_value, level=0, reposition=None):
         match_list = []
         for i, val in enumerate(list_of_lists[level]):
             if match_value == val:
@@ -112,10 +87,12 @@ def sort_multilist(list_of_lists):
         elif len(match_list) == 1:
             return 1, match_list[0]
         elif len(list_of_lists) == 1:
-            if reposition_2 is not None:
+            if reposition is not None:
                 export_list = []
                 for val in match_list:
-                    export_list.append(reposition_2[val])
+                    export_list.append(reposition[val])
+            else:
+                export_list = match_list
             return 2, export_list
         else:
             next_level_list = []
@@ -134,7 +111,7 @@ def sort_multilist(list_of_lists):
             if id < count:
                 continue
             else:
-                res, value = order_for_val(list_of_lists, list_of_lists[0][pos], reposition_2=reposition)
+                res, value = order_for_val(list_of_lists, list_of_lists[0][pos], reposition=reposition)
                 if res == 0:
                     continue
                 elif res == 1:

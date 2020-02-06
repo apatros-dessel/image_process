@@ -1828,6 +1828,365 @@ def feature(feature_defn = None, geom = None, attr = None, attr_type = 0, attr_t
 
     return feat
 
+# Unites geometry data from list into new geometry
+def unite_geom_list(geom_list):
+
+    old_geom = deepcopy(geom_list[0])
+
+    for new_geom in geom_list[1:]:
+        old_geom = old_geom.Union(new_geom)
+
+    return old_geom
+
+# Returns geometry from layer
+def geom_from_layer(ds, unite_geom = False, filter_field = None, filter_values = None):
+
+    lyr = ds.GetLayer()
+    geom_list = []
+    filter = None
+
+    if (filter_field is not None) and (filter_values is not None):
+        if lyr.GetLayerDefn().GetFieldIndex(filter_field) != (-1):
+            filter = obj2list(filter_values)
+
+    for feat in lyr:
+        if filter is not None:
+            if feat.GetField(filter_field) not in filter:
+                continue
+        geom_list.append(feat.GetGeometryRef())
+
+    print(geom_list)
+
+    if unite_geom:
+
+        return unite_geom_list(geom_list)
+    else:
+        return geom_list
+
+
+# Returns coordinates of all points in geometry as a list of tuples with two float numbers in each
+def geometry_points(geom):
+
+    cpwkt = geom.ExportToWkt()
+    coord_list = cpwkt.split(',')
+
+    for i, coord in enumerate(coord_list):
+        while '(' in coord:
+            coord = coord[coord.index('(') + 1:]
+        while ')' in coord:
+            coord = coord[:coord.index(')')]
+        y, x = coord.split(' ')
+        y = float(y)
+        x = float(x)
+        coord_list[i] = (y, x)
+
+    return coord_list
+
+
+# Estimates maximum length of line within polygon
+def max_line_length(polygon):
+
+    # !!! Not mathematically correct but works for now !!!
+    coord_list = geometry_points(polygon)
+    len_max = 0
+
+    for i, coord1 in enumerate(coord_list):
+
+        # print(coord1)
+        y1, x1 = coord1
+
+        for coord2 in coord_list[i+1:]:
+
+            # print(coord2)
+            y2, x2 = coord2
+            # print(math.sqrt((x1-x2)**2+(y1-y2)**2))
+            line_new = ogr.Geometry(wkt='LINESTRING ({y1} {x1}, {y2} {x2})'.format(x1=x1, y1=y1, x2=x2, y2=y2))
+            len_new = line_new.Length()
+            # print(len_new, line_new.ExportToWkt(), line_new.Within(polygon))
+
+            if len_new > len_max:
+                if line_new.Within(polygon):
+                    # print(len_new, line_new.ExportToWkt())
+                    len_max = len_new
+
+    return len_max
+
+# Creates random point whithin polygon as geometry
+def random_point_geom(extent, border_geom):
+
+    y_min, y_max, x_min, x_max = extent
+
+    dx = x_max - x_min
+    dy = y_max - y_min
+
+    while True:
+
+        x = x_min + dx * np.random.random()
+        y = y_min + dy * np.random.random()
+        new_point = ogr.Geometry(wkt = 'POINT ({y} {x})'.format(x=x, y=y))
+
+        # print(extent, new_point.ExportToWkt())
+
+        if border_geom.Intersects(new_point):
+            return new_point
+
+# Creates random line whithin given polygon
+def random_line_geom(extent, border_geom, azimuth=None, length=None):
+
+    y_min, y_max, x_min, x_max = extent
+
+    dx = x_max - x_min
+    dy = y_max - y_min
+
+    if azimuth is None:
+        azimuth = 2 * math.pi * np.random.random()
+
+    if length is None:
+        length = 0.1 * max_line_length(border_geom)
+
+    while True:
+
+        x1 = x_min + dx * np.random.random()
+        y1 = y_min + dy * np.random.random()
+        x2 = x1 + length * math.cos(azimuth)
+        y2 = y1 + length * math.sin(azimuth)
+        new_line = ogr.Geometry(wkt='LINESTRING ({y1} {x1}, {y2} {x2})'.format(x1=x1, y1=y1, x2=x2, y2=y2))
+
+        if border_geom.Contains(new_line):
+            return new_line
+
+# Returns orthogonal line by three point coordinate values
+def random_rectangle_line(x1, y1, dx2, dy2, dx3, dy3):
+
+    random_num = np.random.random()
+
+    x2 = x1 + dx2 * random_num
+    y2 = y1 + dy2 * random_num
+
+    x3 = x2 + dx3
+    y3 = y2 + dy3
+
+    line_geom = ogr.Geometry(wkt = 'LINESTRING ({y2} {x2}, {y3} {x3})'.format(x2=x2, y2=y2, x3=x3, y3=y3))
+
+    return line_geom
+
+# Creates a predefined number of random points within defined area
+def RandomPointsInside(path_in, path_out, points_num=100, overwrite=True):
+
+    if check_exist(path_out, ignore=overwrite):
+        return 1
+
+    ds_in, lyr_in = get_lyr_by_path(path_in)
+
+    if lyr_in is None:
+        return 1
+
+    if len(lyr_in) <= 0:
+        return 1
+
+    geom_list = []
+
+    for feat in lyr_in:
+        geom_list.append(feat.GetGeometryRef())
+
+    border_geom = unite_geom_list(geom_list)
+
+    # print(border_geom.ExportToWkt())
+
+    geom_list = None
+
+    ds_out = shp(path_out, 1)
+    lyr_out = ds_out.GetLayer()
+
+    point_feat_defn = lyr_out.GetLayerDefn()
+
+    y_min, y_max, x_min, x_max = extent = lyr_in.GetExtent()
+
+    for i in range(points_num):
+
+        new_point_geom = random_point_geom(extent, border_geom)
+        new_point_feat = feature(point_feat_defn, new_point_geom)
+        lyr_out.CreateFeature(new_point_feat)
+
+    ds_out = None
+
+    write_prj(path_out[:-4] + '.prj', lyr_in.GetSpatialRef().ExportToWkt())
+
+    return 0
+
+
+def RandomLinesInside(path_in, path_out, lines_num = 100, azimuth = None, length = None, random_azimuth = False, overwrite = True):
+
+    if check_exist(path_out, ignore=overwrite):
+        return 1
+
+    ds_in, lyr_in = get_lyr_by_path(path_in)
+
+    if lyr_in is None:
+        return 1
+
+    if len(lyr_in) <= 0:
+        return 1
+
+    geom_list = []
+
+    for feat in lyr_in:
+        geom_list.append(feat.GetGeometryRef())
+
+    border_geom = unite_geom_list(geom_list)
+
+    geom_list = None
+
+    if (azimuth is None) and (random_azimuth == False):
+        azimuth = 2 * math.pi * np.random.random()
+
+    if length is None:
+        length = 0.1 * max_line_length(border_geom)
+
+    ds_out = shp(path_out, 1)
+    lyr_out = ds_out.GetLayer()
+
+    point_feat_defn = lyr_out.GetLayerDefn()
+
+    extent = lyr_in.GetExtent()
+
+    for i in range(lines_num):
+
+        new_point_geom = random_line_geom(extent, border_geom, azimuth=azimuth, length=length)
+        new_point_feat = feature(point_feat_defn, new_point_geom)
+        lyr_out.CreateFeature(new_point_feat)
+
+    ds_out = None
+
+    write_prj(path_out[:-4] + '.prj', lyr_in.GetSpatialRef().ExportToWkt())
+
+    return 0
+
+def RandomLinesRectangle(path_in, path_out,
+                         lines_num = 100,
+                         path_patches = None,
+                         filter_field = 'KOD',
+                         filter_values = None,
+                         invert_axis = False,
+                         overwrite = True):
+
+    if check_exist(path_out, ignore=overwrite):
+        return 1
+
+    ds_in, lyr_in = get_lyr_by_path(path_in)
+
+    if lyr_in is None:
+        return 1
+
+    if len(lyr_in) != 1:
+        return 1
+
+    rectangle_feat = lyr_in.GetNextFeature()
+    rectangle_geom = rectangle_feat.GetGeometryRef()
+
+    if invert_axis:
+        p3, p2, p1 = geometry_points(rectangle_geom)[:3]
+    else:
+        p1, p2, p3 = geometry_points(rectangle_geom)[:3]
+
+    y1, x1 = p1
+    y2, x2 = p2
+    y3, x3 = p3
+
+    dx2 = x2 - x1
+    dy2 = y2 - y1
+
+    dx3 = x3 - x2
+    dy3 = y3 - y2
+
+    ds_out = shp(path_out, 1)
+    lyr_out = ds_out.GetLayer()
+
+    if path_patches is not None:
+
+        ds_patches, lyr_patches = get_lyr_by_path(path_patches)
+        lyr_out.CreateField(ogr.FieldDefn('Intersect', ogr.OFTInteger))
+
+        filter = None
+        if (filter_field is not None) and (filter_values is not None):
+            if filter_field in lyr_patches.next().keys():
+                filter = obj2list(filter_values)
+
+    else:
+        lyr_patches = None
+
+    line_feat_defn = lyr_out.GetLayerDefn()
+
+
+    for i in range(lines_num):
+
+        new_line_geom = random_rectangle_line(x1, y1, dx2, dy2, dx3, dy3)
+        # print(new_line_geom.ExportToWkt())
+        new_line_feat = feature(line_feat_defn, new_line_geom)
+
+        if lyr_patches is not None:
+
+            intersect = 0
+
+            lyr_patches.ResetReading()
+            for feat in lyr_patches:
+                # print(new_line_geom.Intersect(feat.GetGeometryRef()))
+                # print(feat.GetGeometryRef().ExportToWkt())
+                if filter is not None:
+                    if feat.GetField(filter_field) not in filter:
+                        continue
+                if new_line_geom.Intersect(feat.GetGeometryRef()):
+                    intersect = 1
+                    break
+
+            new_line_feat.SetField('Intersect', intersect)
+
+        lyr_out.CreateFeature(new_line_feat)
+
+    lyr_out.ResetReading()
+    print(lyr_out.next().keys())
+
+    ds_out = None
+
+    write_prj(path_out[:-4] + '.prj', lyr_in.GetSpatialRef().ExportToWkt())
+
+    return 0
+
+# Rasterize vector layer
+# Returns a mask as np.array of np.bool
+def RasterizeVector(path_in_vector, path_in_raster, path_out, overwrite=True):
+
+    if check_exist(path_out, ignore=overwrite):
+        return 1
+
+    ds_in_vector, lyr_in_vector = get_lyr_by_path(path_in_vector)
+
+    if lyr_in_vector is None:
+        return 1
+
+    ds_in_raster = gdal.Open(path_in_raster)
+
+    if ds_in_raster is None:
+        return 1
+
+    driver = gdal.GetDriverByName('GTiff')
+    ds_out = driver.Create(path_out, ds_in_raster.RasterXSize, ds_in_raster.RasterYSize, 1, gdal.GDT_Byte, options = ['COMPRESS=LZW'])
+    ds_out = None
+    ds_out = gdal.Open(path_out, 1)
+    ds_out.SetGeoTransform(ds_in_raster.GetGeoTransform())
+    ds_out.SetProjection(ds_in_raster.GetProjection())
+    target_band = ds_out.GetRasterBand(1)
+    # target_band.SetNoDataValue(0)
+
+    try:
+        s = gdal.RasterizeLayer(ds_out, [1], lyr_in_vector, burn_values=[1]) # This code raises warning if the leyer does not have a projection definition
+    except:
+        print('No pixels to filter in vector mask')
+
+    ds_out = None
+
+    return 0
+
 # Calculates values for new fields in GDAL features preserving FieldDefn data if nessessary
 class NewFieldsDict():
 

@@ -6,22 +6,24 @@ import geodata
 
 import mylandsat
 import myplanet
+import mykanopus
 
 # Constants
 
 
 default_output = os.getcwd() # default output directory for a process
 
-imsys_dict = {
+metalib = {
     'LST': mylandsat,
     #'SNT': sentinel,
     'PLN': myplanet,
+    'KAN': mykanopus,
 }
 
 # A dictionary of metadata filenames templates
 template_dict = {}
-for key in imsys_dict:
-    template_dict[key] = imsys_dict[key].templates
+for key in metalib:
+    template_dict[key] = metalib[key].templates
 
 '''
 template_dict = {
@@ -41,6 +43,7 @@ image_system_list = [
     'LST',                  # LANDSAT
     'SNT',                  # SENTINEL
     'PLN',                  # PLANET
+    'KAN',                  # KANOPUS
 ]
 
 # Set spacecraft list
@@ -114,25 +117,19 @@ index_dict = {
 
 # Set elements for naming files
 nameids = {
-    '[imsys]': 3,
-    '[sat]': 3,
-    '[place]': 6,
-    '[date]': 8,
-    '[year]': 4,
-    '[month]': 2,
-    '[day]': 2,
-}
-
-# Set dictionary of modules to get metadata from different sources
-metalib = {
-    'LST': mylandsat,
-    'PLN': myplanet,
+    '[imsys]':  3,
+    '[sat]':    3,
+    '[place]':  6,
+    '[date]':   8,
+    '[year]':   4,
+    '[month]':  2,
+    '[day]':    2,
 }
 
 # Defines image system by path to file or returns None if no one matches
 def get_imsys(path):
     if os.path.exists(path):
-        for imsys, module in globals()['imsys_dict']:
+        for imsys, module in globals()['metalib']:
             file = os.path.split(path)[1]
             if check_name(file, module.template):
                 return imsys

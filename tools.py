@@ -569,6 +569,16 @@ def scroll(obj, print_type=True, decoding=None):
     else:
         winprint('  {}'.format(obj), decoding=decoding)
 
+# Get datetime from string
+def get_date_from_string(date_str):
+    year = int(date_str[:4])
+    month = int(date_str[5:7])
+    day = int(date_str[8:10])
+    hour = int(date_str[11:13])
+    minute = int(date_str[14:16])
+    second = float(date_str[17:])
+    return datetime(year, month, day)
+
 # Reads .xml file and returns metadata as element tree
 def xml2tree(path):
     try:

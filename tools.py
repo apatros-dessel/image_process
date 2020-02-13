@@ -554,8 +554,10 @@ def winprint(obj, decoding = None):
     print(obj)
     return None
 
-def scroll(obj, print_type=True, decoding=None):
-    if print_type:
+def scroll(obj, print_type=True, decoding=None, header=None):
+    if header is not None:
+        print(str(header))
+    elif print_type:
         print('Object of {}:'.format(type(obj)))
     if hasattr(obj, '__iter__'):
         if len(obj) == 0:
@@ -571,12 +573,13 @@ def scroll(obj, print_type=True, decoding=None):
 
 # Get datetime from string
 def get_date_from_string(date_str):
+    print(date_str)
     year = int(date_str[:4])
     month = int(date_str[5:7])
     day = int(date_str[8:10])
     hour = int(date_str[11:13])
     minute = int(date_str[14:16])
-    second = float(date_str[17:])
+    second = float(date_str[17:-1])
     return datetime(year, month, day)
 
 # Reads .xml file and returns metadata as element tree
@@ -596,8 +599,9 @@ def iter_list(root, call):
 
 # Processes the iter_list created by iter_list() to return list of values of a proper kind
 def iter_return(iter_list, data='text', attrib=None):
+    # scroll(iter_list)
     if isinstance(data, int):
-        data = ['text', 'tag', 'attrib'][data]
+        data = ['text', 'tag', 'attrib'][data] or 'text'
     return_list = []
     if data == 'attrib':
         if attrib is None:
@@ -605,7 +609,9 @@ def iter_return(iter_list, data='text', attrib=None):
                 return_list.append(mdval(monodict)['attrib'])
         else:
             for monodict in iter_list:
-                return_list.append(mdval(monodict)['attrib'][str(attrib)])
+                attr_val = mdval(monodict)['attrib'].get(str(attrib))
+                if attr_val is not None:
+                    return_list.append(attr_val)
     elif data == 'text':
         for monodict in iter_list:
             return_list.append(mdval(monodict)['text'])
@@ -737,12 +743,14 @@ class scene_metadata:
         self.container = {}                     # Place to keep source metadata as a dictionary. Filled by the imsys-specific function
 
         self.sat = None                         # Satellite id (Landsat-8, Sentinel-2A, 0e26 (Planet id), etc.) as str
+        self.fullsat = None                     # Fullname for identifying both satellite and imsys
         self.id = None,                         # A unique scene identifier
         self.lvl = None,                        # Data processing level
         self.files = OrderedDict()              # Dictionary of file ids
         self.filepaths = OrderedDict()          # Dictionary of filepaths
         self.bands = OrderedDict()              # Dictionary of bands
         self.bandpaths = OrderedDict()          # Dictionary of paths to bands (each path is a tuple of file id as str and band number as int)
+        self.location = None                    # Scene location id
         self.datetime = None                    # Datetime as datetime
         self.location = {}                      # Image locationa data as str
         self.datamask = None                    # Local path to data mask as vector file
@@ -754,12 +762,14 @@ class scene_metadata:
             'imsys':        self.imsys is not None,
             'container':    len(self.container) > 0,
             'sat':          self.sat is not None,
+            'fullsat':      self.fullsat is not None,
             'id':           isinstance(self.id, str),
             'lvl':          self.lvl is not None,
             'files':        len(self.files) > 0,
             'filepaths':    len(self.filepaths) > 0,
             #'bands':       len(self.bands) > 0,
             'bandpaths':    len(self.bandpaths) > 0,
+            'location':     self.location is not None,
             'datetime':     isinstance(self.datetime, datetime),
             'namecodes':    len(self.namecodes) > 0,
         })

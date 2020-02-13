@@ -196,6 +196,8 @@ def get_raster_limits(raster_array, method=0, band_limits = None):
         "Custom",  # User-defined values of min/max
     ]
 
+    # print(method_list[method])
+
     band_limits_defaults = [
         None,
         (2, 2),
@@ -221,7 +223,7 @@ def get_raster_limits(raster_array, method=0, band_limits = None):
         max = arrlim(raster_array, band_limits[1])
 
 
-    elif (method == method_list[-1]) or (method == -1):            # Custom
+    elif (method == method_list[3]) or (method == 3):            # Custom
         min = band_limits[0]
         max = band_limits[1]
 
@@ -229,11 +231,13 @@ def get_raster_limits(raster_array, method=0, band_limits = None):
         print('Unknown hystogram limits')
         return None, None
 
+    # print(min, max)
+
     return  min, max
 
 def data_to_image(raster_array, method=0, band_limits=None, gamma=1):
 
-    min, max = get_raster_limits(raster_array, method=0, band_limits = None)
+    min, max = get_raster_limits(raster_array, method=method, band_limits = band_limits)
 
     # print('min = {}, max = {}'.format(min, max))
 

@@ -51,6 +51,8 @@ kanopus_names = OrderedDict(
         'metadata':     r'<kan_id>.MD',
         'quality':      r'<kan_id>.QA',
         'new_metadata': r'new_<kan_id>.MD',
+        'datamask':     r'<kan_id>.GBD',
+        'quicklook':    r'<kan_id>.QL',
     }
 )
 
@@ -60,7 +62,7 @@ kanopus_names = OrderedDict(
 def get_kanopus_filename(kan_id, file_id):
     kanopus_name = globals()['kanopus_names'].get(file_id)
     if kanopus_name is not None:
-        kanopus_name.replace('<kan_id>', kan_id)
+        kanopus_name = kanopus_name.replace('<kan_id>', kan_id)
     return kanopus_name
 
 # Return Kanopus file id list
@@ -74,6 +76,36 @@ def get_kanopus_fileid(kan_id):
     else:
         return None
 
+# Returns Kanopus bandpaths
+def get_kanopus_bandpaths(kan_id_list):
+
+    bandpaths = OrderedDict()
+
+    for key in globals()['kanopus_bandpaths']:
+        if key in kan_id_list:
+            for bandkey in globals()['kanopus_bandpaths'][key]:
+                meta.bandpaths[bandkey] = globals()['kanopus_bandpaths'][key][bandkey]
+
+    return bandpaths
+
+# Returns Kanopus datamask filename
+def get_kanopus_datamask(kan_id, get_json = False):
+    datamask_name = get_kanopus_filename(kan_id, 'datamask')
+    if get_json:
+        filename = fullpath('', datamask_name, 'json')
+    else:
+        filename = fullpath('', datamask_name, 'shp')
+    return filename
+
+# Returns Kanopus location id
+def get_kanopus_location(kan_id):
+    idlist = kan_id.split('_')
+    try:
+        location = ''.join(idlist[1:4] + [idlist[8][-1]])
+    except:
+        location = ''.join(idlist[1:4] + [idlist[-1].split('.')[1][-1]])
+    return location
+
 # Fill <imsys_name> metadata
 def metadata(path):
 
@@ -85,49 +117,60 @@ def metadata(path):
 
     folder, file = os.path.split(path)
 
-    metadata_path = fullpath(folder, meta.id + r'.MD', 'xls')
-
     for file_id in ['metadata', 'quality', 'new_metadata']:
         file_name = get_kanopus_filename(meta.id, file_id)
-        file_path = fullpath(folder, file_name, 'xls')
-        if os.path.exists(file_path):
-            meta.container[file_id] = xml2tree(file_path)
+        if file_name is not None:
+            file_path = fullpath(folder, file_name, 'xml')
+            if os.path.exists(file_path):
+                meta.container[file_id] = xml2tree(file_path)
 
     meta.sat =          get_from_tree(meta.container.get('description'), 'satellite')
+    meta.fullsat =      meta.id[:3]
 
     meta.files =        get_kanopus_fileid(meta.id)
 
-    cur_meta = meta.container.get['new_metadata']
+    cur_meta = meta.container.get('metadata')
+    meta.filepaths = OrderedDict({meta.files[0]: get_from_tree(cur_meta, 'rasterFileName')})
+    meta.location = get_kanopus_location(meta.id)
+    meta.datetime = get_date_from_string(get_from_tree(cur_meta, 'firstLineTimeUtc'))
 
-    if cur_meta is None:
-        cur_meta = meta.container.get['metadata']
-        meta.filepaths = OrderedDict({meta.files[0]: get_from_tree(cur_meta, 'rasterFileName')})
+    meta.lvl = get_from_tree(cur_meta, 'productType')
+    if meta.container.get('new_metadata') is not None:
+        new_lvl = get_from_tree(cur_meta, 'RASP_ROOT', attrib='cProcLevel')
+        if new_lvl not in (None, []):
+            meta.lvl = new_lvl
 
-    else:
-        meta.filepaths = OrderedDict({meta.files[0]: get_from_tree(cur_meta, 'DataFileName')})
+    ''' # Kode to get filepath from new_metadata
+    meta.filepaths = OrderedDict({meta.files[0]: get_from_tree(cur_meta, 'DataFileName')})
+    '''
 
     # meta.filepaths =    OrderedDict({meta.files[0]:get_from_tree(cur_meta)})
 
     meta.bandpaths =    OrderedDict()
     for key in globals()['kanopus_bandpaths']:
         if key in meta.files:
-            meta.bandpaths[key] = globals()['kanopus_bandpaths'][key]
+            for bandkey in globals()['kanopus_bandpaths'][key]:
+                meta.bandpaths[bandkey] = globals()['kanopus_bandpaths'][key][bandkey]
 
-    meta.datetime =     get_date_from_string(get_from_tree(metadata, 'firstLineTimeUtc'))
+    print(cur_meta)
 
     # datetime.datetime
 
     meta.namecodes.update(
         {
-            '[sat]':    meta.sat,
-            '[id]':     meta.id,
+            '[sat]':        meta.sat,
+            '[lvl]':        meta.lvl,
+            '[fullsat]':    meta.fullsat,
+            '[id]':         meta.id,
+            '[location]':   meta.location,
         }
     )
 
     meta.write_time_codes(meta.datetime)
 
     # Optional:
-    # meta.datamsk =        # path to vector data
+    meta.datamask = get_kanopus_datamask(meta.id)
+    print(meta.datamask)
     # meta.cloudmask =      # path to vector data
 
     return meta

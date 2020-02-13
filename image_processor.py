@@ -4,9 +4,10 @@ from tools import *
 
 import geodata
 
-import mylandsat
+# import mylandsat
 import myplanet
 import mykanopus
+import mysentinel
 
 # Constants
 
@@ -14,8 +15,8 @@ import mykanopus
 default_output = os.getcwd() # default output directory for a process
 
 metalib = {
-    'LST': mylandsat,
-    #'SNT': sentinel,
+    # 'LST': mylandsat,
+    'SNT': mysentinel,
     'PLN': myplanet,
     'KAN': mykanopus,
 }
@@ -77,22 +78,7 @@ band_dict_lsat8 = {
     'tirs1': '10',
     'tirs2': '11'
 }
-# Sentinel-2
-band_dict_s2 = {
-    'coastal_aerosol': '1',
-    'blue': '2',
-    'green': '3',
-    'red': '4',
-    'vegetation red edge 1': '5',
-    'vegetation red edge 2': '6',
-    'vegetation red edge 3': '7',
-    'nir': '8',
-    'narrow nir': '8b',
-    'water vapour': '9',
-    'swir - cirrus': '10',
-    'swir1': '11',
-    'swir2': '12'
-}
+
 '''
 
 # Set default types of composites
@@ -106,13 +92,14 @@ composites_dict = {
     'APN':      ['swir2', 'swir1', 'narrow nir'],   # Athmospheric penetration
     'SWIR':     ['swir2', 'narow nir', 'red'],
     'SWIR-2':   ['blue', 'swir1', 'swir2'],
+    'RGBN':     ['red', 'green', 'blue', 'nir']     # Four channels for image classification
 }
 
 # Set default types of indices
 index_dict = {
-    'NDVI': ('Normalized',  ['nir', 'red'],     6),
-    'NDWI': ('Normalized',  ['nir', 'green'],   6),
-    'NDBI': ('Normalized',  ['swir', 'nir'],    6),
+    'NDVI': ('Normalized',  ['nir', 'red'],     6,  'Reflectance'),
+    'NDWI': ('Normalized',  ['nir', 'green'],   6,  'Reflectance'),
+    'NDBI': ('Normalized',  ['swir', 'nir'],    6,  'Reflectance'),
 }
 
 # Set elements for naming files
@@ -126,6 +113,18 @@ nameids = {
     '[day]':    2,
 }
 
+# Product types list
+product_types_list = [
+    'Radiance',
+    'Reflectance'
+]
+
+# Product types for work and GDAL datatypes for them
+raster_product_types = {
+    'Radiance':     7,
+    'Reflectance':  7,
+}
+
 # Defines image system by path to file or returns None if no one matches
 def get_imsys(path):
     if os.path.exists(path):
@@ -136,6 +135,18 @@ def get_imsys(path):
     else:
         print('Path does not exist: {}'.format(path))
     return None
+
+# Returns product generation function
+def get_product_generation_function(imsys, prodid):
+
+    func = globals()['metalib'].get(imsys).product_func.get(prodid)
+
+    if hasattr(func, '__repr__'):
+        return func
+
+    else:
+        print('"{}" product function not found for "{}"'.format(prodid, imsys))
+        return None
 
 temp_dir_list = tdir(default_temp) # tdir object for working with temporary files
 
@@ -156,7 +167,7 @@ class process(object):
         self.tdir = tdir
 
     def __str__(self):
-        return 'Process of scenes available.'.format(len(self.scenes))
+        return 'Process of {} scenes available'.format(len(self.scenes))
 
     # Returns number of paths in the input_list
     def __len__(self):
@@ -169,6 +180,7 @@ class process(object):
     # Adds new path to self.input_list
     def add_scene(self, newpath, imsys):
         #newscene = scene(path2scene)
+        print(newpath)
         try:
             newscene = scene(newpath, imsys)
         #except FileNotFoundError:
@@ -179,33 +191,45 @@ class process(object):
             self.scenes.append(newscene)
         return self
 
-    def input(self, path, search_scenes = True, imsys_list = None):
+    def input(self, path, imsys_list = None):
         path = listoftype(path, str)
-        #print('Path: {}'.format(path))
+        # print('Path: {}'.format(path))
         if path is None:
             return self
+        if imsys_list is None:
+            imsys_list = globals()['template_dict'].keys()
+        # print(imsys_list)
         for path2scene in path:
             file = os.path.isfile(path2scene)
             if file:
-                self.add_scene(path2scene)
-            if search_scenes:
-                if file:
-                    path2folder = os.path.split(path2scene)[0]
-                else:
-                    path2folder = path2scene
-                    #print('Path to folder: {}'.format(path2folder))
-                input_list = walk_find(path2folder, globals()['template_dict'].keys(), globals()['template_dict'].values())
+                fin = False
+                for imsys in imsys_list:
+                    if fin:
+                        break
+                    templates = globals()['template_dict'].get(imsys)
+                    # print(templates)
+                    if templates is not None:
+                        for template in templates:
+                            # print(template)
+                            if re.search(template, path2scene) is not None:
+                                # print(re.search(template, path2scene).group())
+                                self.add_scene(path2scene, imsys)
+                                fin = True
+                                break
+            else:
+                input_list = walk_find(path2scene, globals()['template_dict'].keys(), globals()['template_dict'].values())
                 # scroll('Input list: {}'.format(input_list))
-                for newpath2scene in input_list:
-                    # print(newpath2scene)
-                    newpath, imsys = newpath2scene
+                if (input_list is not None) and len(input_list)>0:
 
-                    # Filter scenes by imsys
-                    if imsys_list is not None:
+                    for newpath2scene in input_list:
+                        # print(newpath2scene)
+                        newpath, imsys = newpath2scene
+
+                        # Filter scenes by imsys
                         if imsys not in imsys_list:
                             continue
 
-                    self.add_scene(newpath, imsys)
+                        self.add_scene(newpath, imsys)
         return self
 
     def get_dates(self):
@@ -235,17 +259,41 @@ class process(object):
                 print('Datamask not found for {}'.format(ascene.meta.id))
         return covers_dict
 
+    def get_vector_cover(self, vector_cover_name, report_name=None):
+
+        path2vector_list = []
+        report = OrderedDict()
+
+        for ascene in self.scenes:
+            # print(ascene.meta.datamask)
+            path2vector_list.append(fullpath(ascene.path, ascene.meta.datamask))
+            # path2vector_list.append(ascene.meta.datamask)
+            rep_row = OrderedDict()
+            rep_row['datamask'] = path2vector_list[-1]
+            report[ascene.meta.id] = rep_row
+
+        if report_name is not None:
+            try:
+                dict_to_xls(fullpath(self.output_path, report_name), report)
+            except:
+                print('Unable to export data as xls')
+                scroll(report)
+        print(fullpath(self.output_path, vector_cover_name))
+        geodata.JoinShapesByAttributes(path2vector_list, fullpath(self.output_path, vector_cover_name), geom_rule=1, attr_rule=0)
+
+        return None
+
 # Every space image scene
 class scene:
 
     def __init__(self, path, imsys):
 
         if not os.path.exists(path):
-            print('Path does not exist: {}'.format(path))
+            print('Path does not exist: "{}"'.format(path))
             # raise FileNotFoundError
             raise IOError
 
-        module = globals()['imsys_dict'].get(imsys)
+        module = globals()['metalib'].get(imsys)
         if module is None:
             print('Unknown data source: {}'.format(imsys))
             raise KeyError
@@ -265,6 +313,8 @@ class scene:
         self.files = self.meta.files
         self.imsys = imsys
         self.clip_parameters = {}
+
+        self.products = {}
 
     def __bool__(self):
         return bool(self.fullpath)
@@ -321,6 +371,45 @@ class scene:
 
         return (raster_path, band_tuple[1])
 
+    def get_product_path(self, prod_id, band_id, set_product_path = None, set_name = None):
+
+        if prod_id not in globals()['product_types_list']:
+            print('Unknown product type: {}'.format(prod_id))
+            return None
+
+        if prod_id not in self.products:
+            self.products[prod_id] = {}
+
+        if band_id in self.products[prod_id]:
+
+            prod_name, prod_bandnum =  self.products[prod_id][band_id]
+            prod_path = (r'{}\{}'.format(set_product_path, prod_name))
+
+        else:
+
+            prod_func = get_product_generation_function(self.imsys, prod_id)
+
+            if prod_func is None:
+                return None
+
+            if set_product_path is None:
+                set_product_path = temp_dir_list.create()
+
+            if set_name is None:
+                prod_name = r'[id]_{}_{}.tif'.format(band_id, prod_id)
+            else:
+                prod_name = set_name
+
+            prod_name = self.meta.name(prod_name)
+            prod_path = (r'{}\{}'.format(set_product_path, prod_name))
+            prod_bandnum = 1
+
+            prod_func(self.get_band_path(band_id), band_id, (prod_path, prod_bandnum), self.meta, dt = globals()['raster_product_types'].get(prod_id))
+
+            self.products[prod_id][band_id] = (prod_name, prod_bandnum)
+
+        return (prod_path, prod_bandnum)
+
     # Creates a copy of a scene, cropping the original data with shpapefile
     def clip(self, path2vector, export_path = None, byfeatures = True, exclude = False, nodata = 0, save_files = False, compress = None):
 
@@ -361,6 +450,8 @@ class scene:
         for band_id in bands:
             bandpaths.append(self.get_band_path(band_id))
 
+        # scroll(bandpaths)
+
         try:
             res = geodata.raster2raster(bandpaths, export_path, path2target = path2target, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata, compress = compress, overwrite=overwrite)
         except:
@@ -389,17 +480,18 @@ class scene:
             return 1
 
     # Calculates index by id
-    def calculate_index(self, index_id, export_path, compress = None, overwrite = True):
+    def calculate_index(self, index_id, export_path, name = None, compress = None, overwrite = True):
 
         index_params = globals()['index_dict'].get(index_id)
 
         if index_params is not None:
-            funcid, bandlist, dt = index_params
+            funcid, bandlist, dt, prod_id = index_params
             func = geodata.index_calculator.get(funcid)
             bandpath_list = []
 
             for band_id in bandlist:
-                bandpath_list.append(self.get_band_path(band_id))
+                # bandpath_list.append(self.get_band_path(band_id))
+                bandpath_list.append(self.get_product_path(prod_id, band_id, set_product_path=export_path, set_name=name))
 
             if (func is not None) and (not None in bandpath_list):
                 #func(bandpath_list, export_path, dt=dt)

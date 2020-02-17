@@ -3,22 +3,25 @@
 from image_processor import *
 
 path = [
-    # r'F:/rks/toropez/image_test/full/Mosaic_20190905_0f31_DEFLATE.tif',
+    r'g:\planet\20190619',
     # r'f:\rks\tver',
-    r'f:\rks\tver\20190912',
+    # r'f:\rks\tver\20190912',
     # r'f:\rks\tver\20190911\20190911_062630_100d',
     # r'f:\rks\tver\20190911\20190911_062629_100d',
     # r'f:\rks\tver\20190910',
     ]
 
-folder = r'd:\digital_earth\planet_rgb\new\20190912'
+folder = r'd:\digital_earth\planet_rgb\new'
+
+if not os.path.exists(folder):
+    os.makedirs(folder)
 
 
 proc = process()
 proc.input(path)
 
 raster_path_dict = {}
-
+print('Start making rgb from %i scenes' % len(proc))
 
 for ascene in proc.scenes:
 
@@ -38,7 +41,7 @@ raster_path_dict = {
 }
 '''
 
-scroll(raster_path_dict)
+# scroll(raster_path_dict)
 
 errors_list = []
 
@@ -50,7 +53,7 @@ for strip_id in raster_path_dict:
 
     path2export_list = []
     for path2raster in raster_path_list:
-        path2export = r'{}\{}'.format(folder, os.path.split(path2raster)[1])
+        path2export = r'{}\{}\{}'.format(folder, strip_id[-8:], os.path.split(path2raster)[1])
         if os.path.exists(path2export):
             print('File already exists: {}'.format(path2export))
         else:
@@ -128,10 +131,17 @@ for strip_id in raster_path_dict:
         borders_list.append((min_val, max_val))
         print(min_val, max_val)
 
+    print('Start processing %i scenes' % len(path2export_list))
+
     for path2raster, path2export in path2export_list:
+        if not os.path.exists(os.path.split(path2export)[0]):
+            os.makedirs(os.path.split(path2export)[0])
         # path2export = r'{}\{}'.format(folder, os.path.split(path2raster)[1])
+        # res = geodata.RasterToImage3(path2raster, path2export, method=3, band_limits=borders_list, gamma=0.85, exclude_nodata=True, enforce_nodata=0, band_order=[3, 2, 1], reprojectEPSG=3857, compress='LZW', overwrite=False, alpha=False)
+
         try:
-            res = geodata.RasterToImage2(path2raster, path2export, method=3, band_limits=borders_list, gamma=0.85, exclude_nodata=True, enforce_nodata=0, band_order=[3, 2, 1], compress='LZW', overwrite=False, alpha=False)
+            # res = geodata.RasterToImage2(path2raster, path2export, method=3, band_limits=borders_list, gamma=0.85, exclude_nodata=True, enforce_nodata=0, band_order=[3, 2, 1], compress='LZW', overwrite=False, alpha=False)
+            res = geodata.RasterToImage3(path2raster, path2export, method=3, band_limits=borders_list, gamma=0.85, exclude_nodata=True, enforce_nodata=0, band_order=[3, 2, 1], reprojectEPSG = 3857, compress='LZW', overwrite=False, alpha=False)
         except:
             res = 1
         if res == 0:

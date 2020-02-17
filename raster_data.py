@@ -4,6 +4,17 @@
 
 import gdal
 
+'''
+DATA INDICES:
+
+0   Raster band number
+1   Raster band itself
+2   Raster band array
+3   Raster band DataType
+4   Raster band NoDataValue 
+
+'''
+
 class RasterData:
 
     def __init__(self, path2raster, data=0):

@@ -23,10 +23,17 @@ for ascene in proc.scenes:
     geodata.raster2raster(refpaths, path2export, path2target=None, method=geodata.gdal.GRA_NearestNeighbour, exclude_nodata=True, enforce_nodata=None, compress='LZW', overwrite=True)
 '''
 
-path2oldband = (r'D:\digital_earth\sentinel_crops\S2B_MSIL2A_20190604T084609_N0212_R107_T37VCD_20190604T121704.SAFE\GRANULE\L2A_T37VCD_A011716_20190604T085141\IMG_DATA\R10m\T37VCD_20190604T084609_B08_10m.jp2', 1)
-path2newband = (r'D:\digital_earth\sentinel_crops\S2A_MSIL2A_20190828T084601_N0213_R107_T37VCD_20190828T131555.SAFE\GRANULE\L2A_T37VCD_A021840_20190828T084904\IMG_DATA\R10m\T37VCD_20190828T084601_B08_10m.jp2', 1)
+path2oldband = [(r'e:\test\newsnt\S2A_MSIL1C_20150822_NDVI_DOS1.tif', 1)]
+path2newband = [(r'e:\test\newsnt\S2B_MSIL1C_20180801_NDVI_DOS1.tif', 1)]
+path2oldband = (r'e:\test\newsnt\S2B_MSIL1C_20180801_NDVI_DOS1.tif', 1)
+path2newband = (r'e:\test\newsnt\S2A_MSIL2A_20190828_NDVI_DOS1.tif', 1)
 min_path = r'e:\test\test_minus.tif'
-quot_path = r'e:\test\test_quot.tif'
+# quot_path = r'e:\test\test_quot.tif'
+path2shp = r'e:\test\test_change.shp'
 
 geodata.band_difference(path2oldband, path2newband, min_path, nodata = 0, compress = None, overwrite = True)
-geodata.band_quot(path2oldband, path2newband, quot_path, nodata = 0, compress = None, overwrite = True)
+# geodata.band_quot(path2oldband, path2newband, quot_path, nodata = 0, compress = None, overwrite = True)
+
+geodata.save_to_shp(min_path, path2shp, band_num = 1, classify_table = [[None, -0.1, -1], [0.1, None, 1]], export_values = None, overwrite = True)
+
+# geodata.Changes(path2oldband, path2newband, min_path, calc_path = None, formula = 0, lower_lims = None, upper_lims = None, check_all_values = False, upper_priority = True)

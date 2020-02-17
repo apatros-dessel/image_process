@@ -12,11 +12,11 @@ except:
 import numpy as np
 import math
 
-from tools import tdir, default_temp, newname, scroll, OrderedDict, check_exist, lget, deepcopy, list_of_len, list_ex, obj2list, returnnone, newname2, listfull, replace_in_list, sort_multilist, copy
+from tools import *
 
 from raster_data import RasterData, MultiRasterData
 
-from calc import array3dim, segmentator, limits_mask, data_to_image, get_raster_limits
+from calc import array3dim, segmentator, limits_mask, data_to_image, get_raster_limits, band_by_limits
 
 temp_dir_list = tdir(default_temp)
 
@@ -210,6 +210,8 @@ def vector_mask(layer, array_shape, geotrans):
 # Write data to raster (GeoTIFF)
 def save_raster(path, band_array, copypath = None, proj = None, trans = None, dt = None, nodata = None, compress = None, overwrite = True):
 
+    # print(np.unique(band_array))
+
     if check_exist(path, overwrite):
         return 1
 
@@ -318,8 +320,10 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
 
         if 'compress' in options:
             options = gdal_options(options.get('compress'))
-
-    # print(options)
+        else:
+            options = []
+    else:
+        options = []
 
     driver = gdal.GetDriverByName(driver_name)
     raster_ds = driver.Create(path, xsize, ysize, bandnum, dt, options = options)
@@ -491,25 +495,91 @@ def get_band_array(path2band):
 
 # Calculates difference between two bands
 def band_difference(path2oldband, path2newband, export_path, nodata = 0, compress = None, overwrite = True):
-    old_array = get_band_array(path2oldband)
-    new_array = get_band_array(path2newband)
+
+    data_key = MultiRasterData((path2oldband, path2newband), data = [2,4])
+    old_array, old_nodata = old = data_key.next()
+    new_array, new_nodata = new = data_key.next()
+    no_data_mask = np.zeros(old_array.shape).astype(bool)
+
+    for arr, nodata_arr in (old, new):
+        no_data_mask[arr==nodata_arr] = True
+        arr = arr.astype(float)
+
+    print(no_data_mask.shape)
+
     if (old_array is not None) and (new_array is not None):
         band_fin = (new_array - old_array).reshape(tuple([1] + list(new_array.shape)))
-        res = save_raster(export_path, band_fin, copypath = path2newband[0], nodata = nodata, compress = compress, overwrite=overwrite)
+        print(band_fin.shape)
+        band_fin[0][no_data_mask] = nodata
+        res = save_raster(export_path, band_fin, copypath = path2newband[0], dt = 6, nodata = nodata, compress = compress, overwrite=overwrite)
     else:
         res = 1
     return res
 
 # Calculates quotient between two bands
 def band_quot(path2oldband, path2newband, export_path, nodata = 0, compress = None, overwrite = True):
-    old_array = get_band_array(path2oldband)
-    new_array = get_band_array(path2newband)
+    old_array = get_band_array(path2oldband).astype(float)
+    new_array = get_band_array(path2newband).astype(float)
     if (old_array is not None) and (new_array is not None):
         band_fin = (new_array / old_array).reshape(tuple([1] + list(new_array.shape)))
         res = save_raster(export_path, band_fin, copypath = path2newband[0], dt = 6, nodata = nodata, compress = compress, overwrite=overwrite)
     else:
         res = 1
     return res
+
+# Calculates quotient between two bands
+def Changes(old_bandpaths, new_bandpaths, export_path,
+            calc_path = None, formula = 0, nodata = 0,
+            lower_lims = None, upper_lims = None, check_all_values = False, upper_priority = True,
+            compress = None, overwrite = True):
+
+    formula_list = [
+        'MINUS',            # 0     # new - old
+        'DIVISION',         # 1     # new / old
+        'PERCENT_CHANGE',   # 2     # ((new / old) - 1) * 100
+    ]
+
+    assert len(old_bandpaths) == len(new_bandpaths)
+
+    segmentize = not ((lower_lims is None) and (upper_lims is None))
+
+    if segmentize:
+        calc_path = r'{}\calc.tif'.format(globals()['temp_dir_list'].create())
+    elif calc_path is None:
+        calc_path = r'{}\calc.tif'.format(globals()['temp_dir_list'].create())
+
+    print(calc_path)
+
+    calc_ds = ds(calc_path, copypath=new_bandpaths[0][0], options={'dt': 6}, editable=True)
+
+    old_bands = MultiRasterData(old_bandpaths, data = 2)
+    new_bands = MultiRasterData(new_bandpaths, data = 2)
+
+    for band_num, old_array, new_array in zip(counter(1), old_bands, new_bands):
+
+        if formula == 0:
+            band_fin = (new_array - old_array)
+        elif formula == 1:
+            band_fin = (new_array / old_array)
+        elif formula == 2:
+            band_fin = (((new_array / old_array) - 1) * 100)
+
+        print(band_fin.shape)
+
+        calc_ds.GetRasterBand(band_num).WriteArray(band_fin)
+
+    calc_ds = None
+
+    if segmentize:
+
+        change_ds = ds(export_path, copypath=new_bandpaths[0][0], options={'dt': 1, 'bandnum': 1}, editable=True)
+        change_set = RasterData(calc_path, data = 2)
+        change_array = band_by_limits(change_set, upper_lims=upper_lims, lower_lims=lower_lims,
+                                      check_all_values=check_all_values, upper_priority = upper_priority)
+        change_ds.GetRasterBand(1).WriteArray(change_array)
+        change_ds = None
+
+    return 0
 
 # Division of two bands with calculating percent of change
 def percent(path2raster, export_path, band1 = 1, band2 = 1, nodata = 0, compress = None, overwrite = True):
@@ -1045,6 +1115,158 @@ def RasterToImage2(path2raster, path2export, method=0, band_limits=None, gamma=1
     t_ds = None
 
     return res
+
+# RasterToImage with reprojection
+def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True,
+                   enforce_nodata = None, band_order = [1,2,3], reprojectEPSG = None, reproject_method = gdal.GRA_Lanczos,
+                   compress = None, overwrite = True, alpha=False):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    options = {
+        'dt': 1,
+        'nodata': 0,
+        'compress': compress,
+        'bandnum': [3, 4][alpha],
+    }
+
+    ds_in = gdal.Open(path2raster)
+    if ds_in is None:
+        print('Input raster not found: {}'.format(path2raster))
+        return 1
+
+    path2rgb = path2export
+    reproject = False
+    if reprojectEPSG is not None:
+        reprojectEPSG = int(reprojectEPSG)
+        srs_in = osr.SpatialReference()
+        srs_in.ImportFromWkt(ds_in.GetProjection())
+        srs_out = osr.SpatialReference()
+        srs_out.ImportFromEPSG(reprojectEPSG)
+        # print(srs_in.ExportToProj4(), srs_out.ExportToProj4())
+        if srs_in.ExportToProj4() != srs_out.ExportToProj4():
+            path2rgb = newname(globals()['temp_dir_list'].create(), 'tif')
+            reproject = True
+
+
+    t_ds = ds(path=path2rgb, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
+
+    error_count = 0
+    band_num = 0
+
+    source = RasterData(path2raster)
+
+    if alpha:
+        t_ds.GetRasterBand(4).WriteArray(np.full((source.ds.RasterYSize, source.ds.RasterXSize), 255))
+
+    for band_id, raster_array, nodata in source.getting((0,2,3), band_order = band_order):
+
+        res = 0
+
+        band_num += 1
+
+        if exclude_nodata and (nodata is not None):
+            if enforce_nodata is not None:
+                mask = (raster_array!=nodata) * (raster_array!=enforce_nodata)
+            else:
+                mask = raster_array!=nodata
+        else:
+            if enforce_nodata is not None:
+                mask = raster_array!=enforce_nodata
+            else:
+                mask = None
+
+        if np.min(mask) == True:
+            mask = None
+
+        if mask is not None:
+            data = raster_array[mask]
+        else:
+            data = raster_array
+
+        data = data_to_image(data, method=method, band_limits=band_limits[band_id-1], gamma=gamma)
+
+        if data is None:
+            print('Error calculating band %i' % band_id)
+            error_count += 1
+            continue
+
+        if (mask is not None):
+            raster_array[mask] = data
+            raster_array[~ mask] = 0
+
+        del data
+
+        t_ds.GetRasterBand(band_num).WriteArray(raster_array)
+
+        del raster_array
+
+        if alpha and (mask is not None):
+            oldmask = t_ds.GetRasterBand(4).ReadAsArray()
+            oldmask[~ mask] = 0
+            t_ds.GetRasterBand(4).WriteArray(oldmask)
+
+        del mask
+
+    if error_count == t_ds.RasterCount:
+        res = 1
+
+    t_ds = None
+
+    if reproject:
+        res = ReprojectRaster(path2rgb, path2export, reprojectEPSG, method = reproject_method, compress = compress, overwrite = overwrite)
+
+    return res
+
+
+# Reprojects Raster
+def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, compress = None, overwrite = True):
+
+    if check_exist(path_out, ignore=overwrite):
+        return 1
+
+    ds_in = gdal.Open(path_in)
+
+    if ds_in is None:
+        print('File not found: {}'.format(path_in))
+        return 1
+
+    proj = ds_in.GetProjection()
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(epsg)
+
+    geotransform = ds_in.GetGeoTransform()
+    x_res = geotransform[1]
+    y_res = geotransform[5]
+    # print(x_res, y_res)
+
+    t_raster_base = gdal.AutoCreateWarpedVRT(ds_in, proj, srs.ExportToWkt())
+    x_0, x, x_ang, y_0, y_ang, y =  t_raster_base.GetGeoTransform()
+    newXcount = int(math.ceil(t_raster_base.RasterXSize * (x/x_res)))
+    newYcount = int(math.ceil(t_raster_base.RasterYSize * (y/y_res)))
+
+    options = {
+        'dt':       ds_in.GetRasterBand(1).DataType,
+        'prj':      t_raster_base.GetProjection(),
+        'geotrans': (x_0, x_res, x_ang, y_0, y_ang, y_res),
+        'bandnum':  ds_in.RasterCount,
+        'xsize':    newXcount,
+        'ysize':    newYcount,
+        # 'nodata':   ds_in.GetNodataValue(),
+        'compress': compress,
+    }
+
+    # scroll(options)
+    ds_out = ds(path_out, options = options, editable = True)
+    gdal.ReprojectImage(ds_in, ds_out, None, None, method)
+
+    # print(t_raster_base.GetProjection())
+    # print(ds_out.GetGeoTransform())
+
+    ds_out = None
+
+    return 0
 
 def Mosaic(path2raster_list, export_path, band_num=1, options=None):
 

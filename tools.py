@@ -22,6 +22,22 @@ def returnnone(obj):
 def returnobj(obj):
     return obj
 
+# Class to make endless counter
+class counter:
+    def __init__(self, startfrom = 0, step = 1):
+        self.count = startfrom - 1
+        self.step = step
+    def __iter__(self, startfrom = None, step = 1):
+        if startfrom is not None:
+            self.count = startfrom - 1
+        self.step = step
+        return self
+    def __next__(self):
+        self.count += self.step
+        return self.count
+    def next(self):
+        return self.__next__()
+
 # Check existance of file
 def check_exist(path, ignore=False):
     if not ignore:

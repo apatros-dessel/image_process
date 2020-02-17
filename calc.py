@@ -271,3 +271,62 @@ def data_to_image(raster_array, method=0, band_limits=None, gamma=1):
     # print(np.unique(raster_array))
 
     return raster_array
+
+def SAVI(red, nir, L):
+    savi = ((nir - red) / (nir + red - L)) * (L + 1)
+    return savi
+
+def SAVI1(red, nir):
+    dnir = nir * 2 + 1
+    L = (dnir - np.sqrt((dnir ** 2 - (nir * red) * 8))) / 2
+    savi = SAVI(red, nir, L)
+    return savi
+
+def SAVI2(red, nir):
+    savi = SAVI1(red, nir)
+    return savi
+
+# Makes changes mask for a set of arrays
+# !!! All arrays in the array_set must have the same shape
+def band_by_limits(array_set, upper_lims = None, lower_lims = None, check_all_values = False, upper_priority = True):
+
+    mask = np.zeros(array_set[0].shape).astype(int)
+
+    if lower_lims is not None:
+        lower_lims = list(lower_lims)
+        lower_lims.sort()
+        lower_mask = np.zeros(array_set[0].shape).astype(int)
+        for arr in array_set:
+            for i, val in enumerate(lower_lims):
+                lower_mask[arr<val] = -(len(lower_mask)-i)
+                if check_all_values:
+                    lower_mask[arr<val] = 0
+
+    if upper_lims is not None:
+        upper_lims = list(upper_lims)
+        upper_lims.sort(reverse=True)
+        upper_mask = np.zeros(array_set[0].shape).astype(int)
+        for arr in array_set:
+            for i, val in enumerate(upper_lims):
+                upper_mask[arr < val] = len(upper_lims) - i
+                if check_all_values:
+                    upper_mask[arr < val] = 0
+
+    if (upper_lims is not None):
+
+        if (lower_lims is not None):
+
+            if upper_priority:
+                upper_lims[upper_lims==0] = lower_lims[upper_lims==0]
+                return lower_lims
+
+            else:
+                lower_lims[lower_lims == 0] = upper_lims[lower_lims == 0]
+                return lower_lims
+
+        else:
+            return upper_lims
+
+    elif (lower_lims is not None):
+        return lower_lims
+

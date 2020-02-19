@@ -54,3 +54,11 @@ for ascene in proc.scenes:
     # path2shp = r'{}\{}'.format(out, ascene.meta.name('MWT-[fullsat]-[date]-[location]-[lvl].shp'))
 
     # geodata.save_to_shp(path2ndwi, path2shp, dst_fieldname=None, classify_table=[[None, 0, 1]], export_values=[1], overwrite=True)
+
+def RGBNref(ascene):
+    refpaths = []
+    for band_id in ['red', 'green', 'blue', 'nir']:
+        refpaths.append(ascene.get_product_path('Reflectance', band_id, set_product_path=out, set_name='{}-[fullsat]-[date]-[location]-[lvl].tif'.format(band_id.upper())))
+    path2export = fullpath(out, ascene.meta.name(r'RF4-[fullsat]-[date]-[location]-[lvl].tif'))
+    geodata.raster2raster(refpaths, path2export, path2target=None, method=geodata.gdal.GRA_NearestNeighbour, exclude_nodata=True, enforce_nodata=None, compress='LZW', overwrite=True)
+    return None

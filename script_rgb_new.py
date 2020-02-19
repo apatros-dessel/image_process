@@ -3,7 +3,7 @@
 from image_processor import *
 
 path = [
-    r'g:\planet\20190619',
+    r'g:\planet\20190430',
     # r'f:\rks\tver',
     # r'f:\rks\tver\20190912',
     # r'f:\rks\tver\20190911\20190911_062630_100d',
@@ -11,7 +11,8 @@ path = [
     # r'f:\rks\tver\20190910',
     ]
 
-folder = r'd:\digital_earth\planet_rgb\new'
+# folder = r'd:\digital_earth\planet_rgb\new'
+folder = r'e:\planet_new'
 
 if not os.path.exists(folder):
     os.makedirs(folder)
@@ -33,23 +34,20 @@ for ascene in proc.scenes:
     else:
         raster_path_dict[strip_id] = [raster_path]
 
-'''
-raster_path_dict = {
-    'strip_id': [
-        r'e:\rks\digital_earth\neuro\20190912_082257_1038_3B_AnalyticMS.tif',
-    ]
-}
-'''
-
 # scroll(raster_path_dict)
 
 errors_list = []
 
+# border_list = geodata.GetRasterPercentiles(raster_path_dict[raster_path_dict.keys()[0]], min_percent = 0.01, max_percent = 0.995, band_num_list = [3,2,1], nodata = 0)
+
+# print(border_list)
+
+
 for strip_id in raster_path_dict:
 
     raster_path_list = raster_path_dict[strip_id]
-    band_hist_dict = [{},{},{}]
-    borders_list = []
+    # band_hist_dict = [{},{},{}]
+    # borders_list = []
 
     path2export_list = []
     for path2raster in raster_path_list:
@@ -62,74 +60,7 @@ for strip_id in raster_path_dict:
     if len(path2export_list) == 0:
         continue
 
-    for raster_path in raster_path_list:
-
-        ds = geodata.gdal.Open(raster_path)
-
-        if ds is None:
-            continue
-
-        for bandnum in [2,1,0]:
-
-            raster_array = ds.GetRasterBand(bandnum+1).ReadAsArray()
-            values, number = np.unique(raster_array, return_counts=True)
-
-            for val, num in zip(values, number):
-                # print(val, num)
-                if val in band_hist_dict[bandnum]:
-                    band_hist_dict[bandnum][val] += num
-                else:
-                    band_hist_dict[bandnum][val] = num
-
-    for band_num_dict in band_hist_dict:
-
-        try:
-
-            if len(band_num_dict) == 1:
-                print('Cannot build histogram for:')
-                scroll(raster_path_list)
-                continue
-
-            if 0 in band_num_dict:
-                band_num_dict.pop(0)
-
-            band_vals = np.array(band_num_dict.keys())
-            # band_vals.sort()
-            band_order = band_vals.argsort()
-            band_vals = band_vals[band_order]
-            band_nums = np.array(band_num_dict.values())[band_order]
-            pixel_sum = np.sum(band_nums)
-
-            num_min = pixel_sum * 0.01
-            num_max = pixel_sum * 0.995
-            num_max_inv = pixel_sum - num_max
-
-            min_mask = band_vals
-
-            sum = 0
-            i = 0
-            while sum < num_min:
-                i += 1
-                sum += band_nums[i]
-            min_val = band_vals[i]
-
-            band_vals = band_vals[::-1]
-            band_nums = band_nums[::-1]
-
-            sum = 0
-            i = 0
-            while sum < num_max_inv:
-                i += 1
-                sum += band_nums[i]
-            max_val = band_vals[i]
-
-        except:
-            print('Cannot calculate limits for {}'.format(strip_id))
-            min_val = 0
-            max_val = 10000
-
-        borders_list.append((min_val, max_val))
-        print(min_val, max_val)
+    borders_list = geodata.GetRasterPercentiles(raster_path_list, min_percent = 0.01, max_percent = 0.995, band_num_list = [3,2,1], nodata = 0)
 
     print('Start processing %i scenes' % len(path2export_list))
 

@@ -38,7 +38,7 @@ planet_bandpaths = OrderedDict(
 def getplanetfiles(xml_tree):
 
     file_list = get_from_tree(xml_tree, 'fileName')
-    scroll(file_list)
+    # scroll(file_list)
     file_dict = OrderedDict()
 
     for file in file_list:
@@ -93,8 +93,11 @@ def metadata(path):
     meta.lvl = get_from_tree(planet_tree, 'productType')
     meta.files = globals()['planet_files']
 
-    loc_id = str(get_from_tree(planet_tree, 'tileId'))
-    if (loc_id == None) or (len(loc_id) == 0):
+    loc_id = str(get_from_tree(planet_tree, 'tileId', digit_to_float=False))
+    # scroll(loc_id)
+    # print(loc_id, len(loc_id))
+    # if (loc_id is None):
+    if (loc_id is None) or (loc_id in ['[]']):
         loc_id = 'S{}'.format(meta.id.split('_')[1])    # Satellite scene number
     else:
         loc_id = 'T{}'.format(loc_id)                   # Planet tile id (for tiled scenes)

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # Version 0.3
 
 from tools import *
@@ -180,7 +182,7 @@ class process(object):
     # Adds new path to self.input_list
     def add_scene(self, newpath, imsys):
         #newscene = scene(path2scene)
-        print(newpath)
+        # print(newpath)
         try:
             newscene = scene(newpath, imsys)
         #except FileNotFoundError:
@@ -277,8 +279,8 @@ class process(object):
                 dict_to_xls(fullpath(self.output_path, report_name), report)
             except:
                 print('Unable to export data as xls')
-                scroll(report)
-        print(fullpath(self.output_path, vector_cover_name))
+                # scroll(report)
+        # print(fullpath(self.output_path, vector_cover_name))
         geodata.JoinShapesByAttributes(path2vector_list, fullpath(self.output_path, vector_cover_name), geom_rule=1, attr_rule=0)
 
         return None
@@ -526,3 +528,11 @@ def timecomposite(scenes, band_ids, scene_nums, export_path, path2target = None,
 
     return res
 
+# Лютая херня для RGBN
+def RGBNref(ascene, folder):
+    refpaths = []
+    for band_id in ['red', 'green', 'blue', 'nir']:
+        refpaths.append(ascene.get_product_path('Reflectance', band_id, set_product_path=folder, set_name='{}-[fullsat]-[date]-[location]-[lvl].tif'.format(band_id.upper())))
+    path2export = fullpath(folder, ascene.meta.name(r'RF4-[fullsat]-[date]-[location]-[lvl].tif'))
+    geodata.raster2raster(refpaths, path2export, path2target=None, method=geodata.gdal.GRA_NearestNeighbour, exclude_nodata=True, enforce_nodata=None, compress='LZW', overwrite=True)
+    return None

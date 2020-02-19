@@ -401,6 +401,24 @@ def newname2(name, name_list, update_list=False):
     else:
         return newname
 
+# Creates new OrderedDict wuth keys from list
+def endict(list_, obj = None, func = None):
+
+    newordict = OrderedDict()
+
+    if hasattr(func, '__callable__'):
+        func = None
+
+    if func is None:
+        for key in list_:
+            newordict[key] = deepcopy(obj)
+    else:
+        for key in dict:
+            newordict[key] = func(key)
+
+    return newordict
+
+
 # Creates new path
 def newname(folder, ext = None):
     # print(os.path.exists(folder), folder)
@@ -518,10 +536,12 @@ class tdir():
         return len(self.paths)
 
     # Creates a new tempdir
-    def create(self):
+    def create(self, file_extension = None):
         path_new = newdir(self.corner)
         if path_new is not None:
             self.paths.append(path_new)
+            if file_extension is not None:
+                path_new = newname(path_new, file_extension)
             return path_new
         else:
             return None
@@ -589,7 +609,7 @@ def scroll(obj, print_type=True, decoding=None, header=None):
 
 # Get datetime from string
 def get_date_from_string(date_str):
-    print(date_str)
+    # print(date_str)
     year = int(date_str[:4])
     month = int(date_str[5:7])
     day = int(date_str[8:10])
@@ -862,3 +882,5 @@ class scene_metadata:
         for key in self.namecodes.keys():
             namestring = namestring.replace(key, self.namecodes.get(key, ''))
         return namestring
+
+cleardir(default_temp)

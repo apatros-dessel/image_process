@@ -4,6 +4,7 @@
 
 import numpy as np
 from raster_data import RasterData
+from tools import obj2list
 
 # Define limits of array values
 def arrlim(arr, value):
@@ -293,6 +294,7 @@ def band_by_limits(array_set, upper_lims = None, lower_lims = None, check_all_va
     mask = np.zeros(array_set[0].shape).astype(int)
 
     if lower_lims is not None:
+        lower_lims = obj2list(lower_lims)
         lower_lims = list(lower_lims)
         lower_lims.sort()
         lower_mask = np.zeros(array_set[0].shape).astype(int)
@@ -303,6 +305,7 @@ def band_by_limits(array_set, upper_lims = None, lower_lims = None, check_all_va
                     lower_mask[arr<val] = 0
 
     if upper_lims is not None:
+        upper_lims = obj2list(upper_lims)
         upper_lims = list(upper_lims)
         upper_lims.sort(reverse=True)
         upper_mask = np.zeros(array_set[0].shape).astype(int)
@@ -330,3 +333,83 @@ def band_by_limits(array_set, upper_lims = None, lower_lims = None, check_all_va
     elif (lower_lims is not None):
         return lower_lims
 
+# Makes mask of band by values
+def band_mask(arr, min_val = None, max_val = None, include_min = False, include_max = False):
+
+    mask = np.zeros(arr.shape).astype(bool)
+
+    if min_val is not None:
+        if max_val is not None:
+            if min_val == max_val:
+                mask = (arr == min_val)
+            else:
+                mask = (arr > min_val) * (arr < max_val)
+        else:
+            mask = (arr > min_val)
+    elif max_val is not None:
+        mask = (arr < max_val)
+    else:
+        print('No limit values found, unable to make mask')
+        mask = None
+
+    if mask is not None:
+        if include_min:
+            mask[arr == min_val] = True
+        if include_max:
+            mask[arr == max_val] = True
+
+    return mask
+
+''' RASTER FILTERS '''
+
+# Deletes all neighbors in path (4-heighbor rule)
+def erode(source_array, iter_num = 1):
+    # In mask_array filled pixels're one, empty ones're zero
+    mask_array = np.copy(source_array).astype(int)
+    limits = ([None, -1, None, None, 1, None, None, None],
+              [1, None, None, None, None, -1, None, None],
+              [None, None, 1, None, None, None, None, -1],
+              [None, None, None, -1, None, None, 1, None])
+    iter = 0
+    while iter < iter_num:
+        degrow = 0
+        mask_new = np.copy(mask_array)
+        for l in limits:
+            mask_change = np.zeros(mask_array.shape, dtype=np.bool)
+            mask_change[l[0]:l[1], l[2]:l[3]][
+                mask_array[l[0]:l[1], l[2]:l[3]] > mask_array[l[4]:l[5], l[6]:l[7]]] = True
+            degrow += len(mask_array[mask_change])
+            mask_new[mask_change] = False
+        if degrow > 0:
+            mask_array = mask_new
+            iter += 1
+        else:
+            print('Finished for {} iterations'.format(iter))
+            iter = iter_num
+    return mask_new
+
+# Deletes all neighbors in path (4-heighbor rule)
+def engrow(source_array, iter_num = 1):
+    # In mask_array filled pixels're one, empty ones're zero
+    mask_array = np.copy(source_array).astype(int)
+    limits = ([None, -1, None, None, 1, None, None, None],
+              [1, None, None, None, None, -1, None, None],
+              [None, None, 1, None, None, None, None, -1],
+              [None, None, None, -1, None, None, 1, None])
+    iter = 0
+    while iter < iter_num:
+        degrow = 0
+        mask_new = np.copy(mask_array)
+        for l in limits:
+            mask_change = np.zeros(mask_array.shape, dtype=np.bool)
+            mask_change[l[0]:l[1], l[2]:l[3]][
+                mask_array[l[0]:l[1], l[2]:l[3]] > mask_array[l[4]:l[5], l[6]:l[7]]] = True
+            degrow += len(mask_array[mask_change])
+            mask_new[mask_change] = False
+        if degrow > 0:
+            mask_array = mask_new
+            iter += 1
+        else:
+            print('Finished for {} iterations'.format(iter))
+            iter = iter_num
+    return mask_new

@@ -16,7 +16,7 @@ from tools import *
 
 from raster_data import RasterData, MultiRasterData
 
-from calc import array3dim, segmentator, limits_mask, data_to_image, get_raster_limits, band_by_limits
+from calc import *
 
 temp_dir_list = tdir(default_temp)
 
@@ -642,6 +642,105 @@ def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, class
     write_prj(dst_layername + '.prj', raster_ds.GetProjection())
     return None
 
+def ClassifyBandValues(bandpath_in, bandpath_out, classify_table = [(0, None, 1)], nodata = 0, compress = None, overwrite = True):
+
+    if check_exist(bandpath_out[0], ignore=overwrite):
+        return 1
+
+    arr_in = get_band_array(bandpath_in)
+
+    if arr_in is None:
+        return 1
+
+    arr_out = np.full(arr_in.shape, nodata)
+
+    for min_val, max_val, id_val in classify_table:
+        if id_val != nodata:
+            arr_out[band_mask(arr_in, min_val, max_val)] = id_val
+        else:
+            print('Cannot set value {}: id equals to nodata'.format(id_val))
+
+    if not os.path.exists(bandpath_out[0]):
+        ds_out = ds(bandpath_out[0], copypath=bandpath_in[0], options={'bandnum': bandpath_out[1], 'dtype': 1, 'nodata': nodata, 'compress': compress}, editable=True)
+    else:
+        ds_out = gdal.Open(bandpath_out[0], 1)
+
+    if ds_out is not None:
+        # while ds_out.RasterCount < bandpath_out[1]:
+            # ds_out.AddBand(1)
+        try:
+            band_out = ds_out.GetRasterBand(bandpath_out[1])
+            band_out.WriteArray(arr_out)
+        except:
+            print('Error writing data to: {}'.format(bandpath_out))
+            # band_out = ds_out.GetRasterBand(bandpath_out[1])
+            # band_out.WriteArray(arr_out)
+            return 1
+    else:
+        print('Band not found: {}'.format(bandpath_out))
+        return 1
+
+    return 0
+
+# Vectorize raster layers
+def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_id = 'CLASS', erode_val = 0, overwrite = True):
+
+    if check_exist(path_out, ignore=overwrite):
+        return 1
+
+    arr = get_band_array(bandpath_in)
+
+    if arr is None:
+        return 1
+
+    data_ds = ds(globals()['temp_dir_list'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
+    mask_arr = np.zeros(arr.shape).astype(bool)
+
+    for min_val, max_val, id_val in classify_table:
+        # curr_mask = mask_arr = np.zeros(arr.shape).astype(bool)
+        if min_val is not None:
+            if max_val is not None:
+                if min_val == max_val:
+                    curr_mask = arr==min_val
+                else:
+                    curr_mask = (arr>min_val)*(arr<max_val)
+            else:
+                curr_mask = arr>min_val
+        elif max_val is not None:
+            curr_mask = arr<max_val
+        else:
+            print('No limit values found for {}, unable to make mask'.format(id_val))
+            continue
+        if erode_val > 0:
+            curr_mask = erode(curr_mask, erode_val).astype(bool)
+        data_ds.GetRasterBand(1).WriteArray(curr_mask * int(id_val))
+        mask_arr[curr_mask] = True
+        curr_mask = None
+
+    # Create mask
+    mask_ds = ds(globals()['temp_dir_list'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
+    mask_ds.GetRasterBand(1).WriteArray(mask_arr)
+    mask_arr = None
+
+    # Create class field
+    dst_ds = shp(path_out, 1)
+    # dst_ds = json(path_out[:-4]+'.json', 1)
+    dst_layer = dst_ds.GetLayer()
+    dst_layer.CreateField(ogr.FieldDefn(index_id, ogr.OFTInteger))
+    # dst_ds = None
+
+    # Polygonize value
+    # dst_ds, dst_layer = get_lyr_by_path(path_out, 1)
+    # dst_ds, dst_layer = get_lyr_by_path(path_out[:-4]+'.json', 1)
+    # gdal.Polygonize(data_ds.GetRasterBand(1), mask_ds.GetRasterBand(1), dst_layer, 0, [], callback=gdal.TermProgress_nocb)
+    gdal.Polygonize(data_ds.GetRasterBand(1), mask_ds.GetRasterBand(1), dst_layer, 0)
+    dst_ds = None
+
+    # Write projection
+    write_prj(path_out[:-4] + '.prj', data_ds.GetProjection())
+
+    return 0
+
 # Returns data on raster projection and geotransform parameters
 def getrastershape(raster_ds):
     crs = osr.SpatialReference()
@@ -958,6 +1057,90 @@ class bandpath:
         band = self.getband()
         if band is not None:
             return array3dim(band.ReadAsArray())
+
+def GetRasterPercentiles(raster_path_list, min_percent = 0.02, max_percent = 0.98,
+                         band_num_list = [1,2,3], nodata = 0):
+
+    band_hist_dict = endict(band_num_list, {})
+
+    for raster_path in raster_path_list:
+
+        ds = gdal.Open(raster_path)
+
+        if ds is None:
+            continue
+
+        ds_band_list = []
+
+        for band in band_num_list:
+            if ds.GetRasterBand(band) is not None:
+                ds_band_list.append(band)
+        # print(ds_band_list)
+        for bandnum in ds_band_list:
+
+            raster_array = ds.GetRasterBand(bandnum).ReadAsArray()
+            values, number = np.unique(raster_array, return_counts=True)
+
+            for val, num in zip(values, number):
+                # print(val, num)
+                if val in band_hist_dict[bandnum]:
+                    band_hist_dict[bandnum][val] += num
+                else:
+                    band_hist_dict[bandnum][val] = num
+
+    borders_list = []
+
+    for band in band_hist_dict:
+
+        band_num_dict = band_hist_dict[band]
+
+        try:
+
+            if len(band_num_dict) == 1:
+                raise Exception
+
+            if nodata in band_num_dict:
+                band_num_dict.pop(nodata)
+
+            band_vals = np.array(band_num_dict.keys())
+            # band_vals.sort()
+            band_order = band_vals.argsort()
+            band_vals = band_vals[band_order]
+            band_nums = np.array(band_num_dict.values())[band_order]
+            pixel_sum = np.sum(band_nums)
+
+            num_min = pixel_sum * min_percent
+            num_max = pixel_sum * max_percent
+            num_max_inv = pixel_sum - num_max
+
+            min_mask = band_vals
+
+            sum = 0
+            i = 0
+            while sum < num_min:
+                i += 1
+                sum += band_nums[i]
+            min_val = band_vals[i]
+
+            band_vals = band_vals[::-1]
+            band_nums = band_nums[::-1]
+
+            sum = 0
+            i = 0
+            while sum < num_max_inv:
+                i += 1
+                sum += band_nums[i]
+            max_val = band_vals[i]
+
+        except:
+            scroll(raster_path_list, header='Cannot build histogram for band {}: '.format(band))
+            min_val = 0
+            max_val = 10000
+
+        borders_list.append((min_val, max_val))
+        print(min_val, max_val)
+
+    return borders_list
 
 def RasterToImage(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True, enforce_nodata = None, band_order = [1,2,3], compress = None, overwrite = True, alpha=False):
 
@@ -2626,3 +2809,25 @@ class NewFieldsDict():
                 feat.SetField(key, input_value)
 
         return feat
+
+def filter_dataset_by_col(path_in, field, vals, path_out = None):
+    ds = ogr.Open(path_in)
+    vals = obj2list(vals)
+    if path_out is None:
+        path_out = globals()['temp_dir_list'].create('shp')
+    new_ds = shp(path_out, 1)
+    # new_ds = geodata.shp(globals()['temp_dir_list'].create('shp'), 1)
+    new_lyr = new_ds.GetLayer()
+    lyr = ds.GetLayer()
+    # new_lyr.AlterFieldDefn(lyr.GetLayerDefn())
+    lyr_defn = lyr.GetLayerDefn()
+    for key in lyr.GetNextFeature().keys():
+        new_lyr.CreateField(lyr_defn.GetFieldDefn(lyr_defn.GetFieldIndex(key)))
+    # to_del = {}
+    lyr.ResetReading()
+    for feat in lyr:
+        if feat.GetField(feat.GetFieldIndex(field)) in vals:
+            new_lyr.CreateFeature(feat)
+    new_ds = None
+    write_prj(path_out[:-4] + '.prj', lyr.GetSpatialRef().ExportToWkt())
+    return path_out

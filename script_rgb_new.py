@@ -3,7 +3,7 @@
 from image_processor import *
 
 path = [
-    r'g:\planet\20190430',
+    r'd:\digital_earth\kanopus_new\krym',
     # r'f:\rks\tver',
     # r'f:\rks\tver\20190912',
     # r'f:\rks\tver\20190911\20190911_062630_100d',
@@ -12,7 +12,7 @@ path = [
     ]
 
 # folder = r'd:\digital_earth\planet_rgb\new'
-folder = r'e:\planet_new'
+folder = r'e:\kanopus_new'
 
 if not os.path.exists(folder):
     os.makedirs(folder)
@@ -26,15 +26,17 @@ print('Start making rgb from %i scenes' % len(proc))
 
 for ascene in proc.scenes:
 
+    if not '.PMS.' in ascene.meta.id:
+        continue
+
     strip_id = ascene.meta.name('[sat]-[date]')
-    raster_path = ascene.get_raster_path('Analytic')
 
     if strip_id in raster_path_dict:
-        raster_path_dict[strip_id].append(raster_path)
+        raster_path_dict[strip_id].append(ascene.get_raster_path('mul'))
     else:
-        raster_path_dict[strip_id] = [raster_path]
+        raster_path_dict[strip_id] = [ascene.get_raster_path('mul')]
 
-# scroll(raster_path_dict)
+scroll(raster_path_dict, header='Raster paths:')
 
 errors_list = []
 

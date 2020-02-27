@@ -38,6 +38,17 @@ class counter:
     def next(self):
         return self.__next__()
 
+# An iterator endlessly returning None
+class iternone:
+    def __init__(self):
+        pass
+    def __iter__(self):
+        return self
+    def __next__(self):
+        return None
+    def next(self):
+        return self.__next__()
+
 # Check existance of file
 def check_exist(path, ignore=False):
     if not ignore:
@@ -185,7 +196,20 @@ def order_for_level(list_of_lists):
                 print('Unknown res: {}'.format(res))
                 raise Exception()
 
+# Unite all lists in a list of lists into a new list
+def unite_multilist(list_of_lists):
 
+    if len(list_of_lists) == 0:
+        return []
+
+    full_list = copy(list_of_lists[0])
+    for list_ in list_of_lists[1:]:
+        if isinstance(list_, list):
+            full_list.extend(list_)
+        else:
+            print('Error: object is not a list: {}'.format(list_))
+
+    return full_list
 
 # Repeats th last value in the list until it has the predefined length
 def list_of_len(list_, len_):
@@ -453,6 +477,33 @@ def cleardir(path):
             errors.append(file)
     return not bool(errors)
 
+# Completely destroys dir with all contained files and folders
+def destroydir(path, preserve_path = False):
+    folders, files = folder_paths(path)
+    success = []
+    errors = []
+    for file in files:
+        try:
+            os.remove(file)
+            success.append(file)
+        except:
+            # os.remove(file)
+            errors.append(file)
+    folders.reverse()
+    if preserve_path:
+        folders = folders[:-1]
+    for folder in folders:
+        try:
+            os.rmdir(folder)
+            success.append(folder)
+        except:
+            errors.append(folder)
+    # scroll(success, header = 'Deleted files and folders: ')
+    if bool(errors):
+        # scroll(errors, header = 'Failed to delete files and folders:')
+        return False
+    return True
+
 # Check correctness of file name
 def check_name(name, pattern):
     search = re.search(pattern, name)
@@ -573,8 +624,9 @@ class tdir():
     # Deletes all data when the interpreter is closed
     def __del__(self):
         try:
-            if self.empty() and cleardir(self.corner):
-                os.rmdir(self.corner)
+            destroydir(self.corner)
+            # if self.empty() and cleardir(self.corner):
+                # os.rmdir(self.corner)
         except:
             pass
 
@@ -883,4 +935,45 @@ class scene_metadata:
             namestring = namestring.replace(key, self.namecodes.get(key, ''))
         return namestring
 
-cleardir(default_temp)
+# Searches filenames according to template and returns a list of full paths to them
+def folder_paths(path, id_max=10000):
+    # templates_list = listoftype(templates_list, str, export_tuple=True)
+    if os.path.exists(path):
+        if not os.path.isdir(path):
+            path = os.path.split(path)[0]
+        path_list = [path]
+        path_list = [path_list]
+    else:
+        print('Path does not exist: {}'.format(path))
+        return None
+    id = 0
+    export_files = []
+    while id < len(path_list) < id_max:
+        for id_fold, folder in enumerate(path_list[id]):
+            fold_, file_ = fold_finder(folder)
+            if fold_ != []:
+                path_list.append(fold_)
+            export_files.extend(file_)
+        id += 1
+    if len(path_list) > id_max:
+        raise Exception('Number of folder exceeds maximum = {}'.format(id_max))
+    export_folders = unite_multilist(path_list)
+    return export_folders, export_files
+
+# Filter filepath_list by extension
+def ext_filter(filepaths, ext):
+    assert isinstance(filepaths, (tuple, list))
+    assert isinstance(ext, str)
+    proper_names = []
+    for file in filepaths:
+        if file.endswith(ext):
+            proper_names.append(file)
+    return proper_names
+
+# destroydir(default_temp, preserve_path=True)
+
+temp_dir_list = tdir()
+
+# Make temp file or folder path with predefined extension
+def tempname(ext = None):
+    return globals()['temp_dir_list'].create(ext)

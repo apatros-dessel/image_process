@@ -1,7 +1,7 @@
 # Functions for processing <imsys_name> metadata
 
 from tools import *
-from geodata import JoinShapesByAttributes
+from geodata import *
 
 # Examples of Sentinel-2 metadata filenames
 # r'MTD_MSIL1C.xml'
@@ -57,7 +57,7 @@ sentinel_files_id = [
     ('vegetation_red_edge_1', ('B05', 'B05_20m')),
     ('vegetation_red_edge_2', ('B06', 'B06_20m')),
     ('vegetation_red_edge_3', ('B07', 'B07_20m')),
-    ('nir', ('B08', 'B04_10m')),
+    ('nir', ('B08', 'B08_10m')),
     ('narrow_nir', ('B8A', 'B8A_20m')),
     ('water_vapour', ('B09', 'WVP_10m')),
     ('swir-cirrus', ('B10', 'B10_60m')),
@@ -155,7 +155,7 @@ def get_sentinel_filepaths(filepath_list):
 
             for i, filepath in enumerate(filepath_list):
 
-                if filepath.endswith(end):
+                if filepath[:-4].endswith(end):
 
                     files.append(fileid)
                     filepaths[fileid] = filepath_list.pop(i)
@@ -174,9 +174,9 @@ def get_sentinel_filepaths(filepath_list):
                 break
 
     if len(filepath_list) > 0:
-        print('Some raster files were not processed')
-        scroll(filepath_list)
-
+        scroll(filepath_list, header = 'Some raster files were not processed:')
+    # scroll(filepaths)
+    # scroll(bandpaths)
     return files, filepaths, bandpaths
 
 # Fill <imsys_name> metadata
@@ -188,13 +188,31 @@ def metadata(path):
 
     meta.container['mtd'] = mtd = xml2tree(path)
     meta.container['msl'] = msl = xml2tree(get_msl_path(folder))
+    meta.container['manifest'] = manifest = xml2tree(r'{}\manifest.safe'.format(folder))
 
     meta.sat =          get_from_tree(mtd, 'SPACECRAFT_NAME')
     meta.fullsat =      'S2%{}'.format(meta.sat[-1])
     meta.id =           get_from_tree(mtd, 'PRODUCT_URI')
-    # print(meta.id)
+    meta.lvl =          get_from_tree(mtd, 'PROCESSING_LEVEL').split('-')[1]
 
-    files, filepaths, bandpaths = get_sentinel_filepaths(get_from_tree(mtd, 'IMAGE_FILE'))
+    if meta.lvl == '1C':
+        filepaths_list = get_from_tree(mtd, 'IMAGE_FILE')
+    else:
+        filepaths_list = get_from_tree(manifest, 'fileLocation', attrib='href')
+        for i in range(len(filepaths_list)-1, -1, -1):
+            if 'IMG_DATA' in filepaths_list[i]:
+                filepaths_list[i] = filepaths_list[i][1:]
+            else:
+                filepaths_list.pop(i)
+
+    filepaths_list = get_from_tree(manifest, 'fileLocation', attrib='href')
+    for i in range(len(filepaths_list) - 1, -1, -1):
+        if 'IMG_DATA' in filepaths_list[i]:
+            filepaths_list[i] = filepaths_list[i][1:]
+        else:
+            filepaths_list.pop(i)
+
+    files, filepaths, bandpaths = get_sentinel_filepaths(filepaths_list)
 
     meta.files =        files
     meta.filepaths =    filepaths
@@ -209,6 +227,7 @@ def metadata(path):
             '[fullsat]':    meta.fullsat,
             '[id]':         meta.id,
             '[location]':   meta.location,
+            '[lvl]':        meta.lvl,
         }
     )
 
@@ -217,7 +236,7 @@ def metadata(path):
     # path2mask = r'{}\{}_datamask.shp'.format(tdir().create(), meta.id)
     path2mask = '{}_datamask.shp'.format(meta.id)
     fullpath2mask = fullpath(folder, path2mask)
-    print(path2mask)
+    # print(path2mask)
     path2mask_data = fullpath(folder, get_from_tree(msl, 'MASK_FILENAME', check = {'type': 'MSK_DETFOO', 'bandId': '2'}))
 
     JoinShapesByAttributes([path2mask_data], fullpath2mask, attributes = ['maskType'], geom_rule = 1, attr_rule = 0)
@@ -226,3 +245,31 @@ def metadata(path):
     meta.cloudmask =      get_from_tree(msl, 'MASK_FILENAME', check = {'type': 'MSK_CLOUDS'})
 
     return meta
+
+# Modules for data processing
+
+# Calculate Radiance
+def Radiance(bandpath_in, band_id, bandpath_out, meta, dt = None, compress = None, overwrite = True):
+
+    band_num_id = globals()['planet_bandpaths'][band_id][1] - 1
+    mult = reflectanceCoefficient = float(get_from_tree(meta.container.get('xmltree'), 'radiometricScaleFactor')[band_num_id])
+    res = MultiplyRasterBand(bandpath_in, bandpath_out, mult, dt=dt, compress=compress, overwrite=overwrite)
+
+    return res
+
+# Calculate Reflectance
+def Reflectance(bandpath_in, band_id, bandpath_out, meta, dt = None, compress = None, overwrite = True):
+
+    if meta.lvl == '1C':
+        reflectanceCoefficient = 1/float(get_from_tree(meta.container.get('mtd'), 'QUANTIFICATION_VALUE'))
+    elif meta.lvl == '2A':
+        reflectanceCoefficient = 1/float(get_from_tree(meta.container.get('mtd'), 'BOA_QUANTIFICATION_VALUE'))
+
+    res = MultiplyRasterBand(bandpath_in, bandpath_out, reflectanceCoefficient, dt=dt, compress=compress, overwrite=overwrite)
+
+    return res
+
+product_func = {
+    'Radiance':     Radiance,
+    'Reflectance':  Reflectance,
+}

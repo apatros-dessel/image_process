@@ -7,13 +7,14 @@ datapath_dict = OrderedDict()
 # Далее для каждого типа объектов прописываются пути к месту хранения данных
 # Если все исходные данные лежат в одной корневой папке, то достаточно указать путь к ней (как ниже с 'forests'); если таких папок много, можно записать их в список (как с 'mines')
 
-save_rgbn_composites =      True   # Save RGBN composites from the original data
-save_rgbn_reflectance =     True    # Save RGBN reflectance data
+save_rgbn_composites =      False   # Save RGBN composites from the original data
+save_rgbn_reflectance =     False    # Save RGBN reflectance data
 save_data_masks =           True   # Save raster object mask if a vector file is available
 overwrite_existing_files =  False   # Replace existing files
 compression =               'DEFLATE'  # Compression algorithm for raster (string)
 raster_scene_id_col_name =  'image'
 raster_data_path_col_name = 'RGBNpath'
+raster_index_col_name =     'gridcode'
 
 # datapath_dict['forests'] = r''
 
@@ -101,20 +102,24 @@ for obj_id in datapath_dict:
                     ds_in, lyr_in = geodata.get_lyr_by_path(vector_mask_path, 1)
                     if lyr_in is None:
                         continue
-                    lyr_in.CreateField(geodata.ogr.FieldDefn(raster_data_path_col_name, 4))
+                    # lyr_in.CreateField(geodata.ogr.FieldDefn(raster_data_path_col_name, 4))
 
                     for feat in lyr_in:
                         scene_id = str(feat.GetField(feat.GetFieldIndex(raster_scene_id_col_name)))
                         if scene_id is None:
                             print('Error collecting scene_id')
                         else:
+                            error = True
                             for ascene in proc.scenes:
                                 if scene_id in ascene.meta.id:
-                                    data_path = r'{}\{}\{}'.format(path_to_data, dtype_id.get(imsys), ascene.meta.name('IM4-[fullsat]-[date]-[location]-[lvl].tif'))
+                                    # data_path = r'{}\{}\{}'.format(path_to_data, dtype_id.get(imsys), ascene.meta.name('IM4-[fullsat]-[date]-[location]-[lvl].tif'))
                                     if scene_id not in save_data:
                                         save_data[scene_id] = ascene.fullpath
-                                    feat.SetField(raster_data_path_col_name, data_path)
+                                        error = False
+                                    # feat.SetField(raster_data_path_col_name, data_path)
                                     break
+                            if error:
+                                print('Error saving mask for "{}": scene not found'.format(scene_id))
 
                     path_to_mask_folder = r'{}\{}\{}'.format(path_to_masks, obj_id, dtype_id.get(imsys))
                     if os.path.exists(path_to_mask_folder) == False:
@@ -126,7 +131,7 @@ for obj_id in datapath_dict:
                         path_to_mask = fullpath(path_to_mask_folder, mask_name)
                         raster_path = ascene.get_raster_path(ascene.meta.files[0])
                         vector_scene_mask_path = geodata.filter_dataset_by_col(vector_mask_path, raster_scene_id_col_name, scene_id)
-                        geodata.RasterizeVector(vector_scene_mask_path, raster_path, path_to_mask, compress=compression, overwrite=overwrite_existing_files)
+                        geodata.RasterizeVector(vector_scene_mask_path, raster_path, path_to_mask, value_colname=raster_index_col_name, compress=compression, overwrite=overwrite_existing_files)
                         print('Mask written: {}'.format(path_to_mask))
 
         if save_rgbn_composites:

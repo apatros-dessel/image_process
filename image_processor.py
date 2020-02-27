@@ -10,6 +10,7 @@ import geodata
 import myplanet
 import mykanopus
 import mysentinel
+import myresursp
 
 # Constants
 
@@ -21,6 +22,7 @@ metalib = {
     'SNT': mysentinel,
     'PLN': myplanet,
     'KAN': mykanopus,
+    'RSP': myresursp,
 }
 
 # A dictionary of metadata filenames templates
@@ -94,14 +96,16 @@ composites_dict = {
     'APN':      ['swir2', 'swir1', 'narrow nir'],   # Athmospheric penetration
     'SWIR':     ['swir2', 'narow nir', 'red'],
     'SWIR-2':   ['blue', 'swir1', 'swir2'],
-    'RGBN':     ['red', 'green', 'blue', 'nir']     # Four channels for image classification
+    'RGBN':     ['red', 'green', 'blue', 'nir'],    # Four channels for image classification
+    'FAR':      ['swir1', 'nir', 'green'],          # Previously unmentioned synthesis from A.Cherepanov fire detection algorithm
 }
 
 # Set default types of indices
 index_dict = {
-    'NDVI': ('Normalized',  ['nir', 'red'],     6,  'Reflectance'),
-    'NDWI': ('Normalized',  ['nir', 'green'],   6,  'Reflectance'),
-    'NDBI': ('Normalized',  ['swir', 'nir'],    6,  'Reflectance'),
+    'NDVI':     ('Normalized',              ['nir', 'red'],     6,  'Reflectance'),
+    'NDWI':     ('Normalized',              ['nir', 'green'],   6,  'Reflectance'),
+    'NDBI':     ('Normalized',              ['swir', 'nir'],    6,  'Reflectance'),
+    'NDVIadj':  ('NormalizedAdjusted',      ['nir', 'red'],    6,  'Reflectance'),
 }
 
 # Set elements for naming files
@@ -234,6 +238,14 @@ class process(object):
                         self.add_scene(newpath, imsys)
         return self
 
+    # Get scene by id
+    def get_scene(self, scene_id):
+        for ascene in self.scenes:
+            if ascene.meta.id == scene_id:
+                return ascene
+        print('Scene not found: {}'.format(scene_id))
+        return None
+
     def get_dates(self):
         dates_list = []
         for ascene in self.scenes:
@@ -284,6 +296,26 @@ class process(object):
         geodata.JoinShapesByAttributes(path2vector_list, fullpath(self.output_path, vector_cover_name), geom_rule=1, attr_rule=0)
 
         return None
+
+    def get_change(self, old_scene_id, new_scene_id, intersection_mask = None):
+
+        old_scene = self.get_scene(old_scene_id)
+        new_scene = self.get_scene(new_scene_id)
+
+        if (old_scene is None) or (new_scene is None):
+            print('Scenes not found for {} and {}'.format(old_scene_id, new_scene_id))
+            return 1
+
+        old_datamask = old_scene.meta.datamask
+        new_datamask = new_scene.meta.datamask
+
+        if intersection_mask is None:
+            intersection_mask = tempname('json')
+
+        if (old_datamask is not None) and (new_datamask is not None):
+            pass
+
+
 
 # Every space image scene
 class scene:
@@ -395,7 +427,8 @@ class scene:
                 return None
 
             if set_product_path is None:
-                set_product_path = temp_dir_list.create()
+                set_product_path = globals()['temp_dir_list'].create()
+                print(set_product_path)
 
             if set_name is None:
                 prod_name = r'[id]_{}_{}.tif'.format(band_id, prod_id)
@@ -493,7 +526,7 @@ class scene:
 
             for band_id in bandlist:
                 # bandpath_list.append(self.get_band_path(band_id))
-                bandpath_list.append(self.get_product_path(prod_id, band_id, set_product_path=export_path, set_name=name))
+                bandpath_list.append(self.get_product_path(prod_id, band_id, set_product_path=os.path.split(export_path)[0], set_name=name))
 
             if (func is not None) and (not None in bandpath_list):
                 #func(bandpath_list, export_path, dt=dt)
@@ -504,6 +537,7 @@ class scene:
                     return res
                 except:
                     print('Error calculating {} to {}'.format(index_id, export_path))
+                    res = func(bandpath_list, export_path, dt=dt, compress=compress, overwrite=overwrite)
                     return 1
             else:
                 print('Insuffisient parameters for {} calculation'.format(index_id))
@@ -533,6 +567,12 @@ def RGBNref(ascene, folder):
     refpaths = []
     for band_id in ['red', 'green', 'blue', 'nir']:
         refpaths.append(ascene.get_product_path('Reflectance', band_id, set_product_path=folder, set_name='{}-[fullsat]-[date]-[location]-[lvl].tif'.format(band_id.upper())))
-    path2export = fullpath(folder, ascene.meta.name(r'RF4-[fullsat]-[date]-[location]-[lvl].tif'))
+    # path2export = fullpath(folder, ascene.meta.name(r'RF4-[fullsat]-[date]-[location]-[lvl].tif'))
+    path2export = fullpath(folder, globals()['temp_dir_list'].create('tif'))
     geodata.raster2raster(refpaths, path2export, path2target=None, method=geodata.gdal.GRA_NearestNeighbour, exclude_nodata=True, enforce_nodata=None, compress='LZW', overwrite=True)
     return None
+
+# Deleting temporary files at the end of the program
+def fin():
+    globals()['temp_dir_list'].__del__()
+    globals()['geodata'].temp_dir_list.__del__()

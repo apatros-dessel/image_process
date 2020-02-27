@@ -11,11 +11,10 @@ except:
     import osr
 import numpy as np
 import math
+import cv2
 
 from tools import *
-
 from raster_data import RasterData, MultiRasterData
-
 from calc import *
 
 temp_dir_list = tdir(default_temp)
@@ -531,6 +530,7 @@ def band_quot(path2oldband, path2newband, export_path, nodata = 0, compress = No
 def Changes(old_bandpaths, new_bandpaths, export_path,
             calc_path = None, formula = 0, nodata = 0,
             lower_lims = None, upper_lims = None, check_all_values = False, upper_priority = True,
+            GaussianBlur = False,
             compress = None, overwrite = True):
 
     formula_list = [
@@ -548,7 +548,7 @@ def Changes(old_bandpaths, new_bandpaths, export_path,
     elif calc_path is None:
         calc_path = r'{}\calc.tif'.format(globals()['temp_dir_list'].create())
 
-    print(calc_path)
+    # print(calc_path)
 
     calc_ds = ds(calc_path, copypath=new_bandpaths[0][0], options={'dt': 6}, editable=True)
 
@@ -556,6 +556,10 @@ def Changes(old_bandpaths, new_bandpaths, export_path,
     new_bands = MultiRasterData(new_bandpaths, data = 2)
 
     for band_num, old_array, new_array in zip(counter(1), old_bands, new_bands):
+
+        if GaussianBlur:
+            old_array = cv2.GaussianBlur(old_array, (5,5), 0)
+            new_array = cv2.GaussianBlur(new_array, (5,5), 0)
 
         if formula == 0:
             band_fin = (new_array - old_array)
@@ -580,6 +584,63 @@ def Changes(old_bandpaths, new_bandpaths, export_path,
         change_ds = None
 
     return 0
+
+# Make classifier values from raster data
+def RasterLearn(raster_path_list, raster_classes_list, mask_path_list = None, classifier_zero = None, limit_zero = None, save_statistics_path = None):
+
+    assert len(raster_path_list)==len(raster_classes_list)
+
+    if mask_path_list is not None:
+        assert len(mask_path_list)==len(raster_path_list)
+        masked = True
+    else:
+        mask_raster = False
+
+    if classifier_zero is None:
+        classifier_zero = OrderedDict()
+    else:
+        classifier_zero = deepcopy(classifier_zero)
+
+    raster_data = MultiRasterData(raster_path_list, data=2)
+    raster_classes = MultiRasterData(raster_classes_list, data=2)
+
+    if mask_raster is not None:
+        raster_mask = MultiRasterData(mask_path_list)
+    else:
+        raster_mask = iternone()
+
+    for data_arr, classes_arr, mask_arr in zip(raster_data, raster_classes, raster_mask):
+
+        classes_arr = classes_arr.astype(bool)
+
+        if mask_arr is not None:
+            mask_arr = mask_arr.astype(bool)
+            classes_arr = classes_arr[mask_arr]
+            data_arr = data_arr[mask_arr]
+            del(mask_arr)
+
+        vals, vals_count = np.unique(data_arr, return_counts=True)
+
+        for val, count in zip(vals, vals_count):
+            count_true = np.sum(classes_arr[data_arr==val])
+            count_false = count - count_true
+            if val in classifier_zero:
+                classifier_zero[val] = classifier_zero[val] + np.array([0, count_true, count_false])
+            else:
+                classifier_zero[val] = np.array([val, count_true, count_false])
+
+    if save_statistics_path is not None:
+        try:
+            dict_to_xls(save_statistics_path, classifier_zero)
+        except:
+            print('Error saving xls: {}'.format(save_statistics_path))
+
+    fullstat = np.vstack(classifier_zero.values())
+    fullstat.sort(0)
+    min = fullstat[:,0][splitbin(fullstat[:,1], fullstat[:,2])]
+
+    return min
+
 
 # Division of two bands with calculating percent of change
 def percent(path2raster, export_path, band1 = 1, band2 = 1, nodata = 0, compress = None, overwrite = True):
@@ -789,8 +850,22 @@ def normalized_difference(path2bands, path2export, dt = None, compress = None, o
     res = save_raster(path2export, nd_array, copypath = path2bands[0][0], dt = dt, compress = compress, overwrite=overwrite)
     return res
 
+# Calculates normalized difference adjusted raster (for NDVI_adj indices calculation
+def normalized_adjusted(path2bands, path2export, dt = None, compress = None, overwrite = True):
+    data_array = getbandarrays(path2bands).astype(np.float)
+    #print(data_array.shape)
+    mask = np.ones(data_array.shape[1:]).astype(np.bool)
+    for slice in data_array:
+        mask[slice==0] = False
+    nd_array = np.zeros(data_array.shape[1:])
+    nd_array[mask] = ((data_array[0][mask]-data_array[1][mask]) / (data_array[1][mask]+data_array[0][mask])) / (data_array[0][mask]*data_array[1][mask])
+    # ndvi_adj = ((nir - red) / (nir + red)) / (nir * red)
+    res = save_raster(path2export, nd_array, copypath = path2bands[0][0], dt = dt, compress = compress, overwrite=overwrite)
+    return res
+
 index_calculator = {
-    'Normalized': normalized_difference,
+    'Normalized':           normalized_difference,
+    'NormalizedAdjusted':   normalized_adjusted,
 }
 
 def write_prj(path2prj, projection):
@@ -2707,7 +2782,7 @@ def RandomLinesRectangle(path_in, path_out,
 
 # Rasterize vector layer
 # Returns a mask as np.array of np.bool
-def RasterizeVector(path_in_vector, path_in_raster, path_out, compress = None, overwrite=True):
+def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, value_colname = None, compress = None, overwrite=True):
 
     if check_exist(path_out, ignore=overwrite):
         return 1
@@ -2725,14 +2800,43 @@ def RasterizeVector(path_in_vector, path_in_raster, path_out, compress = None, o
     if lyr_in_vector is None:
         return 1
 
+    if value_colname is None:
+        rasterize_options = None
+    else:
+        rasterize_options = [r'ATTRIBUTE={}'.format(value_colname)]
+
     try:
-        s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, burn_values=[1]) # This code raises warning if the layer does not have a projection definition
+        # s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, burn_values=[burn_value], options = ['attribute = gridcode']) # This code raises warning if the layer does not have a projection definition
+        s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, burn_values = [burn_value], options = rasterize_options)
+
     except:
-        print('No pixels to filter in vector mask')
+        # s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, options=['gridcode', '', ''])
+        print('Rasterizing error')
+        return 1
 
     t_ds = None
 
     return 0
+
+# Makes several vectors split by vector shape values
+def split_vector_shp(path_in, field_id):
+
+    ds_in, lyr_in = get_lyr_by_path(path_in)
+    if lyr_in is None:
+        return None
+
+    path_dict = {}
+
+    for feat in lyr_in:
+        field_val = str(feat.GetField(feat.GetFieldIndex(field_id)))
+        if field_val is None:
+            print('Error collecting scene_id')
+        else:
+            if field_val not in path_dict:
+                new_path = filter_dataset_by_col(path_in, field_id, field_val)
+                path_dict[field_val] = new_path
+
+    return path_dict
 
 # Calculates values for new fields in GDAL features preserving FieldDefn data if nessessary
 class NewFieldsDict():
@@ -2811,23 +2915,104 @@ class NewFieldsDict():
         return feat
 
 def filter_dataset_by_col(path_in, field, vals, path_out = None):
+
     ds = ogr.Open(path_in)
     vals = obj2list(vals)
+
     if path_out is None:
         path_out = globals()['temp_dir_list'].create('shp')
+
     new_ds = shp(path_out, 1)
     # new_ds = geodata.shp(globals()['temp_dir_list'].create('shp'), 1)
     new_lyr = new_ds.GetLayer()
     lyr = ds.GetLayer()
     # new_lyr.AlterFieldDefn(lyr.GetLayerDefn())
     lyr_defn = lyr.GetLayerDefn()
+
     for key in lyr.GetNextFeature().keys():
         new_lyr.CreateField(lyr_defn.GetFieldDefn(lyr_defn.GetFieldIndex(key)))
+
     # to_del = {}
     lyr.ResetReading()
+
     for feat in lyr:
         if feat.GetField(feat.GetFieldIndex(field)) in vals:
             new_lyr.CreateFeature(feat)
+
     new_ds = None
+
     write_prj(path_out[:-4] + '.prj', lyr.GetSpatialRef().ExportToWkt())
+
     return path_out
+
+'''
+import geopandas as gpd
+import ogr, osr
+import gdal
+import uuid
+
+tf = r'f:test2.shp'
+
+def vector_to_raster(source_layer, output_path, x_size, y_size, options, data_type=gdal.GDT_Byte):
+    
+    # This method should create a raster object by burning the values of a source layer to values.
+    
+
+    x_min, x_max, y_min, y_max = source_layer.GetExtent()
+    print(source_layer.GetExtent())
+    x_resolution = int((x_max - x_min) / x_size)
+    y_resolution = int((y_max - y_min) / -y_size)  
+    print(x_resolution, y_resolution)
+
+    target_ds = gdal.GetDriverByName(str('GTiff')).Create(output_path, x_resolution, y_resolution, 1, data_type)
+    spatial_reference = source_layer.GetSpatialRef()         
+    target_ds.SetProjection(spatial_reference.ExportToWkt())
+    target_ds.SetGeoTransform((x_min, x_size, 0, y_max, 0, -y_size))
+    gdal.RasterizeLayer(target_ds, [1], source_layer, options=options)
+    target_ds.FlushCache()
+    return target_ds
+
+
+#create geopandas dataframe
+gdf = gpd.read_file(tf)
+
+#grab projection from the gdf
+projection = gdf.crs['init']
+
+#get geometry from 1 polygon (now just the 1st one)
+polygon = gdf.loc[0].geometry 
+
+#grab epsg from projection
+epsg = int(projection.split(':')[1])
+
+#create geometry
+geom = ogr.CreateGeometryFromWkt(polygon.wkt)
+
+#create spatial reference
+proj = osr.SpatialReference()
+proj.ImportFromEPSG(epsg) 
+
+#get driver
+rast_ogr_ds = ogr.GetDriverByName('Memory').CreateDataSource('wrk')
+
+#create polylayer with projection
+rast_mem_lyr = rast_ogr_ds.CreateLayer('poly', srs=proj)
+
+#create feature
+feat = ogr.Feature(rast_mem_lyr.GetLayerDefn())
+
+#set geometry in feature
+feat.SetGeometryDirectly(geom) 
+
+#add feature to memory layer
+rast_mem_lyr.CreateFeature(feat)
+
+#create memory location
+tif_output = '/vsimem/' + uuid.uuid4().hex + '.vrt'
+
+#rasterize
+lel = vector_to_raster(rast_mem_lyr, tif_output, 0.001, -0.001,['ATTRIBUTE=Shape__Len', 'COMPRESS=LZW', 'TILED=YES', 'NBITS=4'])
+
+# output should consist of 0's and 1's
+print(np.unique(lel.ReadAsArray()))
+'''

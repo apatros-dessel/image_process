@@ -273,6 +273,15 @@ def data_to_image(raster_array, method=0, band_limits=None, gamma=1):
 
     return raster_array
 
+def NDVI(red, nir):
+    ndvi = ((nir - red) / (nir + red))
+    return NDVI
+
+# Adjusted ndvi for better forest border detection
+def NDVI_adj(red, nir):
+    ndvi_adj = ((nir - red) / (nir + red)) / (nir * red)
+    return ndvi_adj
+
 def SAVI(red, nir, L):
     savi = ((nir - red) / (nir + red - L)) * (L + 1)
     return savi
@@ -321,7 +330,7 @@ def band_by_limits(array_set, upper_lims = None, lower_lims = None, check_all_va
 
             if upper_priority:
                 upper_lims[upper_lims==0] = lower_lims[upper_lims==0]
-                return lower_lims
+                return upper_lims
 
             else:
                 lower_lims[lower_lims == 0] = upper_lims[lower_lims == 0]
@@ -413,3 +422,11 @@ def engrow(source_array, iter_num = 1):
             print('Finished for {} iterations'.format(iter))
             iter = iter_num
     return mask_new
+
+def splitbin(arr1, arr2):
+    if arr1.shape != arr2.shape:
+        print('Array shapes doesnt match')
+    arr_sum = np.zeros(arr1.shape)
+    for i in range(arr1.size):
+        arr_sum[i] = np.sum(arr1[:i]) + np.sum(arr2[i:])
+    return np.argsort(arr_sum)[0]

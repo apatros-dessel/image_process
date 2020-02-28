@@ -5,16 +5,21 @@ from geodata import *
 
 # Examples of Resurs-P metadata filenames
 # r'RP1_29073_04_GEOTON_20180905_080656_080715.SCN1.PMS.L2.DC.xml'
+# r'RP1_36120_04_GEOTON_20191209_080522_080539.SCN2.PAN.L2.DC.xml'
+# r'RP1_36120_04_GEOTON_20191209_080522_080539.SCN2.MS.L2.DC.xml'
 
 # Object containing data about Resurs-P image system
 
 # Templates for Resurs-P metadata filenames
 templates = (
-    r'RP\d_\d+_\d+_GEOTON_\d+_\d+_\d+.SCN1.PMS.L2.DC.xml',
+    r'RP\d_\d+_\d+_GEOTON_\d+_\d+_\d+.SCN\d.PMS.L2.DC.xml',
+    r'RP\d_\d+_\d+_GEOTON_\d+_\d+_\d+.SCN\d.MS.L2.DC.xml',
+    r'RP\d_\d+_\d+_GEOTON_\d+_\d+_\d+.SCN\d.PAN.L2.DC.xml',
 )
 
 # Raster files indices for Resurs-P scenes
 resursp_files = [
+    'pan',
     'mul',
 ]
 
@@ -54,6 +59,17 @@ def get_resursp_filename(kan_id, file_id):
         resursp_name = resursp_name.replace('<rsp_id>', kan_id)
     return resursp_name
 
+# Return Resurs-P file id list
+def get_resursp_files(rsp_id):
+    if r'.PMS.' in rsp_id:
+        return ['mul']
+    elif r'.MS.' in rsp_id:
+        return ['mul']
+    elif r'.PAN.' in rsp_id:
+        return ['pan']
+    else:
+        return None
+
 # Returns Resurs-P location id
 def get_resursp_location(rsp_id):
     idlist = rsp_id.split('_')
@@ -82,7 +98,7 @@ def metadata(path):
 
     meta.sat =          meta.id[:3]
     meta.fullsat =      meta.id[:3]
-    meta.files =        ['mul']
+    meta.files =        get_resursp_files(meta.id)
 
     for file_id in ['metadata', 'quality', 'new_metadata']:
         file_name = get_resursp_filename(meta.id, file_id)

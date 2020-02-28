@@ -1407,7 +1407,6 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
             path2rgb = newname(globals()['temp_dir_list'].create(), 'tif')
             reproject = True
 
-
     t_ds = ds(path=path2rgb, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
 
     error_count = 0
@@ -1762,6 +1761,43 @@ def Unite(path2shp_list, path2export, proj=None, overwrite=True):
     write_prj(path2export[:-4] + '.prj', proj)
 
     return 0
+
+def ShapesIntersect(path2shp1, path2shp2):
+
+    # print(path2shp1, path2shp2)
+
+    shp1_ds, shp1_lyr = get_lyr_by_path(path2shp1)
+    if shp1_lyr is None:
+        # print('Cannot open shapefile: {}'.format(path2shp1))
+        return 1
+
+    shp2_ds, shp2_lyr = get_lyr_by_path(path2shp2)
+    if shp2_lyr is None:
+        # print('Cannot open shapefile: {}'.format(path2shp2))
+        return 1
+
+    if shp1_lyr.GetSpatialRef() != shp2_lyr.GetSpatialRef():
+        shp2_ds = vec_to_crs(shp2_ds, shp1_lyr.GetSpatialRef(), tempname('shp'))
+        shp2_lyr = shp2_ds.GetLayer()
+
+    result = False
+
+    # print(len(shp1_lyr), len(shp2_lyr))
+
+    for feat1 in shp1_lyr:
+        geom1 = feat1.GetGeometryRef()
+        shp2_lyr.ResetReading()
+        for feat2 in shp2_lyr:
+            geom2 = feat2.GetGeometryRef()
+            print(geom1.ExportToWkt(), geom2.ExportToWkt())
+            if geom1.Intersects(geom2):
+                return True
+
+    return False
+
+
+
+
 
 # Returns intersection of two polygons in two different shapefiles of length == 1
 def IntersectCovers(path2shp1, path2shp2, path2export, proj=None, overwrite=True):

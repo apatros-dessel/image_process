@@ -238,6 +238,13 @@ class process(object):
                         self.add_scene(newpath, imsys)
         return self
 
+    # Get list of scene_ids
+    def get_ids(self):
+        ids_list = []
+        for ascene in self.scenes:
+            ids_list.append(ascene.meta.id)
+        return ids_list
+
     # Get scene by id
     def get_scene(self, scene_id):
         for ascene in self.scenes:
@@ -245,6 +252,14 @@ class process(object):
                 return ascene
         print('Scene not found: {}'.format(scene_id))
         return None
+
+    # Delete scene by id
+    def del_scene(self, scene_id):
+        for i, ascene in enumerate(self.scenes):
+            if ascene.meta.id == scene_id:
+                self.scenes.pop(i)
+                break
+        return self
 
     def get_dates(self):
         dates_list = []
@@ -474,7 +489,13 @@ class scene:
 
     def datamask(self):
         if self.meta.datamask is not None:
-            return self.meta.datamask
+            return fullpath(self.path, self.meta.datamask)
+        else:
+            return None
+
+    def quicklook(self):
+        if self.meta.quicklook is not None:
+            return fullpath(self.path, self.meta.quicklook)
         else:
             return None
 
@@ -576,3 +597,37 @@ def RGBNref(ascene, folder):
 def fin():
     globals()['temp_dir_list'].__del__()
     globals()['geodata'].temp_dir_list.__del__()
+
+def SceneMarker():
+    from PIL import Image
+    import time
+    proc = process()
+    path = input('Write a path to scenes: ')
+    proc.input(path)
+    report = OrderedDict()
+    print('Starting marking a set of %i scenes. Print "break" to stop it' % len(proc))
+    for i, ascene in enumerate(proc.scenes):
+        if (i+1)%20 == 0:
+            print('over 20 quicklooks are now open, please close the windows')
+            time.sleep(10)
+        with Image.open(fullpath(ascene.path, ascene.meta.quicklook)) as quicklook:
+            quicklook.show()
+            mark = input(ascene.meta.name('Give a mark to scene [id]: '))
+            if mark == 'break':
+                break
+            elif mark is not None:
+                report[ascene.meta.id] = {'mark': mark}
+    print('Finished marking, %i scenes have been marked' % len(report))
+    xlspath = input('Write a path to xls report: ')
+    if len(xlspath) > 0:
+        try:
+            dict_to_xls(xlspath, report)
+        except:
+            answer = None
+            while (answer != 'y') and (answer != 'n'):
+                answer = input('Error writing xls report, try to save it manually? (y/n)')
+                if answer == 'y':
+                    return report
+                elif answer == 'n':
+                    return None
+    return report

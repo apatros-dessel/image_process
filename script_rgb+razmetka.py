@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from image_processor import *
+from PIL import Image
 
 sat_rgb = {
     'PL': [3,2,1],
@@ -13,25 +14,121 @@ path = [
     r'd:\digital_earth\resurs-p_new\krym',
     ]
 
-obj_of_interest = r'D:\digital_earth\data_2_razmetka\other\20200228\TBO_krym_point.shp'
-check_obj = os.path.exists(obj_of_interest)
+obj_of_interest =  [
+    r'D:\digital_earth\data_2_razmetka\other\20200228\TBO_krym_point.shp',
+]
 
 folder = r'e:\kanopus_new'
-
 
 
 if not os.path.exists(folder):
     os.makedirs(folder)
 
-proc = process()
+proc = process(output_path=r'e:\test')
 proc.input(path)
 
+print('Basic process of length %i' % len(proc))
+
+''' FILTER WINTER SCENES '''
+
+ids_list = proc.get_ids()
+for id in ids_list:
+    if not '.PMS.' in id:
+        proc.del_scene(id)
+        continue
+    ascene = proc.get_scene(id)
+    month = int(ascene.meta.datetime.month)
+    if (month>10) or (month<4):
+        proc.del_scene(id)
+
+print('Filtered process of length %i' % len(proc))
+proc.get_vector_cover(r'resursp_filtered_cover.json')
+
+''' FIND SCENES FOR OBJECTS '''
+
+input_list = []
+qual_dict = {}
+
+for shp_list in obj_of_interest:
+
+    print(shp_list)
+    #raise Exception
+
+    obj_ds, obj_lyr = geodata.get_lyr_by_path(shp_list)
+
+    for obj_feat in obj_lyr:
+
+        obj_geom = obj_feat.GetGeometryRef()
+        print(obj_geom.ExportToWkt())
+        #raise Exception
+
+        feat_id_list = []
+        feat_dates_list = []
+
+        for ascene in proc.scenes:
+
+            scene_ds, scene_lyr = geodata.get_lyr_by_path(ascene.datamask())
+
+            if scene_lyr is not None:
+
+                if obj_lyr.GetSpatialRef() != scene_lyr.GetSpatialRef():
+                    scene_ds = geodata.vec_to_crs(scene_ds, obj_lyr.GetSpatialRef(), tempname('shp'))
+                    scene_lyr = scene_ds.GetLayer()
+
+                for scene_feat in scene_lyr:
+                    scene_geom = scene_feat.GetGeometryRef()
+                    if obj_geom.Intersects(scene_geom):
+                        feat_id_list.append(ascene.meta.id)
+                        feat_dates_list.append(ascene.meta.datetime)
+                        break
+
+        feat_id_arr = np.array(feat_id_list)
+        feat_dates_arr = np.array(feat_dates_list)
+        sort = np.argsort(feat_dates_arr)[::-1]
+        feat_id_arr = feat_id_arr[sort]
+        feat_dates_arr = feat_dates_arr[sort]
+
+        scroll(feat_id_arr)
+
+        raise Exception
+
+        for id in feat_id_arr:
+            if id in input_list:
+                break
+            elif id in qual_dict:
+                if qual_dict.get(id):
+                    break
+                else:
+                    try:
+                        with Image.open(ascene.quickllok()) as quicklook:
+                            quicklook.show()
+                            qualtest = input('Print zero if scene is of bad quality: ')
+                            if qualtest != 0:
+                                qual_dict[id] = True
+                                input_list.append(id)
+                                break
+                            else:
+                                qual_dict[id] = False
+                    except:
+                        print('Error making quicklook for {}'.format(id))
+
+scroll(input_list)
+
+raise Exception
+
+
+
+
+
+
+''' GROUP SCENES BY SATELLITE AND DATE '''
+
 raster_path_dict = {}
-print('Start processing %i scenes' % len(proc))
+print('Start making rgb from %i scenes' % len(proc))
 
 report = OrderedDict()
 
-''' GROUP SCENES BY SATELLITE AND DATE '''
+
 for ascene in proc.scenes:
 
     if ascene.imsys in ['LST', 'SNT']:
@@ -44,7 +141,6 @@ for ascene in proc.scenes:
 
     if check_obj:
         if not geodata.ShapesIntersect(obj_of_interest, ascene.datamask()):
-            # print('Not intersected: %s' % ascene.meta.id)
             continue
 
     strip_id = ascene.meta.name('[sat]-[date]')

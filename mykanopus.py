@@ -16,9 +16,9 @@ from geodata import *
 
 # Templates for <imsys_name> metadata filenames
 templates = (
-    r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d.PMS.L\d.DC.xml',   # For pan-multispectral data
-    r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d.PAN.L\d.DC.xml',   # For panchromatic data
-    r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d.MS.L\d.DC.xml',    # For multispectral data
+    r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.PMS.L\d.DC.xml',   # For pan-multispectral data
+    r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.PAN.L\d.DC.xml',   # For panchromatic data
+    r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.MS.L\d.DC.xml',    # For multispectral data
 )
 
 # Raster files indices for <imsys_name> scenes
@@ -138,7 +138,10 @@ def metadata(path):
         if file_name is not None:
             file_path = fullpath(folder, file_name, 'xml')
             if os.path.exists(file_path):
-                meta.container[file_id] = xml2tree(file_path)
+                try:
+                    meta.container[file_id] = xml2tree(file_path)
+                except:
+                    pass
 
     # meta.sat =          get_from_tree(meta.container.get('description'), 'satellite')
     meta.sat =          meta.id[:3]

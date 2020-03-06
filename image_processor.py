@@ -190,7 +190,7 @@ class process(object):
         try:
             newscene = scene(newpath, imsys)
         #except FileNotFoundError:
-        except IOError:
+        except:
             print('Cannot open {} scene by path: {}'.format(imsys, newpath))
             newscene = None
         if newscene is not None:
@@ -311,6 +311,73 @@ class process(object):
         geodata.JoinShapesByAttributes(path2vector_list, fullpath(self.output_path, vector_cover_name), geom_rule=1, attr_rule=0)
 
         return None
+
+    def get_vector_cover_json(self, vector_cover_path, attributes = []):
+
+        ds_out = geodata.json(vector_cover_path, editable=True)
+        lyr_out = ds_out.GetLayer()
+        for fieldid in attributes:
+            lyr_out.CreateField(geodata.ogr.FieldDefn(fieldid, 4))
+        ds_out = None
+
+        ds_out, lyr_out = geodata.get_lyr_by_path(vector_cover_path, editable = True)
+
+        for ascene in self.scenes:
+
+            try:
+
+                ds_in, lyr_in = geodata.get_lyr_by_path(ascene.datamask())
+
+                for fieldid in attributes:
+                    lyr_in.CreateField(geodata.ogr.FieldDefn(fieldid, 4))
+
+                if lyr_in is None:
+                    print('Datamask not found for: {}'.format(ascene.meta.id))
+                else:
+                    lyr_in.ResetReading()
+                    for feat_in in lyr_in:
+                        # feat_out = geodata.feature(feature_defn = None, geom = feat_in, attr = None, attr_type = 0, attr_type_dict = {}, ID = None)
+                        # feat_out = copy(feat_in)
+                        feat_out_defn = feat_in.GetDefnRef()
+                        for fieldid in attributes:
+                            feat_out_defn.AddFieldDefn(geodata.ogr.FieldDefn(fieldid, 4))
+                        feat_out = geodata.feature(feature_defn = feat_out_defn, geom = feat_in.GetGeomRef(), attr = None, attr_type = 0, attr_type_dict = {}, ID = None)
+                        for fieldid in attributes:
+                            feat_out.SetField(fieldid, ascene.meta.name('[{}]'.format(fieldid)))
+                        print(feat_out.keys())
+                        lyr_out.CreateFeature(feat_out)
+
+            except:
+
+                print('Error getting vector cover for: {}'.format(ascene.meta.id))
+
+                ds_in, lyr_in = geodata.get_lyr_by_path(ascene.datamask())
+
+                for fieldid in attributes:
+                    lyr_in.CreateField(geodata.ogr.FieldDefn(fieldid, 4))
+
+                if lyr_in is None:
+                    print('Datamask not found for: {}'.format(ascene.meta.id))
+                else:
+                    lyr_in.ResetReading()
+                    for feat_in in lyr_in:
+                        # feat_out = geodata.feature(feature_defn = None, geom = feat_in, attr = None, attr_type = 0, attr_type_dict = {}, ID = None)
+                        # feat_out = copy(feat_in)
+                        feat_out_defn = feat_in.GetDefnRef()
+                        for fieldid in attributes:
+                            feat_out_defn.AddFieldDefn(geodata.ogr.FieldDefn(fieldid, 4))
+                        feat_out = geodata.feature(feature_defn=feat_out_defn, geom=feat_in.GetGeometryRef(), attr=None,
+                                                   attr_type=0, attr_type_dict={}, ID=None)
+                        for fieldid in attributes:
+                            feat_out.SetField(fieldid, ascene.meta.name('[{}]'.format(fieldid)))
+                        print(feat_out.keys())
+                        lyr_out.CreateFeature(feat_out)
+
+        ds_out = None
+
+        return 0
+
+
 
     def get_change(self, old_scene_id, new_scene_id, intersection_mask = None):
 

@@ -5,22 +5,54 @@ from shutil import copyfile
 from PIL import Image
 import subprocess
 
+input1 = r'g:\samara'
+
+input_xls = r'D:\digital_earth\kanopus_new\vector\Krym.xls'
+
+if os.path.exists(input_xls):
+    xls_dict = xls_to_dict(input_xls)
+    input1 = []
+    for rowkey in xls_dict:
+        path1 = xls_dict[rowkey].get('fullpath', '').encode('utf-8')
+        input1.append(path1)
+
+minus_xls = r'd:\digital_earth\kanopus_new\vector\kanopus_report_v1.xls'
+
+if os.path.exists(minus_xls):
+    minus_dict = xls_to_dict(minus_xls)
+    for rowkey in minus_dict:
+        path = minus_dict[rowkey].get('fullpath', '').encode('utf-8')
+        if path in input1:
+            input1.pop(input1.index(path))
+
+proc_old = process().input(input1)
+old_list = proc_old.get_ids()
+for i, id in enumerate(old_list):
+    old_list[i] = id[:-6]
+# old_list.append('KV3_09174_07262_02_KANOPUS_20190928_084000_084035.SCN10.')
+# old_list.append('KV6_03543_02510_02_KANOPUS_20190817_083858_083941.SCN11.')
+
+scroll(old_list)
+
 # Пути к сценам
 input_list = [
-    r'd:\digital_earth\kanopus_new\krym',
+     r'd:\digital_earth\kanopus_new\krym',
     # r'd:\digital_earth\2018_SNT\S2A_MSIL1C_20180525T084601_N0206_R107_T37VCC_20180525T110427.SAFE',
 ]
 
 # Путь для сохранения копированных сцен
-output_path = r'e:\test\kanopus_krym\krym'
+output_path = r'e:\kanopus_new\edit\Krym_add'
 
 # Путь к Экселевской таблице со статистикой копированных файлов
-path2xls = r'e:\test\kanopus_krym\krym.xls'
+path2xls = r'd:\digital_earth\kanopus_new\vector\Krym_add.xls'
+# path2xls = tempname('xls')
 
 # Пути к векторным файлам ключевых участков
 vector_cover_path_list = [
-    r'D:/digital_earth/data_2_razmetka/other/20200228/Krym_quarry_comment.shp',
+    # r'E:\script export/maska2.shp',
 ]
+
+print(u'Исходные данные загружены')
 
 proc = process(output_path=output_path).input(input_list)
 
@@ -34,16 +66,22 @@ for id in ids_list:
 
     # В Канопус и Ресурс-П удалить все сцены кроме паншарпов
     if ascene.imsys in ['KAN', 'RSP']:
-        if not '.PMS.' in id:
+        if '.PMS.' in id:
             proc.del_scene(id)
             continue
-
-    # Удалить сцены зимних месяцев
-    month = int(ascene.meta.datetime.month)
-    if (month>10) or (month<4):
+    save = False
+    for base in old_list:
+        if base in id:
+            save = True
+    if not save:
         proc.del_scene(id)
 
-print(u'Отфильтровано сцен для ручной обработки: %i' % len(proc))
+    # Удалить сцены зимних месяцев
+    # month = int(ascene.meta.datetime.month)
+    # if (month>10) or (month<4):
+        # proc.del_scene(id)
+
+print(u'Отфильтровано сцен по атрибутам: %i, проводится фильтрация по охвату' % len(proc))
 # proc.get_vector_cover(r'resursp_filtered_cover.json') # Сохранить векторную маску
 
 ''' MANUAL FILTER BY QUICKLOOKS '''
@@ -72,16 +110,28 @@ def layers_intersection_array(shapes_list, proc):
     return export_array
 
 final_list = []
-qual_dict = {}
+# qual_dict = {}
 error_list = []
 
-intersection_array = layers_intersection_array(vector_cover_path_list, proc)
+if len(vector_cover_path_list) > 0:
+	intersection_array = layers_intersection_array(vector_cover_path_list, proc)
+else:
+	intersection_array = np.ones((1, len(proc.scenes))).astype(bool)
 
-print(intersection_array.shape)
+# print(intersection_array.shape)
 
 scene_ids = np.array(proc.get_ids())
 
 finish = False
+
+while True:
+	print(u'Провести визуальную проверку снимков (1) или нет (0)?')
+	checkscenes = input(' >>> ')
+	if checkscenes in (1,0):
+		finish = bool(1-checkscenes)
+        if finish:
+            final_list = proc.get_ids()
+        break
 
 for i, ascene in enumerate(proc.scenes):
 
@@ -144,23 +194,39 @@ for i, ascene in enumerate(proc.scenes):
     else:
         print(u'Сцена за пределами области интереса: {}'.format(ascene.meta.id))
 
-if not finish:
+scroll(final_list, header=u'Список сцен для копирования:')
 
-    scroll(final_list, header=u'Список сцен для копирования:')
-
-    report_dict = OrderedDict()
-    for id in final_list:
-        ascene = proc.get_scene(id)
-        report_dict[id] = {
+report_dict = OrderedDict()
+for id in final_list:
+    ascene = proc.get_scene(id)
+    report_dict[id] = {
             'fullpath': ascene.fullpath,
             'date': ascene.meta.name('[date]'),
-            'filepath': ascene.get_band_path('red')[0],
+            # 'filepath': ascene.get_band_path('red')[0],
             'datamask': ascene.datamask(),
             'quicklook': ascene.quicklook(),
             # 'clouds': infullcloud(id),
         }
+dict_to_xls(path2xls, report_dict)
 
-    dict_to_xls(path2xls, report_dict)
+''' ESTIMATE FILE SIZE '''
+
+byte_size = 0
+for id in final_list:
+    path = proc.get_scene(id).path
+    if os.path.exists(path):
+        byte_size += count_dirsize(path)
+
+while True:
+	print(u'Всего отобрано {} сцен общим объёмом {}, выполнить копирование в {} (1) или отменить копирование (0)'.format(len(final_list), str_size(byte_size), output_path))
+	copyfiles = input(' >>> ')
+	if copyfiles in (1,0):
+		break
+
+if copyfiles:
+
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
 
     for id in final_list:
         ascene = proc.get_scene(id)
@@ -171,5 +237,4 @@ if not finish:
             os.makedirs(scene_folder_path)
         for filename in os.listdir(scene_path):
             copyfile(fullpath(scene_path, filename), fullpath(scene_folder_path, filename))
-
-
+        print(u'Сцена сохранена: {}'.format(id))

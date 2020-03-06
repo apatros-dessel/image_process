@@ -1133,6 +1133,54 @@ class bandpath:
         if band is not None:
             return array3dim(band.ReadAsArray())
 
+class Bandpath(tuple):
+
+    def __init__(self, data):
+        assert len(data) == 2
+        assert isinstance(data[0], str)
+        assert isinstance(data[1], int)
+        self.path = data[0]
+        self.band = data[1]
+
+class MultiBandpath(list):
+
+    def __init__(self, bandpaths):
+        assert isinstance(bandpaths, list)
+        self.check = True
+        for i, bandpath_tuple in enumerate(bandpaths):
+            try:
+                self[i] = Bandpath(bandpath_tuple)
+            except:
+                print('Error downloading band {}'.format(bandpath_tuple))
+                self.check = False
+                self[i] = None
+
+        self.pynums = True
+
+    def AddBand(self, bandpath):
+        pos = len(self)
+        try:
+            self.append(Bandpath(bandpath))
+        except:
+            print('Error adding band: {}'.format(bandpath))
+            self = self[:pos]
+        return self
+
+    def Open(self):
+        if self.check:
+            return MultiRasterData(self)
+        else:
+            return None
+
+def RasterMultiBandpath(raster_path, band_list):
+    bandpaths = []
+    for band in band_list:
+        bandpaths.append((raster_path, band))
+    return MultiBandpath(bandpaths)
+
+
+
+
 def GetRasterPercentiles(raster_path_list, min_percent = 0.02, max_percent = 0.98,
                          band_num_list = [1,2,3], nodata = 0):
 
@@ -1376,7 +1424,8 @@ def RasterToImage2(path2raster, path2export, method=0, band_limits=None, gamma=1
 
 # RasterToImage with reprojection
 def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True,
-                   enforce_nodata = None, band_order = [1,2,3], reprojectEPSG = None, reproject_method = gdal.GRA_Lanczos,
+                   enforce_nodata = None, band_order = [1,2,3], GaussianBlur = False,
+                   reprojectEPSG = None, reproject_method = gdal.GRA_Lanczos,
                    compress = None, overwrite = True, alpha=False):
 
     if check_exist(path2export, ignore=overwrite):
@@ -1418,6 +1467,9 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
         t_ds.GetRasterBand(4).WriteArray(np.full((source.ds.RasterYSize, source.ds.RasterXSize), 255))
 
     for band_id, raster_array, nodata in source.getting((0,2,3), band_order = band_order):
+
+        if GaussianBlur:
+            raster_array = cv2.GaussianBlur(raster_array, (5,5), 0)
 
         res = 0
 
@@ -1476,6 +1528,93 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
 
     return res
 
+def Composite(export_path, bandpath = None, rasterpath = None, band_order = None, epsg = None, compress = None, overwrite = True):
+
+    if check_exist(export_path, ignore = overwrite):
+        return 1
+
+    if bandpath is None:
+
+        if rasterpath is None:
+            print('Raster data path not found')
+            return 1
+
+        else:
+
+            if band_order is None:
+                if os.path.exists(rasterpath):
+                    with gdal.Open(rasterpath) as ds:
+                        band_order = list(range(1, ds.RasterCount + 1))
+                else:
+                    print('No band_order found')
+                    return 1
+
+            bandpath = RasterMultiBandpath(rasterpath, band_order)
+
+    raster_data = MultiRasterData(bandpath, data=1)
+
+    if raster_data is None:
+        return 1
+
+    reproject = False
+    if epsg is not None:
+        with gdal.Open(bandpath[:-1].path) as ds_in:
+            if ds_match(epsg, ds_in):
+                ds_out = create_reprojected_raster(bandpath[:-1].path, export_path, srs_out.ExportToWkt(),
+                                                   band_num=len(bandpath), compress=compress, editable=True)
+                reproject = True
+
+    if reproject:
+        for band in MultiRasterData:
+            pass
+
+def ds_match(ds1, ds2):
+    srs1 = get_srs(ds1)
+    srs2 = get_srs(ds2)
+    return srs1 == srs2
+
+def get_srs(ds):
+    if isinstance(ds, gdal.Dataset):
+        srs = osr.SpatialReference()
+        srs.ImportFromWkt(ds.GetProjection())
+    elif (isinstance(ds, ogr.DataSource)):
+        srs = ds.GetLayer().GetSpatialRef()
+    elif (isinstance(ds, ogr.Layer)):
+        srs = ds.GetSpatialRef()
+    elif isinstance(ds, int):
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(ds)
+    elif isinstance(ds, osr.SpatialReference):
+        srs = ds
+    else:
+        print('Unknown input data')
+        srs = None
+    return srs
+
+
+def create_reprojected_raster(path_in, path_out, proj, band_num = None, compress = None, editable = True):
+    ds_in = gdal.Open(path_in)
+    old_proj = ds_in.GetProjection()
+    geotransform = ds_in.GetGeoTransform()
+    x_res = geotransform[1]
+    y_res = geotransform[5]
+    t_raster_base = gdal.AutoCreateWarpedVRT(ds_in, old_proj, proj)
+    x_0, x, x_ang, y_0, y_ang, y = t_raster_base.GetGeoTransform()
+    newXcount = int(math.ceil(t_raster_base.RasterXSize * (x / x_res)))
+    newYcount = int(math.ceil(t_raster_base.RasterYSize * (y / y_res)))
+    if band_num is None:
+        band_num = ds_in.RasterCount
+    options = {
+        'dt': ds_in.GetRasterBand(1).DataType,
+        'prj': t_raster_base.GetProjection(),
+        'geotrans': (x_0, x_res, x_ang, y_0, y_ang, y_res),
+        'bandnum': band_num,
+        'xsize': newXcount,
+        'ysize': newYcount,
+        'compress': compress,
+    }
+    ds_out = ds(path_out, options=options, editable=editable)
+    return ds_out
 
 # Reprojects Raster
 def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, compress = None, overwrite = True):
@@ -1795,9 +1934,26 @@ def ShapesIntersect(path2shp1, path2shp2):
 
     return False
 
-
-
-
+# Returns a matrix of intersections between features in two shapefiles
+def intersect_array(shp1, shp2):
+    ds1, lyr1 = get_lyr_by_path(shp1)
+    if lyr1 is None:
+        return None
+    ds2, lyr2 = get_lyr_by_path(shp2)
+    if lyr2 is None:
+        return None
+    int_arr = np.zeros((lyr1.GetFeatureCount(), lyr2.GetFeatureCount())).astype(bool)
+    if lyr1.GetSpatialRef() != lyr2.GetSpatialRef():
+        ds2 = vec_to_crs(ds2, lyr1.GetSpatialRef(), tempname('shp'))
+        lyr2 = ds2.GetLayer()
+    for i, feat1 in enumerate(lyr1):
+        geom1 = feat1.GetGeometryRef()
+        lyr2.ResetReading()
+        for j, feat2 in enumerate(lyr2):
+            geom2 = feat2.GetGeometryRef()
+            int_arr[i,j] = geom1.Intersects(geom2)
+            #print(geom1.Intersects(geom2))
+    return int_arr
 
 # Returns intersection of two polygons in two different shapefiles of length == 1
 def IntersectCovers(path2shp1, path2shp2, path2export, proj=None, overwrite=True):
@@ -2958,7 +3114,10 @@ def filter_dataset_by_col(path_in, field, vals, path_out = None):
     if path_out is None:
         path_out = globals()['temp_dir_list'].create('shp')
 
-    new_ds = shp(path_out, 1)
+    if path_out.endswith('.json'):
+        new_ds = json(path_out, 1)
+    else:
+        new_ds = shp(path_out, 1)
     # new_ds = geodata.shp(globals()['temp_dir_list'].create('shp'), 1)
     new_lyr = new_ds.GetLayer()
     lyr = ds.GetLayer()
@@ -3052,3 +3211,15 @@ lel = vector_to_raster(rast_mem_lyr, tif_output, 0.001, -0.001,['ATTRIBUTE=Shape
 # output should consist of 0's and 1's
 print(np.unique(lel.ReadAsArray()))
 '''
+
+
+def FilterShapeByColumn(path2shp, path2export, colname, colvals):
+    ds_in = ogr.Open(path2shp)
+
+    if ds_in is None:
+        print('File not found: {}'.format(path2shp))
+        return 1
+    
+    gdal.UseExceptions()
+    driver = ogr.GetDriverByName('GeoJSON')
+    driver.Create(path2export)

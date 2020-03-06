@@ -98,7 +98,6 @@ full_cloud = []
 error_list = []
 
 
-
 intersection_array = layers_intersection_array(obj_of_interest, proc)
 
 scene_ids = np.array(proc.get_ids())

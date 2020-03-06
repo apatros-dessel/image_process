@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # Auxilliary functions for image processor
 
 import os
@@ -5,6 +7,7 @@ import re
 import numpy as np
 from collections import OrderedDict
 import xml.etree.ElementTree as et
+import xlrd
 import xlwt
 from datetime import datetime
 from copy import copy, deepcopy
@@ -442,6 +445,13 @@ def endict(list_, obj = None, func = None):
 
     return newordict
 
+# Returns an ordered dictionary of numpy array values and counts
+def arrendict(arr_):
+    dict_ = OrderedDict()
+    values, numbers = np.unique(arr_, return_counts=True)
+    for val, num in zip(values, numbers):
+        dict_[val] = num
+    return dict_
 
 # Creates new path
 def newname(folder, ext = None):
@@ -644,7 +654,7 @@ def winprint(obj, decoding = None):
 
 def scroll(obj, print_type=True, decoding=None, header=None):
     if header is not None:
-        print(str(header))
+        print(header)
     elif print_type:
         print('Object of {}:'.format(type(obj)))
     if hasattr(obj, '__iter__'):
@@ -760,6 +770,21 @@ def get_from_tree(xml_tree, call, check=None, data='text', attrib=None, sing_to_
         result = list(np.array(result)[filter])
     #scroll(sing2sing(result, sing_to_sing, digit_to_float))
     return sing2sing(result, sing_to_sing, digit_to_float)
+
+# Import data from xls
+def xls_to_dict(path2xls, sheetnum=0):
+    rb = xlrd.open_workbook(path2xls)
+    sheet = rb.sheet_by_index(sheetnum)
+    keys = sheet.row_values(0)[1:]
+    xls_dict = OrderedDict()
+    for rownum in range(1, sheet.nrows):
+        rowdata = OrderedDict()
+        row = sheet.row_values(rownum)
+        for key, val in zip(keys, row[1:]):
+            rowdata[key] = val
+        xls_dict[row[0]] = rowdata
+    return xls_dict
+
 
 # Export data to xls
 def dict_to_xls(path2xls, adict): # It's better to use OrderedDict to preserve the order of rows and columns
@@ -960,6 +985,13 @@ def folder_paths(path, id_max=10000):
     export_folders = unite_multilist(path_list)
     return export_folders, export_files
 
+def count_dirsize(path):
+    folders, files = folder_paths(path)
+    byte_size = 0
+    for file in files:
+        byte_size += os.path.getsize(file)
+    return byte_size
+
 # Filter filepath_list by extension
 def ext_filter(filepaths, ext):
     assert isinstance(filepaths, (tuple, list))
@@ -969,6 +1001,22 @@ def ext_filter(filepaths, ext):
         if file.endswith(ext):
             proper_names.append(file)
     return proper_names
+
+def str_size(byte_size):
+    assert byte_size >= 0
+    if byte_size < 1024:
+        return u'{} байт'.format(round(byte_size, 2))
+    elif byte_size < (1024**2):
+        return u'{} Кб'.format(round(byte_size/1024, 2))
+    elif byte_size < (1024**3):
+        return u'{} Мб'.format(round(byte_size/(1024**2), 2))
+    elif byte_size < (1024**4):
+        return u'{} Гб'.format(round(byte_size/(1024**3), 2))
+    elif byte_size < (1024**5):
+        return u'{} Тб'.format(round(byte_size/(1024**4), 2))
+    elif byte_size > (1024**6):
+        print(u'Полученный размер больше 1 Пб, вероятно что-то пошло не так')
+        return None
 
 # destroydir(default_temp, preserve_path=True)
 

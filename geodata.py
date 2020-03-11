@@ -1657,10 +1657,51 @@ def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, compress
     ds_out = ds(path_out, options = options, editable = True)
     gdal.ReprojectImage(ds_in, ds_out, None, None, method)
 
+    ds_out = None
+
+    mask = None
+
+    for bandnum in range(1, ds_in.RasterCount + 1):
+        band = ds_in.GetRasterBand(bandnum)
+        nodata = band.GetNoDataValue()
+        if nodata is not None:
+            if mask is None:
+                mask = (band.ReadAsArray()==nodata).astype(bool)
+            else:
+                mask[band.ReadAsArray()==nodata] = True
+
+    if mask is not None:
+
+        options_ = {
+            'dt':       1,
+            'bandnum':  1,
+            'compress': 'LZW',
+        }
+
+        ds_nodata = ds(tempname('tif'), copypath=path_in, options=options_, editable=True)
+        ds_nodata.GetRasterBand(1).WriteArray(mask)
+        mask = None
+        mask_new = tempname('tif')
+        ds_nodata_out = ds(mask_new, copypath=path_out, options=options_, editable=True)
+        gdal.ReprojectImage(ds_nodata, ds_nodata_out, None, None, gdal.GRA_NearestNeighbour)
+        ds_nodata_out = None
+        ds_nodata_out = gdal.Open(mask_new)
+        mask = ds_nodata_out.GetRasterBand(1).ReadAsArray().astype(bool)
+
+    if mask is not None:
+        ds_out = gdal.Open(path_out, 1)
+        for bandnum in range(1, ds_out.RasterCount + 1):
+            band = ds_out.GetRasterBand(bandnum)
+            data_arr = band.ReadAsArray()
+            data_arr[mask] = nodata
+            band.WriteArray(data_arr)
+
+    ds_out = None
+
     # print(t_raster_base.GetProjection())
     # print(ds_out.GetGeoTransform())
 
-    ds_out = None
+
 
     return 0
 
@@ -2974,7 +3015,7 @@ def RandomLinesRectangle(path_in, path_out,
 
 # Rasterize vector layer
 # Returns a mask as np.array of np.bool
-def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, value_colname = None, compress = None, overwrite=True):
+def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, value_colname = None, filter_nodata = True, compress = None, overwrite=True):
 
     if check_exist(path_out, ignore=overwrite):
         return 1
@@ -3005,6 +3046,15 @@ def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, va
         # s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, options=['gridcode', '', ''])
         print('Rasterizing error')
         return 1
+
+    if filter_nodata:
+        ds_in = gdal.Open(path_in_raster)
+        band_in = ds_in.GetRasterBand(1)
+        # print(path_in_raster)
+        # print(band_in.ReadAsArray(), band_in.GetNoDataValue())
+        mask = (band_in.ReadAsArray() != band_in.GetNoDataValue()).astype(int)
+        new_data = t_ds.GetRasterBand(1).ReadAsArray() * mask
+        t_ds.GetRasterBand(1).WriteArray(new_data)
 
     t_ds = None
 

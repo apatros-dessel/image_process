@@ -63,7 +63,9 @@ def gdal_options(compress = None):
     options = []
 
     if compress is not None:
-        if compress in globals()['tiff_compress_list']:
+        if compress == 'DEFLATE':
+            options.extend(['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9'])
+        elif compress in globals()['tiff_compress_list']:
             options.append('COMPRESS={}'.format(compress))
         else:
             print('Unknown compression method: {}, use one of the following:'.format(compress))
@@ -1090,6 +1092,10 @@ def alpha(path2raster, path2export, use_raster_nodata=True, use_limits_mask=Fals
 
     raster_data = RasterData(path2raster, data=1)
 
+    if len(raster_data) != 3:
+        print('RasterCount != 3, cannot make alpha channel for {}'.format(path_raster))
+        return 1
+
     if use_limits_mask:
         lim_list = list_of_len(lim_list, raster_data.len)
     else:
@@ -1425,7 +1431,7 @@ def RasterToImage2(path2raster, path2export, method=0, band_limits=None, gamma=1
 # RasterToImage with reprojection
 def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True,
                    enforce_nodata = None, band_order = [1,2,3], GaussianBlur = False,
-                   reprojectEPSG = None, reproject_method = gdal.GRA_Lanczos,
+                   reprojectEPSG = None, reproject_method = gdal.GRA_Lanczos, masked = False,
                    compress = None, overwrite = True, alpha=False):
 
     if check_exist(path2export, ignore=overwrite):
@@ -1494,22 +1500,26 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
         else:
             data = raster_array
 
-        data = data_to_image(data, method=method, band_limits=band_limits[band_id-1], gamma=gamma)
+        del raster_array
 
-        if data is None:
+        image = data_to_image(data, method=method, band_limits=band_limits[band_id-1], gamma=gamma)
+
+        del data
+
+        if image is None:
             print('Error calculating band %i' % band_id)
             error_count += 1
             continue
 
-        if (mask is not None):
-            raster_array[mask] = data
-            raster_array[~ mask] = 0
+        if mask is not None:
+            image_array = np.full(mask.shape, 0)
+            image_array[mask] = image
+            # image_array[~ mask] = 0
+            del image
+        else:
+            image_array = image
 
-        del data
-
-        t_ds.GetRasterBand(band_num).WriteArray(raster_array)
-
-        del raster_array
+        t_ds.GetRasterBand(band_num).WriteArray(image_array)
 
         if alpha and (mask is not None):
             oldmask = t_ds.GetRasterBand(4).ReadAsArray()
@@ -1524,7 +1534,7 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
     t_ds = None
 
     if reproject:
-        res = ReprojectRaster(path2rgb, path2export, reprojectEPSG, method = reproject_method, compress = compress, overwrite = overwrite)
+        res = ReprojectRaster(path2rgb, path2export, reprojectEPSG, method = reproject_method, masked = masked, compress = compress, overwrite = overwrite)
 
     return res
 
@@ -1617,7 +1627,7 @@ def create_reprojected_raster(path_in, path_out, proj, band_num = None, compress
     return ds_out
 
 # Reprojects Raster
-def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, compress = None, overwrite = True):
+def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, masked = False, compress = None, overwrite = True):
 
     if check_exist(path_out, ignore=overwrite):
         return 1
@@ -1659,44 +1669,48 @@ def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, compress
 
     ds_out = None
 
-    mask = None
+    if masked:
 
-    for bandnum in range(1, ds_in.RasterCount + 1):
-        band = ds_in.GetRasterBand(bandnum)
-        nodata = band.GetNoDataValue()
-        if nodata is not None:
-            if mask is None:
-                mask = (band.ReadAsArray()==nodata).astype(bool)
-            else:
-                mask[band.ReadAsArray()==nodata] = True
-
-    if mask is not None:
-
-        options_ = {
-            'dt':       1,
-            'bandnum':  1,
-            'compress': 'LZW',
-        }
-
-        ds_nodata = ds(tempname('tif'), copypath=path_in, options=options_, editable=True)
-        ds_nodata.GetRasterBand(1).WriteArray(mask)
         mask = None
-        mask_new = tempname('tif')
-        ds_nodata_out = ds(mask_new, copypath=path_out, options=options_, editable=True)
-        gdal.ReprojectImage(ds_nodata, ds_nodata_out, None, None, gdal.GRA_NearestNeighbour)
-        ds_nodata_out = None
-        ds_nodata_out = gdal.Open(mask_new)
-        mask = ds_nodata_out.GetRasterBand(1).ReadAsArray().astype(bool)
+        nodata_dict = {}
 
-    if mask is not None:
-        ds_out = gdal.Open(path_out, 1)
-        for bandnum in range(1, ds_out.RasterCount + 1):
-            band = ds_out.GetRasterBand(bandnum)
-            data_arr = band.ReadAsArray()
-            data_arr[mask] = nodata
-            band.WriteArray(data_arr)
+        for bandnum in range(1, ds_in.RasterCount + 1):
+            band = ds_in.GetRasterBand(bandnum)
+            nodata = band.GetNoDataValue()
+            if nodata is not None:
+                nodata_dict[bandnum] = nodata
+                if mask is None:
+                    mask = (band.ReadAsArray()==nodata).astype(bool)
+                else:
+                    mask[band.ReadAsArray()==nodata] = True
 
-    ds_out = None
+        if mask is not None:
+
+            options_ = {
+                'dt':       1,
+                'bandnum':  1,
+                'compress': 'LZW',
+            }
+
+            ds_nodata = ds(tempname('tif'), copypath=path_in, options=options_, editable=True)
+            ds_nodata.GetRasterBand(1).WriteArray(mask)
+            mask = None
+            mask_new = tempname('tif')
+            ds_nodata_out = ds(mask_new, copypath=path_out, options=options_, editable=True)
+            gdal.ReprojectImage(ds_nodata, ds_nodata_out, None, None, gdal.GRA_NearestNeighbour)
+            ds_nodata_out = None
+            ds_nodata_out = gdal.Open(mask_new)
+            mask = ds_nodata_out.GetRasterBand(1).ReadAsArray().astype(bool)
+
+        if mask is not None:
+            ds_out = gdal.Open(path_out, 1)
+            for bandnum in range(1, ds_out.RasterCount + 1):
+                band = ds_out.GetRasterBand(bandnum)
+                data_arr = band.ReadAsArray()
+                data_arr[mask] = nodata_dict[bandnum]
+                band.WriteArray(data_arr)
+
+        ds_out = None
 
     # print(t_raster_base.GetProjection())
     # print(ds_out.GetGeoTransform())
@@ -1808,7 +1822,7 @@ def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata =
     options = {
         'dt': 1,
         'nodata': 0,
-        'compress': 'LERC_DEFLATE',
+        'compress': 'DEFLATE',
         'bandnum': 1,
     }
 
@@ -1852,6 +1866,74 @@ def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata =
 
     # Write projection
     write_prj(path2export[:-4] + '.prj', s_ds.GetProjection())
+
+    return 0
+
+def CopyToJPG(path2raster, path2export, overwrite = True):
+
+    if check_exist(path2export, ignore=overwrite):
+        return 1
+
+    ds_in = gdal.Open(path2raster)
+    if ds_in is None:
+        print('Cannot open dataset: {}'.format(path2raster))
+        return 1
+
+    try:
+        driver = gdal.GetDriverByName('JPEG')
+        ds_out = driver.CreateCopy(path2export, ds_in)
+        ds_out = None
+    except:
+        print('Error saving JPG: {}'.format(path2export))
+        return 1
+
+    return 0
+
+def MakeQuicklook(path_in, path_out, epsg = None, pixelsize = None, method = gdal.GRA_Average, overwrite = True):
+
+    if check_exist(path_out, ignore=overwrite):
+        return 1
+
+    ds_in = gdal.Open(path_in)
+
+    if ds_in is None:
+        return 1
+
+    srs_in = get_srs(ds_in)
+    srs_out = get_srs(epsg)
+
+    if srs_out.IsGeographic():
+        pixelsize = pixelsize / 50000
+
+    if srs_in != srs_out:
+        geotransform = ds_in.GetGeoTransform()
+        x_res = geotransform[1]
+        y_res = geotransform[5]
+        # print(srs_out.ExportToWkt())
+        # print(srs_in.ExportToWkt())
+        t_raster_base = gdal.AutoCreateWarpedVRT(ds_in, srs_out.ExportToWkt(), srs_in.ExportToWkt())
+        x_0, x, x_ang, y_0, y_ang, y = t_raster_base.GetGeoTransform()
+        newXcount = int(math.ceil(t_raster_base.RasterXSize * (x / pixelsize)))
+        newYcount = - int(math.ceil(t_raster_base.RasterYSize * (y / pixelsize)))
+        # print(newXcount, newYcount)
+    else:
+        x_0, x, x_ang, y_0, y_ang, y = ds_in.GetGeoTransform()
+
+    options = {
+        'dt':       ds_in.GetRasterBand(1).DataType,
+        'prj':      srs_out.ExportToWkt(),
+        'geotrans': (x_0, pixelsize, x_ang, y_0, y_ang, - pixelsize),
+        'bandnum':  ds_in.RasterCount,
+        'xsize':    newXcount,
+        'ysize':    newYcount,
+        'compress': 'DEFLATE',
+    }
+
+    ds_out = ds(path_out, options=options, editable=True)
+
+    gdal.ReprojectImage(ds_in, ds_out, None, None, method)
+
+    ds_out = None
 
     return 0
 
@@ -1969,7 +2051,7 @@ def ShapesIntersect(path2shp1, path2shp2):
         shp2_lyr.ResetReading()
         for feat2 in shp2_lyr:
             geom2 = feat2.GetGeometryRef()
-            print(geom1.ExportToWkt(), geom2.ExportToWkt())
+            # print(geom1.ExportToWkt(), geom2.ExportToWkt())
             if geom1.Intersects(geom2):
                 return True
 
@@ -3156,7 +3238,7 @@ class NewFieldsDict():
 
         return feat
 
-def filter_dataset_by_col(path_in, field, vals, path_out = None):
+def filter_dataset_by_col(path_in, field, vals, path_out = None, unique_vals = False):
 
     ds = ogr.Open(path_in)
     vals = obj2list(vals)
@@ -3181,12 +3263,16 @@ def filter_dataset_by_col(path_in, field, vals, path_out = None):
     lyr.ResetReading()
 
     for feat in lyr:
-        if feat.GetField(feat.GetFieldIndex(field)) in vals:
+        # print(feat.GetField(feat.GetFieldIndex(field)))
+        feat_val = feat.GetField(feat.GetFieldIndex(field))
+        if feat_val in vals:
             new_lyr.CreateFeature(feat)
+            if unique_vals:
+                vals.pop(vals.index(feat_val))
 
     new_ds = None
 
-    write_prj(path_out[:-4] + '.prj', lyr.GetSpatialRef().ExportToWkt())
+    # write_prj(path_out[:-4] + '.prj', lyr.GetSpatialRef().ExportToWkt())
 
     return path_out
 
@@ -3273,3 +3359,94 @@ def FilterShapeByColumn(path2shp, path2export, colname, colvals):
     gdal.UseExceptions()
     driver = ogr.GetDriverByName('GeoJSON')
     driver.Create(path2export)
+
+def copydeflate(path_in, path_out):
+
+    ds_in = gdal.Open(path_in)
+
+    if ds_in is None:
+        print('Cannot open file {}'.format(path_in))
+        return 1
+
+    dir_out = os.path.split(path_out)[0]
+
+    if not os.path.exists(dir_out):
+        os.makedirs(dir_out)
+
+    driver = gdal.GetDriverByName('GTiff')
+    ds_out = driver.CreateCopy(path_out, ds_in, options=['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9'])
+    ds_out = None
+    print('File written {}'.format(path_out))
+
+    return 0
+
+def AddAlphaChannel(path2raster, use_raster_nodata=True, set_nodata=None):
+
+    raster_data = RasterData(path2raster, data=(2,4))
+
+    if len(raster_data) != 3:
+        print('RasterCount != 3, cannot make alpha channel for {}'.format(path_raster))
+        return 1
+
+    mask = np.ones((raster_data.ds.RasterYSize, raster_data.ds.RasterYSize)).astype(bool)
+
+    for arr, nodata in raster_data:
+        if use_raster_nodata:
+            mask[arr==nodata] = False
+        if set_nodata is not None:
+            mask[arr==set_nodata] = False
+
+    del raster_data
+
+    if mask is not None:
+        # raster_ds = ds(path=path2export, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
+        raster_ds = gdal.Open(path2raster, 1)
+        raster_ds.AddBand(1)
+        raster_ds.GetRasterBand(raster_ds.RasterCount).WriteArray(mask*255)
+        raster_ds = None
+        return 0
+
+    else:
+        print('Error creating alpha channel')
+        return 1
+
+def copydeflate(path_in, path_out):
+
+    ds_in = gdal.Open(path_in)
+
+    if ds_in is None:
+        print('Cannot open file {}'.format(path_in))
+        return 1
+
+    dir_out = os.path.split(path_out)[0]
+
+    if not os.path.exists(dir_out):
+        os.makedirs(dir_out)
+
+    driver = gdal.GetDriverByName('GTiff')
+    ds_out = driver.CreateCopy(path_out, ds_in, options=['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9'])
+    ds_out = None
+    # print('File written {}'.format(path_out))
+
+    return 0
+
+# Changes geometry in a
+def change_single_geom(path_in, path_geom, path_out):
+    ds_in, lyr_in = get_lyr_by_path(path_in)
+    ds_geom, lyr_geom = get_lyr_by_path(path_geom)
+    driver = ogr.GetDriverByName('GeoJSON')
+    ds_out = driver.CopyDataSource(ds_in, path_out)
+    ds_out = None
+    ds_out, lyr_out = get_lyr_by_path(path_out, editable=True)
+    feat_out = lyr_out.GetNextFeature()
+    feat_geom = lyr_geom.GetNextFeature()
+    geom = feat_geom.GetGeometryRef()
+    feat_out.SetGeometry(geom)
+    img_ds = gdal.Open(path_geom.replace('shp', 'tif'))
+    # feat_out.SetField('row', img_ds.RasterYSize)
+    # feat_out.SetField('col', img_ds.RasterXSize)
+    # feat_out.SetField('area_sqkm', round(geom.Area(), 2))
+    lyr_out.SetFeature(feat_out)
+    ds_out = None
+    return 0
+

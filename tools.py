@@ -11,6 +11,7 @@ import xlrd
 import xlwt
 from datetime import datetime
 from copy import copy, deepcopy
+from PIL import Image
 
 default_temp = '{}\image_processor'.format(os.environ['TMP'])
 
@@ -201,17 +202,14 @@ def order_for_level(list_of_lists):
 
 # Unite all lists in a list of lists into a new list
 def unite_multilist(list_of_lists):
-
     if len(list_of_lists) == 0:
         return []
-
     full_list = copy(list_of_lists[0])
     for list_ in list_of_lists[1:]:
         if isinstance(list_, list):
             full_list.extend(list_)
         else:
             print('Error: object is not a list: {}'.format(list_))
-
     return full_list
 
 # Repeats th last value in the list until it has the predefined length
@@ -961,7 +959,7 @@ class scene_metadata:
         return namestring
 
 # Searches filenames according to template and returns a list of full paths to them
-def folder_paths(path, id_max=10000):
+def folder_paths(path, files = False, extension = None, id_max=10000):
     # templates_list = listoftype(templates_list, str, export_tuple=True)
     if os.path.exists(path):
         if not os.path.isdir(path):
@@ -978,10 +976,17 @@ def folder_paths(path, id_max=10000):
             fold_, file_ = fold_finder(folder)
             if fold_ != []:
                 path_list.append(fold_)
-            export_files.extend(file_)
+            if extension is None:
+                export_files.extend(file_)
+            else:
+                for f in file_:
+                    if f.endswith('.{}'.format(extension)):
+                        export_files.append(f)
         id += 1
     if len(path_list) > id_max:
         raise Exception('Number of folder exceeds maximum = {}'.format(id_max))
+    if files:
+        return export_files
     export_folders = unite_multilist(path_list)
     return export_folders, export_files
 
@@ -1025,3 +1030,20 @@ temp_dir_list = tdir()
 # Make temp file or folder path with predefined extension
 def tempname(ext = None):
     return globals()['temp_dir_list'].create(ext)
+
+def QuicklookImage(path_in, path_out, image_size = (100, 100)):
+
+    orig_img = Image.open(path_in)
+    new_img = orig_img.resize(image_size)
+    # new_img.show()
+    new_img.save(path_out)
+
+    return None
+
+def colfromdict(dict_, key, listed=False):
+    col_dict = OrderedDict()
+    for linekey in dict_:
+        col_dict[linekey] = dict_[linekey].get(key)
+    if listed:
+        return col_dict.values()
+    return col_dict

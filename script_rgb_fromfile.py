@@ -3,8 +3,8 @@
 from image_processor import *
 
 # path_in = r'i:\rks\kanopus_cherepan\Samara'
-path_in = r'e:\kanopus_new\pansharpened\Tver_pan'
-path_out = r'd:\kanopus_new\rgb\Tver_new'
+path_in = r'd:\Krym\!fin'
+path_out = r'd:\Krym\!fin'
 
 raster_list = []
 if os.path.exists(path_in):
@@ -17,10 +17,12 @@ if len(raster_list)>0:
     print('Start making RGB for %i files' % len(raster_list))
 
 for i, file in enumerate(raster_list):
+    if not file.endswith('modified.tif'):
+        continue
     res = geodata.RasterToImage3(fullpath(path_in, file),
-                           fullpath(path_out, file),
+                           fullpath(path_out, file.replace('_modified','RGB')),
                            method=2,
-                           band_limits=[(0.01, 0.9995), (0.01, 0.9995), (0.01, 0.9995)],
+                           band_limits=[(0.01, 0.9998), (0.01, 0.9998), (0.01, 0.9998)],
                            gamma=0.85,
                            exclude_nodata=True,
                            enforce_nodata=0,
@@ -30,8 +32,8 @@ for i, file in enumerate(raster_list):
                            reproject_method=geodata.gdal.GRA_Lanczos,
                            compress='DEFLATE',
                            overwrite=False,
-                           alpha=False)
+                           alpha=True)
     if res == 0:
-        print('{} File written: {}'.format(i, file))
+        print('{} File written: {}'.format(i+1, file))
     else:
-        print('() Error makcGB: {}'.format(i, file))
+        print('{} Error making RGB: {}'.format(i+1, file))

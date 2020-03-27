@@ -1047,3 +1047,7 @@ def colfromdict(dict_, key, listed=False):
     if listed:
         return col_dict.values()
     return col_dict
+
+def suredir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)

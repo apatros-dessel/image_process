@@ -250,7 +250,7 @@ class process(object):
         for ascene in self.scenes:
             if ascene.meta.id == scene_id:
                 return ascene
-        print('Scene not found: {}'.format(scene_id))
+        # print('Scene not found: {}'.format(scene_id))
         return None
 
     # Delete scene by id

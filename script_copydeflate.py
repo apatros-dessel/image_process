@@ -3,7 +3,7 @@
 import os
 import gdal
 
-dir_in = r'd:\resursp_new\pan'
+dir_in = r'e:\resursp_new\pansharpened\Krym_unkompressed'
 dir_out = r'e:\resursp_new\pansharpened\Krym_new'
 
 file_list = os.listdir(dir_in)
@@ -11,6 +11,10 @@ file_list = os.listdir(dir_in)
 print('%i files found' % len(file_list))
 
 for i, file in enumerate(file_list):
+
+    if os.path.exists(os.path.join(dir_out, file)):
+        print(r'{} File already exists: {}'.format(i+1, file))
+        continue
 
     path_in = os.path.join(dir_in, file)
     ds_in = gdal.Open(path_in)
@@ -25,5 +29,5 @@ for i, file in enumerate(file_list):
     driver = gdal.GetDriverByName('GTiff')
     print(['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9', 'TILED=YES', 'BIGTIFF=YES'])
     driver.CreateCopy(os.path.join(dir_out, file), ds_in, options=['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9', 'TILED=YES', 'BIGTIFF=YES'])
-    print('{} File written {}'.format(i, file))
+    print('{} File written {}'.format(i+1, file))
 

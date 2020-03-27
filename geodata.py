@@ -124,10 +124,15 @@ def vec_to_crs(ogr_dataset, t_crs, export_path):
     if v_crs.ExportToUSGS() != t_crs.ExportToUSGS():
         coordTrans = osr.CoordinateTransformation(v_crs, t_crs)
         driver = ogr.GetDriverByName('ESRI Shapefile')
+        # export_path = export_path.decode('cp1251')
+        # print(export_path)
+        # folder = os.path.split(export_path)[0]
+        # if not os.path.exists(folder):
+            # os.makedirs(folder)
         if os.path.exists(export_path): # the shapefile is created in the cwd
             driver.DeleteDataSource(export_path)
         outDataSet = driver.CreateDataSource(export_path)
-        outLayer = outDataSet.CreateLayer("temp", geom_type=ogr.wkbMultiPolygon)
+        outLayer = outDataSet.CreateLayer("temp", geom_type=ogr_layer.GetGeomType())
         outLayerDefn = outLayer.GetLayerDefn()
         feat = ogr_layer.GetNextFeature()
         while feat:
@@ -1627,7 +1632,7 @@ def create_reprojected_raster(path_in, path_out, proj, band_num = None, compress
     return ds_out
 
 # Reprojects Raster
-def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, masked = False, compress = None, overwrite = True):
+def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, resolution = None, masked = False, compress = None, overwrite = True):
 
     if check_exist(path_out, ignore=overwrite):
         return 1
@@ -1641,10 +1646,14 @@ def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, masked =
     proj = ds_in.GetProjection()
     srs = osr.SpatialReference()
     srs.ImportFromEPSG(epsg)
-
     geotransform = ds_in.GetGeoTransform()
-    x_res = geotransform[1]
-    y_res = geotransform[5]
+
+    if resolution is None:
+        x_res = geotransform[1]
+        y_res = geotransform[5]
+    else:
+        x_res = float(resolution)
+        y_res = - float(resolution)
     # print(x_res, y_res)
 
     t_raster_base = gdal.AutoCreateWarpedVRT(ds_in, proj, srs.ExportToWkt())
@@ -3238,7 +3247,7 @@ class NewFieldsDict():
 
         return feat
 
-def filter_dataset_by_col(path_in, field, vals, path_out = None, unique_vals = False):
+def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None, unique_vals = False):
 
     ds = ogr.Open(path_in)
     vals = obj2list(vals)
@@ -3265,7 +3274,16 @@ def filter_dataset_by_col(path_in, field, vals, path_out = None, unique_vals = F
     for feat in lyr:
         # print(feat.GetField(feat.GetFieldIndex(field)))
         feat_val = feat.GetField(feat.GetFieldIndex(field))
-        if feat_val in vals:
+
+        if function is not None:
+            try:
+                test = function(feat_val) in vals
+            except:
+                test = False
+        else:
+            test = feat_val in vals
+
+        if test:
             new_lyr.CreateFeature(feat)
             if unique_vals:
                 vals.pop(vals.index(feat_val))
@@ -3449,4 +3467,167 @@ def change_single_geom(path_in, path_geom, path_out):
     lyr_out.SetFeature(feat_out)
     ds_out = None
     return 0
+
+# Finds objects by dates from vector cover file
+def vector_time_intersection(path_in, path_out, time_col, time_func, epsg=None, min_area=None, min_dt=None):
+
+    ds_in, lyr_in = get_lyr_by_path(path_in)
+    if lyr_in is None:
+        return 1
+
+    if epsg is not None:
+        if not ds_match(ds_in, epsg):
+            tpath = tempname('shp')
+            srs = osr.SpatialReference()
+            srs.ImportFromEPSG(epsg)
+            vec_to_crs(ds_in, srs, tpath)
+            ds_in, lyr_in = get_lyr_by_path(path_in)
+            if lyr_in is None:
+                return 1
+
+    dates_dict = OrderedDict()
+
+    lyr_in.ResetReading()
+
+    driver = ogr.GetDriverByName('GeoJSON')
+    ds_out = driver.Create(path_out)
+
+    lyr_out = None
+
+    for feat in lyr_in:
+        feat_time = time_func(feat.GetField(time_col))
+        if feat_time is not None:
+            assert isinstance(feat_time, datetime)
+            dates_dict[feat.GetFID()] = feat_time
+
+    for feat_id in dates_dict.keys():
+
+        feat_in = lyr_in.GetFeature(feat_id)
+        geom_in = feat_in.GetGeometryRef()
+
+        for feat_key in dates_dict:
+
+            if feat_key==feat_id:
+                continue
+
+            if dates_dict[feat_key] > dates_dict[feat_id]:
+                continue
+
+            if min_dt is not None:
+                if dates_dict[feat_id] - dates_dict[feat_key] < min_dt:
+                    continue
+
+            feat_in2 = lyr_in.GetFeature(feat_key)
+            geom_in2 = feat_in2.GetGeometryRef()
+
+            geom_intersect = geom_in.Interscetion(geom_in2)
+
+            if geom_intersect is None:
+                continue
+
+            area = geom_intersect.Area()
+
+            if area < min_area:
+                continue
+
+            lyr_out.CreateFeature(feat_out)
+
+    ds_out = None
+
+    return 0
+
+def json_fields(path_out,
+                geom_type,
+                epsg = None,
+                fields_dict = None,
+                feats_list = None,
+                field_name_translator = None,
+                overwrite = True):
+
+    driver = ogr.GetDriverByName('GeoJSON')
+    ds = driver.CreateDataSource(path_out)
+
+    if epsg is not None:
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(epsg)
+    else:
+        srs = None
+
+    lyr = ds.CreateLayer('', srs, geom_type)
+
+    if fields_dict is not None:
+        for field_id in fields_dict:
+            field_params = fields_dict[field_id]
+            field_defn = ogr.FieldDefn(field_id, field_params['type_id'])
+            lyr.CreateField(field_defn)
+
+    lyr_defn = lyr.GetLayerDefn()
+
+    # scroll(field_name_translator)
+
+    if feats_list is None:
+        feat = ogr.Feature(lyr_defn)
+        if fields_dict is not None:
+            for field_id in fields_dict:
+                feat.SetField(field_id, None)
+        lyr.CreateFeature(feat)
+
+    elif fields_dict is None:
+        for feat in feats_list:
+            lyr.CreateFeature(feat)
+
+    else:
+        for feat in feats_list:
+            new_feat = ogr.Feature(lyr_defn)
+            geom = feat.GetGeometryRef()
+            if geom is not None:
+                new_feat.SetGeometry(geom)
+            for field_id in fields_dict.keys():
+                field_key = field_id
+                if field_name_translator is not None:
+                    if field_id in field_name_translator:
+                        field_keys = field_name_translator[field_id]
+                        found_new_key = False
+                        for key in field_keys:
+                            if key in feat.keys():
+                                if found_new_key:
+                                    print('Warning: key duplication: {}, {}'.format(field_key, key))
+                                    continue
+                                field_key = key
+                                found_new_key = True
+
+                if field_key in feat.keys():
+                    new_feat.SetField(field_id, feat.GetField(field_key))
+                else:
+                    new_feat.SetField(field_id, None)
+            lyr.CreateFeature(new_feat)
+
+    # print(lyr.GetLayerDefn().GetFieldCount())
+
+    ds = None
+
+    ds, lyr = get_lyr_by_path(path_out)
+    # print(lyr.GetLayerDefn().GetFieldCount())
+
+def ReprojectVector(path_in, path_out, epsg, overwrite = True):
+
+    if check_exist(path_in, overwrite):
+        return 1
+    path_in = path_in.decode('cp1251')
+    # print(path_in)
+    ds_in = ogr.Open(path_in)
+    # print(ds_in)
+
+    t_crs = osr.SpatialReference()
+    t_crs.ImportFromEPSG(epsg)
+
+    ds_out = vec_to_crs(ds_in, t_crs, path_out)
+
+    ds_out = None
+
+    write_prj(path_out[:-3]+'prj', t_crs.ExportToWkt())
+
+    return 0
+
+
 

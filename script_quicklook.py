@@ -2,8 +2,8 @@
 
 from geodata import *
 
-dir_in = r'd:\Krym\!fin\rgb'
-dir_out = r'd:\Krym\!fin\quicklook'
+dir_in = r'd:\kanopus_new\rgb\Tatarstan'
+dir_out = r'd:\kanopus_new\quicklook\Tatarstan'
 
 path_in_list = folder_paths(dir_in, files=True, extension='tif')
 dir_out_3857 = fullpath(dir_out, '3857')
@@ -16,6 +16,8 @@ if not os.path.exists(dir_out_img):
 # scroll(path_in_list)
 
 for i, path_in in enumerate(path_in_list):
+    # if not path_in.endswith('newRGB.tif'):
+        # continue
     if path_in.endswith('.tif'):
         filename = os.path.split(path_in)[1]
         try:

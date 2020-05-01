@@ -213,7 +213,7 @@ def csv2shp(csv_path, shp_path, delimeter=';', col_names=None, coord_source='DMS
                     dms = {'lon': (int(csv_dict[col_names['y_dd']][id]),
                                    int(csv_dict[col_names['y_mm']][id]),
                                    float(csv_dict[col_names['y_ss']][id])),
-                           'lat': (int(csv_dictcol_names['x_dd']][id]),
+                           'lat': (int(csv_dict[col_names['x_dd']][id]),
                                    int(csv_dict[col_names['x_mm']][id]),
                                    float(csv_dict[col_names['x_ss']][id])),
                            }
@@ -226,8 +226,8 @@ def csv2shp(csv_path, shp_path, delimeter=';', col_names=None, coord_source='DMS
     dd2shp(shp_path, coords_list, shptype=shptype)
     return True
 
-csv_dir = r'C:\sadkov'
-shp_dir = r'C:\sadkov'
+csv_dir = r'e:\temp'
+shp_dir = r'e:\temp'
 dir_list = os.listdir(csv_dir)
 csv_list = []
 for csv_path in dir_list:

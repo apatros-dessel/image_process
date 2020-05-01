@@ -1,13 +1,14 @@
+# -*- coding: utf-8 -*-
+
 # Auxilliary functions for image processor
 
-import os
-import re
+import os, re, shutil, xlrd, xlwt
 import numpy as np
-from collections import OrderedDict
 import xml.etree.ElementTree as et
-import xlwt
+from collections import OrderedDict
 from datetime import datetime
-from copy import deepcopy
+from copy import copy, deepcopy
+from PIL import Image
 
 default_temp = '{}\image_processor'.format(os.environ['TMP'])
 
@@ -22,6 +23,33 @@ def returnnone(obj):
 def returnobj(obj):
     return obj
 
+# Class to make endless counter
+class counter:
+    def __init__(self, startfrom = 0, step = 1):
+        self.count = startfrom - 1
+        self.step = step
+    def __iter__(self, startfrom = None, step = 1):
+        if startfrom is not None:
+            self.count = startfrom - 1
+        self.step = step
+        return self
+    def __next__(self):
+        self.count += self.step
+        return self.count
+    def next(self):
+        return self.__next__()
+
+# An iterator endlessly returning None
+class iternone:
+    def __init__(self):
+        pass
+    def __iter__(self):
+        return self
+    def __next__(self):
+        return None
+    def next(self):
+        return self.__next__()
+
 # Check existance of file
 def check_exist(path, ignore=False):
     if not ignore:
@@ -32,10 +60,154 @@ def check_exist(path, ignore=False):
 
 # Conversts non-list objects to a list of length 1
 def obj2list(obj):
-    if isinstance(obj, list):
-        return obj
+    new_obj = copy(obj)
+    if isinstance(new_obj, list):
+        return new_obj
     else:
-        return [obj]
+        return [new_obj]
+
+# Returns list values by order
+def list_order(orig_list):
+
+    sorted_list = copy(orig_list)
+    sorted_list.sort()
+
+    order_list = []
+    prev_val = sorted_list[0]
+    prev_id = orig_list.index(prev_val)
+    order_list.append(prev_id)
+    copy_list = copy(orig_list)
+    repeat_num = 0
+
+    for val in sorted_list[1:]:
+
+        id = orig_list.index(val)
+
+        if id==prev_id:
+            copy_list.pop(id)
+            repeat_num += 1
+            prev_id = copy_list.index(val) + repeat_num
+            order_list.append(prev_id)
+        else:
+            order_list.append(id)
+            prev_id = id
+            copy_list = copy(orig_list)
+            repeat_num = 0
+
+    return order_list
+
+def filter_by_values(arr, col):
+    match = np.ones(arr.shape[1:])
+    for line, value in zip(arr, col):
+        match = match * (line==value)
+    return match
+
+# Sort list of lists (of the same length): the previous lists have higher priority
+def sort_multilist(list_of_lists):
+
+    def order_for_val(list_of_lists, match_value, level=0, reposition=None):
+        match_list = []
+        for i, val in enumerate(list_of_lists[level]):
+            if match_value == val:
+                match_list.append(i)
+        if len(match_list) == 0:
+            return 0, None
+        elif len(match_list) == 1:
+            return 1, match_list[0]
+        elif len(list_of_lists) == 1:
+            if reposition is not None:
+                export_list = []
+                for val in match_list:
+                    export_list.append(reposition[val])
+            else:
+                export_list = match_list
+            return 2, export_list
+        else:
+            next_level_list = []
+            for old_list in list_of_lists[1:]:
+                new_list = []
+                for id in match_list:
+                    new_list.append(old_list[id])
+                next_level_list.append(new_list)
+            return 2, order_for_level(next_level_list, reposition=match_list)
+
+    def order_for_level(list_of_lists, reposition=None):
+        count = 0
+        export_order_list = []
+        order_list = list_order(list_of_lists[0])
+        for id, pos in enumerate(order_list):
+            if id < count:
+                continue
+            else:
+                res, value = order_for_val(list_of_lists, list_of_lists[0][pos], reposition=reposition)
+                if res == 0:
+                    continue
+                elif res == 1:
+                    if reposition is not None:
+                        value = reposition[value]
+                    export_order_list.append(value)
+                    count += 1
+                elif res == 2:
+                    for val in value:
+                        export_order_list.append(val)
+                    count += len(value)
+                else:
+                    print('Unknown res: {}'.format(res))
+                    raise Exception()
+        return export_order_list
+
+    return order_for_level(list_of_lists)
+
+def order_for_val(list_of_lists, match_value, level=0):
+    match_list = []
+    for i, val in enumerate(match_list[level]):
+        if match_value == val:
+            match_list.append(i)
+    if len(match_list) == 0:
+        return 0, None
+    elif len(match_list) == 1:
+        return 1, [match_list[0]]
+    else:
+        next_level_list = []
+        for old_list in list_of_lists[1:]:
+            new_list = []
+            for id in match_list:
+                new_list.append(match_list[id])
+            next_level_list.append(new_list)
+        return 2, order_for_level(next_level_list)
+
+def order_for_level(list_of_lists):
+    count = 0
+    export_order_list = []
+    order_list = list_order(list_of_lists[0])
+    for id, pos in enumerate(order_list):
+        if id < count:
+            continue
+        else:
+            res, value = order_for_val(list_of_lists, list_of_lists[pos])
+            if res == 0:
+                continue
+            elif res == 1:
+                order_list.extend(value)
+                count += 1
+            elif res == 2:
+                order_list.extend(value)
+                count += len(value)
+            else:
+                print('Unknown res: {}'.format(res))
+                raise Exception()
+
+# Unite all lists in a list of lists into a new list
+def unite_multilist(list_of_lists):
+    if len(list_of_lists) == 0:
+        return []
+    full_list = copy(list_of_lists[0])
+    for list_ in list_of_lists[1:]:
+        if isinstance(list_, list):
+            full_list.extend(list_)
+        else:
+            print('Error: object is not a list: {}'.format(list_))
+    return full_list
 
 # Repeats th last value in the list until it has the predefined length
 def list_of_len(list_, len_):
@@ -113,6 +285,23 @@ def iter_list(root, call):
     for obj in root.iter(call):
         iter_list.append({obj.tag: {'attrib': obj.attrib, 'text': obj.text}})
     return iter_list
+
+# Removes all values x in list
+def remove_in_list(orig_list, x):
+    new_list = copy(orig_list)
+    while x in new_list:
+        i = new_list.index(x)
+        new_list.pop(i)
+    return new_list
+
+# Replaces all values x in list to y
+def replace_in_list(orig_list, x, y):
+    new_list = copy(orig_list)
+    while x in new_list:
+        i = new_list.index(x)
+        new_list.pop(i)
+        new_list.insert(y)
+    return new_list
 
 # Processes the iter_list created by iter_list() to return list of values of a proper kind
 def iter_return(iter_list, data='text', attrib=None):
@@ -219,6 +408,46 @@ def fullpath(folder, file, ext=None):
         ext = ('.' + str(ext).replace('.', ''))
     return r'{}\{}{}'.format(folder, file, ext)
 
+# Creates new name to avoid same names as in the list
+def newname2(name, name_list, update_list=False):
+
+    i = 2
+    newname = '{}_{}'.format(name, i)
+    while newname in name_list:
+        newname = '{}_{}'.format(name, i)
+        i += 1
+
+    if update_list:
+        name_list.append(newname)
+        return newname, name_list
+    else:
+        return newname
+
+# Creates new OrderedDict wuth keys from list
+def endict(list_, obj = None, func = None):
+
+    newordict = OrderedDict()
+
+    if hasattr(func, '__callable__'):
+        func = None
+
+    if func is None:
+        for key in list_:
+            newordict[key] = deepcopy(obj)
+    else:
+        for key in dict:
+            newordict[key] = func(key)
+
+    return newordict
+
+# Returns an ordered dictionary of numpy array values and counts
+def arrendict(arr_):
+    dict_ = OrderedDict()
+    values, numbers = np.unique(arr_, return_counts=True)
+    for val, num in zip(values, numbers):
+        dict_[val] = num
+    return dict_
+
 # Creates new path
 def newname(folder, ext = None):
     # print(os.path.exists(folder), folder)
@@ -252,6 +481,33 @@ def cleardir(path):
         except:
             errors.append(file)
     return not bool(errors)
+
+# Completely destroys dir with all contained files and folders
+def destroydir(path, preserve_path = False):
+    folders, files = folder_paths(path)
+    success = []
+    errors = []
+    for file in files:
+        try:
+            os.remove(file)
+            success.append(file)
+        except:
+            # os.remove(file)
+            errors.append(file)
+    folders.reverse()
+    if preserve_path:
+        folders = folders[:-1]
+    for folder in folders:
+        try:
+            os.rmdir(folder)
+            success.append(folder)
+        except:
+            errors.append(folder)
+    # scroll(success, header = 'Deleted files and folders: ')
+    if bool(errors):
+        # scroll(errors, header = 'Failed to delete files and folders:')
+        return False
+    return True
 
 # Check correctness of file name
 def check_name(name, pattern):
@@ -336,10 +592,12 @@ class tdir():
         return len(self.paths)
 
     # Creates a new tempdir
-    def create(self):
+    def create(self, file_extension = None):
         path_new = newdir(self.corner)
         if path_new is not None:
             self.paths.append(path_new)
+            if file_extension is not None:
+                path_new = newname(path_new, file_extension)
             return path_new
         else:
             return None
@@ -371,8 +629,9 @@ class tdir():
     # Deletes all data when the interpreter is closed
     def __del__(self):
         try:
-            if self.empty() and cleardir(self.corner):
-                os.rmdir(self.corner)
+            destroydir(self.corner)
+            # if self.empty() and cleardir(self.corner):
+                # os.rmdir(self.corner)
         except:
             pass
 
@@ -388,8 +647,10 @@ def winprint(obj, decoding = None):
     print(obj)
     return None
 
-def scroll(obj, print_type=True, decoding=None):
-    if print_type:
+def scroll(obj, print_type=True, decoding=None, header=None):
+    if header is not None:
+        print(header)
+    elif print_type:
         print('Object of {}:'.format(type(obj)))
     if hasattr(obj, '__iter__'):
         if len(obj) == 0:
@@ -402,6 +663,17 @@ def scroll(obj, print_type=True, decoding=None):
                 winprint('  {}'.format(val), decoding=decoding)
     else:
         winprint('  {}'.format(obj), decoding=decoding)
+
+# Get datetime from string
+def get_date_from_string(date_str):
+    # print(date_str)
+    year = int(date_str[:4])
+    month = int(date_str[5:7])
+    day = int(date_str[8:10])
+    hour = int(date_str[11:13])
+    minute = int(date_str[14:16])
+    second = float(date_str[17:-1])
+    return datetime(year, month, day)
 
 # Reads .xml file and returns metadata as element tree
 def xml2tree(path):
@@ -420,8 +692,9 @@ def iter_list(root, call):
 
 # Processes the iter_list created by iter_list() to return list of values of a proper kind
 def iter_return(iter_list, data='text', attrib=None):
+    # scroll(iter_list)
     if isinstance(data, int):
-        data = ['text', 'tag', 'attrib'][data]
+        data = ['text', 'tag', 'attrib'][data] or 'text'
     return_list = []
     if data == 'attrib':
         if attrib is None:
@@ -429,7 +702,9 @@ def iter_return(iter_list, data='text', attrib=None):
                 return_list.append(mdval(monodict)['attrib'])
         else:
             for monodict in iter_list:
-                return_list.append(mdval(monodict)['attrib'][str(attrib)])
+                attr_val = mdval(monodict)['attrib'].get(str(attrib))
+                if attr_val is not None:
+                    return_list.append(attr_val)
     elif data == 'text':
         for monodict in iter_list:
             return_list.append(mdval(monodict)['text'])
@@ -490,6 +765,21 @@ def get_from_tree(xml_tree, call, check=None, data='text', attrib=None, sing_to_
         result = list(np.array(result)[filter])
     #scroll(sing2sing(result, sing_to_sing, digit_to_float))
     return sing2sing(result, sing_to_sing, digit_to_float)
+
+# Import data from xls
+def xls_to_dict(path2xls, sheetnum=0):
+    rb = xlrd.open_workbook(path2xls)
+    sheet = rb.sheet_by_index(sheetnum)
+    keys = sheet.row_values(0)[1:]
+    xls_dict = OrderedDict()
+    for rownum in range(1, sheet.nrows):
+        rowdata = OrderedDict()
+        row = sheet.row_values(rownum)
+        for key, val in zip(keys, row[1:]):
+            rowdata[key] = val
+        xls_dict[row[0]] = rowdata
+    return xls_dict
+
 
 # Export data to xls
 def dict_to_xls(path2xls, adict): # It's better to use OrderedDict to preserve the order of rows and columns
@@ -561,12 +851,14 @@ class scene_metadata:
         self.container = {}                     # Place to keep source metadata as a dictionary. Filled by the imsys-specific function
 
         self.sat = None                         # Satellite id (Landsat-8, Sentinel-2A, 0e26 (Planet id), etc.) as str
+        self.fullsat = None                     # Fullname for identifying both satellite and imsys
         self.id = None,                         # A unique scene identifier
         self.lvl = None,                        # Data processing level
         self.files = OrderedDict()              # Dictionary of file ids
         self.filepaths = OrderedDict()          # Dictionary of filepaths
         self.bands = OrderedDict()              # Dictionary of bands
         self.bandpaths = OrderedDict()          # Dictionary of paths to bands (each path is a tuple of file id as str and band number as int)
+        self.location = None                    # Scene location id
         self.datetime = None                    # Datetime as datetime
         self.location = {}                      # Image locationa data as str
         self.datamask = None                    # Local path to data mask as vector file
@@ -578,12 +870,14 @@ class scene_metadata:
             'imsys':        self.imsys is not None,
             'container':    len(self.container) > 0,
             'sat':          self.sat is not None,
+            'fullsat':      self.fullsat is not None,
             'id':           isinstance(self.id, str),
             'lvl':          self.lvl is not None,
             'files':        len(self.files) > 0,
             'filepaths':    len(self.filepaths) > 0,
             #'bands':       len(self.bands) > 0,
             'bandpaths':    len(self.bandpaths) > 0,
+            'location':     self.location is not None,
             'datetime':     isinstance(self.datetime, datetime),
             'namecodes':    len(self.namecodes) > 0,
         })
@@ -660,3 +954,97 @@ class scene_metadata:
         for key in self.namecodes.keys():
             namestring = namestring.replace(key, self.namecodes.get(key, ''))
         return namestring
+
+# Searches filenames according to template and returns a list of full paths to them
+def folder_paths(path, files = False, extension = None, id_max=10000):
+    # templates_list = listoftype(templates_list, str, export_tuple=True)
+    if os.path.exists(path):
+        if not os.path.isdir(path):
+            path = os.path.split(path)[0]
+        path_list = [path]
+        path_list = [path_list]
+    else:
+        print('Path does not exist: {}'.format(path))
+        return None
+    id = 0
+    export_files = []
+    while id < len(path_list) < id_max:
+        for id_fold, folder in enumerate(path_list[id]):
+            fold_, file_ = fold_finder(folder)
+            if fold_ != []:
+                path_list.append(fold_)
+            if extension is None:
+                export_files.extend(file_)
+            else:
+                for f in file_:
+                    if f.endswith('.{}'.format(extension)):
+                        export_files.append(f)
+        id += 1
+    if len(path_list) > id_max:
+        raise Exception('Number of folder exceeds maximum = {}'.format(id_max))
+    if files:
+        return export_files
+    export_folders = unite_multilist(path_list)
+    return export_folders, export_files
+
+def count_dirsize(path):
+    folders, files = folder_paths(path)
+    byte_size = 0
+    for file in files:
+        byte_size += os.path.getsize(file)
+    return byte_size
+
+# Filter filepath_list by extension
+def ext_filter(filepaths, ext):
+    assert isinstance(filepaths, (tuple, list))
+    assert isinstance(ext, str)
+    proper_names = []
+    for file in filepaths:
+        if file.endswith(ext):
+            proper_names.append(file)
+    return proper_names
+
+def str_size(byte_size):
+    assert byte_size >= 0
+    if byte_size < 1024:
+        return u'{} байт'.format(round(byte_size, 2))
+    elif byte_size < (1024**2):
+        return u'{} Кб'.format(round(byte_size/1024, 2))
+    elif byte_size < (1024**3):
+        return u'{} Мб'.format(round(byte_size/(1024**2), 2))
+    elif byte_size < (1024**4):
+        return u'{} Гб'.format(round(byte_size/(1024**3), 2))
+    elif byte_size < (1024**5):
+        return u'{} Тб'.format(round(byte_size/(1024**4), 2))
+    elif byte_size > (1024**6):
+        print(u'Полученный размер больше 1 Пб, вероятно что-то пошло не так')
+        return None
+
+# destroydir(default_temp, preserve_path=True)
+
+temp_dir_list = tdir()
+
+# Make temp file or folder path with predefined extension
+def tempname(ext = None):
+    return globals()['temp_dir_list'].create(ext)
+
+def QuicklookImage(path_in, path_out, image_size = (100, 100)):
+
+    orig_img = Image.open(path_in)
+    new_img = orig_img.resize(image_size)
+    # new_img.show()
+    new_img.save(path_out)
+
+    return None
+
+def colfromdict(dict_, key, listed=False):
+    col_dict = OrderedDict()
+    for linekey in dict_:
+        col_dict[linekey] = dict_[linekey].get(key)
+    if listed:
+        return col_dict.values()
+    return col_dict
+
+def suredir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)

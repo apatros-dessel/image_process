@@ -5,12 +5,13 @@ from tools import *
 # Examples of Planet metadata filenames
 # r'2376743_4865309_2019-05-20_0f2a_BGRN_Analytic_metadata.xml'
 # r'20190910_081115_0e26_3B_AnalyticMS_metadata.xml'
+# r'20190829_033516_1035_3B_AnalyticMS_metadata_clip.xml'
 
 # Object containing data about Planet image system
 
 # Templates for planet metadata filenames
 templates = (
-    r'\d+_\d+_\S+_Analytic\S*_metadata.xml',
+    r'\d+_\d+_\S+_Analytic\S*_metadata\S*.xml',
 )
 
 # Raster files indices for Planet scenes
@@ -40,15 +41,34 @@ def getplanetfiles(xml_tree):
 
     for file in file_list:
         if 'DN' in file:
-            file_dict['mask'] = file_list.pop(file_list.index(file))
+            file_dict['mask'] = file_list.pop(file_list.index(file)).replace('/execdir/', '')
             break
 
     for file in file_list:
         if 'Analytic' or 'MS' in file:
-            file_dict['Analytic'] = file_list.pop(file_list.index(file))
+            file_dict['Analytic'] = file_list.pop(file_list.index(file)).replace('/execdir/', '')
             break
 
     return file_dict
+
+def getplanetfiles_new(meta):
+
+    tree = meta.container.get('xmltree')
+
+    if tree is None:
+        return None
+
+    filepaths = OrderedDict()
+
+    if meta.lvl == 'L3B':
+        filepaths['mask'] = meta.name('[id]_DN_udm_clip.tif')
+        filepaths['Analytic'] = meta.name('[id]_SR_clip.tif')
+
+    else:
+        print('Unknown level: {}'.format(meta.lvl))
+        return None
+
+    return filepaths
 
 # Gets Planet scene date and time
 def getplanetdatetime(xmltree):
@@ -69,10 +89,7 @@ def metadata(path):
     meta.id = get_from_tree(meta.container.get('xmltree'), 'identifier')
     meta.lvl = get_from_tree(meta.container.get('xmltree'), 'productType')
     meta.files = globals()['planet_files']
-    meta.filepaths = getplanetfiles(meta.container.get('xmltree'))
-    # self.bands = imsys_data_obj.bands
 
-    meta.bandpaths = globals()['planet_bandpaths']
     meta.datetime = getplanetdatetime(meta.container.get('xmltree'))
 
     meta.namecodes.update(
@@ -86,7 +103,16 @@ def metadata(path):
     # meta.write_time_codes(getplanetdatetime(meta.container.get('xmltree')))
     meta.write_time_codes(meta.datetime)
 
-    datamask_template = r'.*{}.*{}.*\.json'.format(meta.namecodes.get('[datetime]'), meta.sat)
+    if meta.lvl == 'L3B':
+        meta.filepaths = getplanetfiles_new(meta)
+    else:
+        meta.filepaths = getplanetfiles(meta.container.get('xmltree'))
+    # self.bands = imsys_data_obj.bands
+
+    meta.bandpaths = globals()['planet_bandpaths']
+
+    id_code_list = meta.namecodes.get('[id]').split('_')
+    datamask_template = r'{}.*\.json'.format('_'.join(id_code_list[:3]), meta.sat)
     for filename in os.listdir(os.path.split(path)[0]):
         search = re.search(datamask_template, filename)
         if search is not None:

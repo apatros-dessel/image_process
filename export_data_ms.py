@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from geodata import *
 import shutil
 
@@ -31,46 +33,27 @@ def filter_geojson(path_in, field, vals, path_out):
 
     new_ds = None
 
+dir_in = r'd:\terratech\Krym_areas\rgbn_fin'        # Путь к папке с исходными данными
+dir_out = r'd:\terratech\export\krym_resurs_pms'    # Путь к месту хранения конечных данных
+json_in = r''                                       # Путь к векторному файлу покрытия
 
-dir_in = r'd:\terratech\Krym_areas\rgbn_fin'
-dir_out = r'd:\terratech\export\krym_resurs_pms'
-
-if os.path.exists(dir_in + '\\pms'):
-    pms_path = dir_in + '\\pms'
-    pms_list = os.listdir(pms_path)
-else:
-    # sys.exit(1)
-    pms_path = dir_in
-    pms_list = os.listdir(pms_path)
-
+ms_list = os.listdir(dir_in)
+path_dict = {'ms': dir_in, 'json': json_in}
 
 id_list = []
-for name in pms_list:
+for name in ms_list:
     id, ext = os.path.splitext(name)
     ext = ext.replace('.','')
-    if ext in ['tif', 'tiff', 'tif']:
+    if (ext in ['tif', 'tiff', 'tif']) and id.endswith('.MS.L2'):
         id_list.append(id)
-
-path_dict = {'pms': pms_path}
-for anc in ['rgb', 'ql', 'img']:
-    if os.path.exists('%s\\%s' % (dir_in, anc)):
-        path_dict[anc] = '%s\\%s' % (dir_in, anc)
-
-for file in os.listdir(dir_in):
-    if file.endswith('json'):
-        path_dict['json'] = '%s\\%s' % (dir_in, file)
-
-print(path_dict)
 
 err_list = []
 
 for id in id_list:
-    # print(id)
     id_dir = ('%s\\%s' % (dir_out, id))
     suredir(id_dir)
     for key in path_dict:
-        if key == 'pms':
-            # continue
+        if key == 'ms':
             name = (id + '.tif')
             try:
                 shutil.copyfile('%s\\%s' % (path_dict[key], name),
@@ -80,21 +63,10 @@ for id in id_list:
         elif key == 'json':
             name = id + '.json'
             path_out = '%s\\%s' % (id_dir, name)
-            filter_dataset_by_col(path_dict['json'], 'id', id, path_out=path_out)
-            json_fix_datetime(path_out)
             try:
+                filter_dataset_by_col(path_dict['json'], 'id', id, path_out=path_out)
                 # filter_geojson(path_dict['json'], 'id', id, '%s\\%s' % (id_dir, name))
-                pass
-            except:
-                err_list.append(name)
-                # filter_geojson(path_dict['json'], 'id', id, '%s\\%s' % (id_dir, name))
-
-        else:
-            continue
-            name = '%s.%s.tif' % (id, key.upper())
-            try:
-                shutil.copyfile('%s\\%s' % (path_dict[key], name),
-                                '%s\\%s' % (id_dir, name))
+                json_fix_datetime(path_out) # Fixes error with Python OGR datetime data
             except:
                 err_list.append(name)
 

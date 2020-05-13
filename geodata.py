@@ -1193,6 +1193,9 @@ class MultiBandpath(list):
         assert isinstance(bandpaths, list)
         self.check = True
         for i, bandpath_tuple in enumerate(bandpaths):
+            while len(self) <= i:
+                self.append(None)
+            print(len(self))
             try:
                 self[i] = Bandpath(bandpath_tuple)
             except:
@@ -1222,9 +1225,6 @@ def RasterMultiBandpath(raster_path, band_list):
     for band in band_list:
         bandpaths.append((raster_path, band))
     return MultiBandpath(bandpaths)
-
-
-
 
 def GetRasterPercentiles(raster_path_list, min_percent = 0.02, max_percent = 0.98,
                          band_num_list = [1,2,3], nodata = 0):

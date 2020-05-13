@@ -38,7 +38,8 @@ def raster_calculator(multi_raster_path, output_path, function):
         data_layers.append(arr)
     export = function(data_layers)
     del(data_layers)
-    blue_ds = ds(output_path, copypath=ms_path, options={'bandnum': 1, 'compress': 'DEFLATE'}, editable=True)
+    blue_ds = ds(output_path, copypath=multi_raster_path[0][0], options={'bandnum': 1, 'compress': 'DEFLATE'},
+                 editable=True)
     blue_ds.GetRasterBand(1).WriteArray(export)
     blue_ds = None
 
@@ -75,15 +76,50 @@ def correct_rsp(ms_path, pan_path, rgbn_path, pms_path):
 
     # raster2raster(raster_band_paths, output_path, method = gdal.GRA_NearestNeighbour, exclude_nodata = True, enforce_nodata = 0, compress = 'DEFLATE', overwrite = True)
 
-ms_path = r''
-pan_path = r'F:/102_2020_108_RP/2020-02-02/2074508_22.01.20_Krym/RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PAN_bf9546c102d85f9bc9324a9b18eecb351675c3a0/RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PAN.L2.tif'
-rgbn_path = r'C:\Users\Home\Downloads\test_rgbn_5.tif'
-pms_path = r'D:\terratech\resurs\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2_old5.tif'
+# ms_path = r''
+# pan_path = r'F:/102_2020_108_RP/2020-02-02/2074508_22.01.20_Krym/RP1_36120_04_GEOTON_20191209_080522_080539.SCN1
+# .PAN_bf9546c102d85f9bc9324a9b18eecb351675c3a0/RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PAN.L2.tif'
+# rgbn_path = r'C:\Users\Home\Downloads\test_rgbn_5.tif'
+# pms_path = r'D:\terratech\resurs\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2_old5.tif'
 
 # correct_rsp(ms_path, pan_path, rgbn_path, pms_path)
 
 # pms_temp = tempname('tif')
 # image_psh(rgbn_path, pan_path, pms_temp, [1,2,3,4,5], [1,2,3,4,5], 'YES')
-pms_temp = r'c:\Users\Home\AppData\Local\Temp\image_processor\2\0\0.tif'
-copydeflate(pms_temp, pms_path, bigtiff = True, tiled = True)
+# pms_temp = r'c:\Users\Home\AppData\Local\Temp\image_processor\2\0\0.tif'
+# copydeflate(pms_temp, pms_path, bigtiff = True, tiled = True)
 # os.remove(pms_temp)
+
+path_in_list = [
+    r'D:/terratech/Krym_areas/clip_image/RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2__Simferopol.tif',
+    r'D:/terratech/Krym_areas/clip_image/RP1_33500_07_GEOTON_20190621_080150_080200.SCN1.PMS.L2__Kerch.tif',
+]
+
+path_out = r'd:\terratech\Krym_areas\rgbn_fin'
+
+for path_in in path_in_list:
+
+    folder, file = os.path.split(path_in)
+
+    blue_calc_path = RasterMultiBandpath(path_in, [1, 2, 4])
+
+    blue_path = tempname('tif')
+
+    raster_calculator(blue_calc_path, blue_path, new_blue)
+
+    raster_band_paths = [
+        (path_in , 1), # RED
+        (path_in , 2), # GREEN
+        (blue_path , 1), # BLUE
+        (path_in , 4),# NIR
+    ]
+
+    raster2raster(raster_band_paths, os.path.join(path_out, file),
+                  method = gdal.GRA_NearestNeighbour,
+                  exclude_nodata = True,
+                  enforce_nodata = 0,
+                  compress = 'DEFLATE',
+                  overwrite = True)
+
+    os.remove(blue_path)
+    print('File written: %s' % file)

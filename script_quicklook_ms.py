@@ -42,7 +42,7 @@ for i, path_in in enumerate(path_in_list):
             if res == 0:
                 filename_img = filename.replace('L2', 'L2.IMG')
                 path_img = os.path.join(folder, filename_img)
-                QuicklookImage(path_img, path_in.replace('L2.RGB', 'L2.IMG'))
+                QuicklookImage(path_ql, path_img)
                 print('{} File saved: {}'.format(i+1, filename))
             else:
                 print('{} File not saved: {}'.format(i + 1, filename))

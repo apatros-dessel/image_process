@@ -38,6 +38,35 @@ except:
     print('Error importing GDAL, cannot apply deflate')
     use_deflate = False
 
+data_source_folder = r'f:\102_2020_126'
+output_folder = r'e:\rks\tver_pms_new'
+bands = [1,2,3,4]
+bands_ref = [1,2,3,4]
+enhanced = "YES"
+filter_path = r'c:\Users\Home\Desktop\tver.txt'
+
+def get_filter_names(filter_path, xlscolname=None, txtsep=';'):
+    if os.path.exists(filter_path):
+        if filter_path.endswith('xls'):
+            filter_xls = xls_to_dict(filter_path)
+            if xlscolname is None:
+                filter_names = filter_xls.keys()
+            else:
+                filter_names = colfromdict(filter_xls, 'new', True)
+        elif filter_path.endswith('txt'):
+            with open(filter_path) as txt:
+                filter_names = txt.read().split(txtsep)
+        else:
+            print('Unreckognized filter path extension: need .xls or .txt')
+            filter_names = None
+    else:
+        print('File not found: {}'.format(filter_path))
+        filter_names = None
+    if filter_names is not None:
+        for i, name in enumerate(filter_names):
+            filter_names[i] = name.replace('.MS.', '.PMS.').replace('.PAN.', '.PMS.')
+    return filter_names
+
 # Make pansharpened image
 def image_psh(ms, pan, psh, bands, bands_ref, enhanced):
     fili = ms
@@ -104,34 +133,6 @@ def pms_iter(data_source_folder,
         os.makedirs(output_folder)
 
     loop={}
-    '''
-    for root, dirs, files in os.walk(data_source_folder):
-
-        # Kanopus
-        for f in files:
-            if re.search(r'^k.*.l2\.tif$', f.lower(), flags=0):
-                product_path = root
-                sat, orbit, marshrut, part, satname, imgdate, imgtime1, product = f.split('_')
-                imgtime2, scene, product, level, fileext = product.split('.')
-                scene_id = '_'.join([marshrut, part, scene])
-                if loop.has_key(scene_id):
-                    loop[scene_id][product]=os.path.join(root, f)
-                else:
-                    loop[scene_id]={product:os.path.join(root, f)}
-
-        # Resurs-P
-        for f in files:
-            if re.search(r'^rp.*.l2\.tif$', f.lower(), flags=0):
-                product_path = root
-                sat, orbit, part, satname, imgdate, imgtime1, product = f.split('_')
-                imgtime2, scene, product, level, fileext = product.split('.')
-                scene_id = '_'.join([part, scene])
-
-                if loop.has_key(scene_id):
-                    loop[scene_id][product]=os.path.join(root, f)
-                else:
-                    loop[scene_id]={product:os.path.join(root, f)}
-    '''
 
     for filepath in folder_paths(data_source_folder, files = True, extension='tif'):
 
@@ -207,28 +208,18 @@ def pms_iter(data_source_folder,
 
     return filter_names
 
-data_source_folder = r'f:\102_2020_108_RP'
-output_folder = r'd:\terratech\tver_pan_fullfull'
-bands = [1,2,3,4]
-bands_ref = [1,2,3,4]
-enhanced = "YES"
-
-xls_path = r'f:\102_2020_108_RP\krym_rsp_selected_20200427_11-20.xls'
-
-suredir(output_folder)
-
-filter_xls = xls_to_dict(xls_path)
-
-filter_names = filter_xls.keys()
-# filter_names = colfromdict(filter_xls, 'new', True)
-# filter_names.extend(colfromdict(filter_xls, 'old', True))
-
 argv = sys.argv
 if argv is None:
     sys.exit(1)
 
 # scroll(filter_names)
 # sys.exit(1)
+
+suredir(output_folder)
+
+filter_names = get_filter_names(filter_path, xlscolname=None, txtsep=';')
+
+scroll(filter_names, header = 'Filter names for new tver:')
 
 filter_names = pms_iter(data_source_folder,
              output_folder,

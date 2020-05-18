@@ -3493,7 +3493,7 @@ def change_single_geom(path_in, path_geom, path_out):
     feat_geom = lyr_geom.GetNextFeature()
     geom = feat_geom.GetGeometryRef()
     feat_out.SetGeometry(geom)
-    img_ds = gdal.Open(path_geom.replace('shp', 'tif'))
+    # img_ds = gdal.Open(path_geom.replace('shp', 'tif'))
     # feat_out.SetField('row', img_ds.RasterYSize)
     # feat_out.SetField('col', img_ds.RasterXSize)
     # feat_out.SetField('area_sqkm', round(geom.Area(), 2))

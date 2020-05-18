@@ -32,8 +32,8 @@ def filter_geojson(path_in, field, vals, path_out):
     new_ds = None
 
 
-dir_in = r'd:\terratech\Krym_areas\rgbn_fin'
-dir_out = r'd:\terratech\export\krym_resurs_pms'
+dir_in = r'g:\rks\DE\proc\kanopus\Tatarstan'
+dir_out = r'd:\terratech\export\Tatarstan_pms'
 
 if os.path.exists(dir_in + '\\pms'):
     pms_path = dir_in + '\\pms'
@@ -55,10 +55,13 @@ path_dict = {'pms': pms_path}
 for anc in ['rgb', 'ql', 'img']:
     if os.path.exists('%s\\%s' % (dir_in, anc)):
         path_dict[anc] = '%s\\%s' % (dir_in, anc)
+path_dict['json'] = r'g:\rks\DE\proc\kanopus\Tatarstan\102_2020_118_Tatarstan_fullcover.json'
 
-for file in os.listdir(dir_in):
-    if file.endswith('json'):
-        path_dict['json'] = '%s\\%s' % (dir_in, file)
+# for file in os.listdir(dir_in):
+    # if file.endswith('json'):
+        # path_dict['json'] = '%s\\%s' % (dir_in, file)
+
+# path_geom_list = folder_paths(r'd:\terratech\Krym_areas\cityareas', 1, 'shp')
 
 print(path_dict)
 
@@ -70,7 +73,7 @@ for id in id_list:
     suredir(id_dir)
     for key in path_dict:
         if key == 'pms':
-            # continue
+            continue
             name = (id + '.tif')
             try:
                 shutil.copyfile('%s\\%s' % (path_dict[key], name),
@@ -78,9 +81,19 @@ for id in id_list:
             except:
                 err_list.append(name)
         elif key == 'json':
+            continue
             name = id + '.json'
             path_out = '%s\\%s' % (id_dir, name)
             filter_dataset_by_col(path_dict['json'], 'id', id, path_out=path_out)
+            # tshp = tempname('json')
+            # names = id.split('__')
+            # filter_dataset_by_col(path_dict['json'], 'id', names[0], path_out=tshp)
+            # path_geom = None
+            # for path in path_geom_list:
+                # if names[-1] in path:
+                    # path_geom = path
+                    # break
+            # change_single_geom(tshp, path_geom, path_out)
             json_fix_datetime(path_out)
             try:
                 # filter_geojson(path_dict['json'], 'id', id, '%s\\%s' % (id_dir, name))
@@ -90,11 +103,14 @@ for id in id_list:
                 # filter_geojson(path_dict['json'], 'id', id, '%s\\%s' % (id_dir, name))
 
         else:
-            continue
+            # continue
             name = '%s.%s.tif' % (id, key.upper())
             try:
-                shutil.copyfile('%s\\%s' % (path_dict[key], name),
-                                '%s\\%s' % (id_dir, name))
+                # shutil.copyfile('%s\\%s' % (path_dict[key], name),
+                                # '%s\\%s' % (id_dir, name))
+                copydeflate('%s\\%s' % (path_dict[key], name),
+                            '%s\\%s' % (id_dir, name)
+                            )
             except:
                 err_list.append(name)
 

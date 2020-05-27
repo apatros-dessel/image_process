@@ -444,7 +444,8 @@ class process(object):
                 feat = ascene.json_feat(lyr_defn)
                 lyr_out.CreateFeature(feat)
                 print('Metadata written: {}'.format(ascene.meta.id))
-
+        # print(len(lyr_out))
+        # for feat in lyr_out: print(feat.GetGeometryRef().ExportToWkt())
         ds_out = None
 
         return 0

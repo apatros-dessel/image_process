@@ -503,11 +503,11 @@ def raster2raster(path2bands, path2export, path2target=None,  method = gdal.GRA_
     dt = t_raster.GetRasterBand(1).DataType
     ds = create_virtual_dataset(t_proj, t_trans, t_shape, 0)
 
-    print('Raster created')
+    # print('Raster created')
 
     for bandpath in path2bands:
         band2raster(bandpath, ds, method, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata)
-        print('Band written: {}'.format(bandpath))
+        # print('Band written: {}'.format(bandpath))
 
     options = gdal_options(compress=compress)
     # scroll(options)
@@ -1193,9 +1193,6 @@ class MultiBandpath(list):
         assert isinstance(bandpaths, list)
         self.check = True
         for i, bandpath_tuple in enumerate(bandpaths):
-            while len(self) <= i:
-                self.append(None)
-            print(len(self))
             try:
                 self[i] = Bandpath(bandpath_tuple)
             except:
@@ -1225,6 +1222,9 @@ def RasterMultiBandpath(raster_path, band_list):
     for band in band_list:
         bandpaths.append((raster_path, band))
     return MultiBandpath(bandpaths)
+
+
+
 
 def GetRasterPercentiles(raster_path_list, min_percent = 0.02, max_percent = 0.98,
                          band_num_list = [1,2,3], nodata = 0):
@@ -3493,7 +3493,7 @@ def change_single_geom(path_in, path_geom, path_out):
     feat_geom = lyr_geom.GetNextFeature()
     geom = feat_geom.GetGeometryRef()
     feat_out.SetGeometry(geom)
-    # img_ds = gdal.Open(path_geom.replace('shp', 'tif'))
+    img_ds = gdal.Open(path_geom.replace('shp', 'tif'))
     # feat_out.SetField('row', img_ds.RasterYSize)
     # feat_out.SetField('col', img_ds.RasterXSize)
     # feat_out.SetField('area_sqkm', round(geom.Area(), 2))

@@ -408,6 +408,14 @@ def fullpath(folder, file, ext=None):
         ext = ('.' + str(ext).replace('.', ''))
     return r'{}\{}{}'.format(folder, file, ext)
 
+# Splits path to folder, name and extension
+def split3(path):
+    if os.path.isdir(path):
+        return path, '', ''
+    folder, file = os.path.split(path)
+    name, ext = os.path.splitext(file)
+    return folder, name, ext
+
 # Creates new name to avoid same names as in the list
 def newname2(name, name_list, update_list=False):
 

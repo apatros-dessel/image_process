@@ -303,6 +303,12 @@ def replace_in_list(orig_list, x, y):
         new_list.insert(y)
     return new_list
 
+# Change elements in list using any function
+def do_list(list_, function):
+    for i, j in list_:
+        list_[i] = function(j)
+    return list_
+
 # Processes the iter_list created by iter_list() to return list of values of a proper kind
 def iter_return(iter_list, data='text', attrib=None):
     if isinstance(data, int):

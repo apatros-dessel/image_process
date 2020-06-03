@@ -1980,6 +1980,63 @@ def MakeQuicklook(path_in, path_out, epsg = None, pixelsize = None, method = gda
 
     return 0
 
+def MakeQuickRGB(path_in, path_out, epsg = None, pixelsize = None, method = gdal.GRA_Average, overwrite = True):
+
+    if check_exist(path_out, ignore=overwrite):
+        return 1
+
+    ds_in = gdal.Open(path_in)
+
+    if ds_in is None:
+        return 1
+
+    srs_in = get_srs(ds_in)
+    srs_out = get_srs(epsg)
+
+    if srs_out.IsGeographic():
+        pixelsize = pixelsize / 50000
+
+    if srs_in != srs_out:
+        geotransform = ds_in.GetGeoTransform()
+        x_res = geotransform[1]
+        y_res = geotransform[5]
+        # print(srs_out.ExportToWkt())
+        # print(srs_in.ExportToWkt())
+        t_raster_base = gdal.AutoCreateWarpedVRT(ds_in, srs_out.ExportToWkt(), srs_in.ExportToWkt())
+        x_0, x, x_ang, y_0, y_ang, y = t_raster_base.GetGeoTransform()
+        newXcount = int(math.ceil(t_raster_base.RasterXSize * (x / pixelsize)))
+        newYcount = - int(math.ceil(t_raster_base.RasterYSize * (y / pixelsize)))
+        # print(newXcount, newYcount)
+    else:
+        x_0, x, x_ang, y_0, y_ang, y = ds_in.GetGeoTransform()
+
+    options = {
+        'dt':       ds_in.GetRasterBand(1).DataType,
+        'prj':      srs_out.ExportToWkt(),
+        'geotrans': (x_0, pixelsize, x_ang, y_0, y_ang, - pixelsize),
+        'bandnum':  ds_in.RasterCount,
+        'xsize':    newXcount,
+        'ysize':    newYcount,
+        'compress': 'DEFLATE',
+    }
+
+    needRGB = ds_in.GetRasterBand(1).DataType
+
+    if needRGB1:
+        tpath = tempname('tif')
+        ds_out = ds(tpath, options=options, editable=True)
+    else:
+        ds_out = ds(path_out, options=options, editable=True)
+
+    gdal.ReprojectImage(ds_in, ds_out, None, None, method)
+
+    ds_out = None
+
+    if needRGB:
+        RasterToImage3(tpath, path_out)
+
+    return 0
+
 def MultiplyRasterBand(bandpath_in, bandpath_out, multiplicator, dt = None, compress = None, overwrite = True):
 
     path_in, bandnum_in = bandpath_in

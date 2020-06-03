@@ -50,7 +50,7 @@ def granule_metadata_json(path_granule, path_cover_meta, path_out, raster_path):
 path_in = r'\\tt-nas-archive\Dockstation-HDD\102_2020_108_PSH' # Путь к исходным сценам Ресурс-П
 raster_fullcover = r'\\tt-nas-archive\Dockstation-HDD\102_2020_108_PSH\Resurs_krym_new_fullcover.json'      # Путь к файлу покрытия Ресурс-П
 vector_path = r'\\tt-nas-archive\Dockstation-HDD\granules_grid.shp'                                         # Путь кфайлу сетки гранул
-out_dir = r'\\tt-nas-archive\Dockstation-HDD\102_2020_108_PSH_GRN'                                          # Путь к готовым гранулам
+out_dir = r'\\tt-nas-archive\NAS-Archive-2TB-4\resursp_grn'                                          # Путь к готовым гранулам
 filter_path = r'e:\\temp\datatable.xls'       # Путь к файлу фильтра (txt или xls)
 compid = 'Serg_work'    # Id данного компьютера (нужно прописывать вручную)
 
@@ -85,7 +85,7 @@ suredir(out_dir)
 
 loop = OrderedDict()
 
-# filter = [r'RP1_27955_05_GEOTON_20180624_081010_081022.SCN2.PMS.L2']
+filter = None
 scroll(filter, header='Filter:')
 
 # sys.exit()
@@ -120,17 +120,17 @@ for i, id in enumerate(loop):
         granule_id = feat.GetField('granule')
         if feat.GetGeometryRef().Intersects(cover_geom):
             granule_path = r'{}//{}.GRN{}.tif'.format(out_dir, id, granule_id)
-            if os.path.exists(granule_path):
-                print('File already exists %s' % granule_path)
-                continue
             tpath = filter_dataset_by_col(vector_path, 'granule', granule_id, path_out=tempname('json'))
             tpath_meta = filter_dataset_by_col(raster_cover_path, 'id', id, path_out=tempname('json'))
-            crop_bigraster_gdal(raster_path, tpath, granule_path)
-            print('\n %i Granule written: %s.GRN%s' % (i, id, granule_id))
-            # granule_meta_path = r'{}//{}.GRN{}.json'.format(out_dir, id, granule_id)
-            # if os.path.exists(granule_meta_path):
-                # print('File already exists %s' % granule_meta_path)
-                # continue
-            # granule_metadata_json(tpath, tpath_meta, granule_meta_path, granule_path)
-            # json_fix_datetime(granule_meta_path)
-            # print('%i Granule metadata written: %s.GRN%s \n' % (i, id, granule_id))
+            if os.path.exists(granule_path):
+                print('File already exists %s' % granule_path)
+            else:
+                crop_bigraster_gdal(raster_path, tpath, granule_path)
+                print('\n %i Granule written: %s.GRN%s' % (i, id, granule_id))
+            granule_meta_path = r'{}//{}.GRN{}.json'.format(out_dir, id, granule_id)
+            if os.path.exists(granule_meta_path):
+                print('File already exists %s' % granule_meta_path)
+                continue
+            granule_metadata_json(tpath, tpath_meta, granule_meta_path, granule_path)
+            json_fix_datetime(granule_meta_path)
+            print('%i Granule metadata written: %s.GRN%s \n' % (i, id, granule_id))

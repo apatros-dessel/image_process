@@ -12,6 +12,7 @@ except:
 import numpy as np
 import math
 import cv2
+import json
 
 from tools import *
 from raster_data import RasterData, MultiRasterData
@@ -52,6 +53,31 @@ ogr_dt_dict = {
     #                   12,     # ogr.OFTInteger64
     #                   13,     # ogr.OFTInteger64List
 }
+
+# An OrderedDict of fields for JSON cover file
+fields_dict = OrderedDict()
+fields_dict['id'] = {'type_id': 4}
+fields_dict['id_s'] = {'type_id': 4}
+fields_dict['id_neuro'] = {'type_id': 4}
+fields_dict['datetime'] = {'type_id': 4}
+fields_dict['clouds'] = {'type_id': 2}
+fields_dict['sun_elev'] = {'type_id': 2}
+fields_dict['sun_azim'] = {'type_id': 2}
+fields_dict['sat_id'] = {'type_id': 4}
+fields_dict['sat_view'] = {'type_id': 2}
+fields_dict['sat_azim'] = {'type_id': 2}
+fields_dict['channels'] = {'type_id': 0}
+fields_dict['type'] = {'type_id': 4}
+fields_dict['format'] = {'type_id': 4}
+fields_dict['rows'] = {'type_id': 0}
+fields_dict['cols'] = {'type_id': 0}
+fields_dict['epsg_dat'] = {'type_id': 0}
+fields_dict['u_size'] = {'type_id': 4}
+fields_dict['x_size'] = {'type_id': 2}
+fields_dict['y_size'] = {'type_id': 2}
+fields_dict['level'] = {'type_id': 4}
+fields_dict['area'] = {'type_id': 2}
+
 
 # Define ogr data type
 def ogr_dt(dtype):
@@ -124,15 +150,13 @@ def vec_to_crs(ogr_dataset, t_crs, export_path):
     if v_crs.ExportToUSGS() != t_crs.ExportToUSGS():
         coordTrans = osr.CoordinateTransformation(v_crs, t_crs)
         driver = ogr.GetDriverByName('ESRI Shapefile')
-        # export_path = export_path.decode('cp1251')
-        # print(export_path)
-        # folder = os.path.split(export_path)[0]
-        # if not os.path.exists(folder):
-            # os.makedirs(folder)
         if os.path.exists(export_path): # the shapefile is created in the cwd
             driver.DeleteDataSource(export_path)
         outDataSet = driver.CreateDataSource(export_path)
-        outLayer = outDataSet.CreateLayer("temp", geom_type=ogr_layer.GetGeomType())
+        outLayer = outDataSet.CreateLayer('', geom_type=ogr_layer.GetGeomType())
+        lyr_defn = ogr_layer.GetLayerDefn()
+        for i in range(0, lyr_defn.GetFieldCount()):
+            outLayer.CreateField(lyr_defn.GetFieldDefn(i))
         outLayerDefn = outLayer.GetLayerDefn()
         feat = ogr_layer.GetNextFeature()
         while feat:
@@ -200,7 +224,7 @@ def extent_mask(array_shape, geotrans_0, extent):
     return array_shape_new, tuple(geotrans), limits
 
 # Returns a mask as np.array of np.bool
-def vector_mask(layer, array_shape, geotrans):
+def vector_mask_0(layer, array_shape, geotrans):
     y_res, x_res = array_shape
     target_ds = gdal.GetDriverByName('MEM').Create('', x_res, y_res, 1, gdal.GDT_Byte)
     target_ds.SetGeoTransform(geotrans)
@@ -276,7 +300,7 @@ def clip_raster(path2raster, path2vector, export_path = None, byfeatures = True,
     y_lw_lim, y_up_lim, x_lw_lim, x_up_lim = limits
     raster_array = raster_array[:, y_lw_lim: y_up_lim, x_lw_lim: x_up_lim]
     if byfeatures:
-        mask_vector = vector_mask(outLayer, t_shape, geotrans)
+        mask_vector = vector_mask_0(outLayer, t_shape, geotrans)
         raster_array[:, mask_vector == exclude] = nodata
     param = raster_array, crs_wkt, tuple(geotrans), raster_array.dtype, nodata
     if export_path is None:
@@ -347,7 +371,7 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
 
 
 # Create shapefile vector dataset
-def shp(path2shp, editable = False):
+def shp(path2shp, editable = False, copy_ds = None):
 
     gdal.UseExceptions()
 
@@ -360,9 +384,23 @@ def shp(path2shp, editable = False):
         dst_layername = path2shp
         path2shp = path2shp + ".shp"
 
+    if copy_ds is not None:
+        cds, lds = get_lyr_by_path(copy_ds)
+        srs = lds.GetSpatialRef()
+        defn = lds.GetLayerDefn()
+        geom_type = lds.GetGeomType()
+    else:
+        srs = None
+        defn = None
+        geom_type = None
+
     drv = ogr.GetDriverByName("ESRI Shapefile")
     dst_ds = drv.CreateDataSource(path2shp)
-    dst_layer = dst_ds.CreateLayer(dst_layername, srs=None)
+    dst_layer = dst_ds.CreateLayer(dst_layername, srs=srs, geom_type=geom_type)
+
+    if defn is not None:
+        for i in range(0, lds.GetLayerDefn().GetFieldCount()):
+            dst_layer.CreateField(lds.GetLayerDefn().GetFieldDefn(i))
 
     if not editable:
         dst_ds = None
@@ -370,7 +408,7 @@ def shp(path2shp, editable = False):
     return dst_ds
 
 # Create GeoJSON vector dataset
-def json(path2json, editable = False):
+def json(path2json, editable = False, srs = None):
 
     gdal.UseExceptions()
 
@@ -389,7 +427,7 @@ def json(path2json, editable = False):
         drv.DeleteDataSource(path2json)
 
     dst_ds = drv.CreateDataSource(path2json)
-    dst_layer = dst_ds.CreateLayer('', srs=None)
+    dst_layer = dst_ds.CreateLayer('', srs=srs)
 
     if not editable:
         dst_ds = None
@@ -432,7 +470,11 @@ def band2raster(bandpath, t_raster, method, exclude_nodata = True, enforce_nodat
         print('Band number exeeds RasterCount, the last band is taken')
         s_band_num = s_raster.RasterCount
     s_band_array = s_raster.GetRasterBand(s_band_num).ReadAsArray()
-    dtype = s_raster.GetRasterBand(s_band_num).DataType
+    # dtype = s_raster.GetRasterBand(s_band_num).DataType
+    if t_raster.RasterCount == 0:
+        dtype = s_raster.GetRasterBand(s_band_num).DataType
+    else:
+        dtype = t_raster.GetRasterBand(1).DataType
     if make_mask:
         mask_array = reproject_band((s_band_array != 0).astype(np.int8), s_proj, s_trans, t_proj, t_trans, t_shape, dtype, method).astype(bool)
     t_band_array = reproject_band(s_band_array, s_proj, s_trans,t_proj, t_trans, t_shape, dtype, method)
@@ -470,10 +512,14 @@ def raster2raster(path2bands, path2export, path2target=None,  method = gdal.GRA_
     t_proj = t_raster.GetProjection()
     t_trans = t_raster.GetGeoTransform()
     t_shape = (t_raster.RasterYSize, t_raster.RasterXSize)
+    dt = t_raster.GetRasterBand(1).DataType
     ds = create_virtual_dataset(t_proj, t_trans, t_shape, 0)
+
+    print('Raster created')
 
     for bandpath in path2bands:
         band2raster(bandpath, ds, method, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata)
+        print('Band written: {}'.format(bandpath))
 
     options = gdal_options(compress=compress)
     # scroll(options)
@@ -760,6 +806,20 @@ def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_
 
     if arr is None:
         return 1
+
+    if classify_table is None:
+        vals = np.unique(arr)
+        if len(vals)>255:
+            classify_table = [(0, None, 1)]
+        elif len(vals)<=1:
+            return 1
+        else:
+            classify_table = []
+            for v in vals:
+                if v != 0:
+                    classify_table.append((v, v, v))
+        # print(vals)
+        # scroll(classify_table, header = split3(bandpath_in[0])[1])
 
     data_ds = ds(globals()['temp_dir_list'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
     mask_arr = np.zeros(arr.shape).astype(bool)
@@ -1159,6 +1219,9 @@ class MultiBandpath(list):
         assert isinstance(bandpaths, list)
         self.check = True
         for i, bandpath_tuple in enumerate(bandpaths):
+            while len(self) <= i:
+                self.append(None)
+            # print(len(self))
             try:
                 self[i] = Bandpath(bandpath_tuple)
             except:
@@ -1188,9 +1251,6 @@ def RasterMultiBandpath(raster_path, band_list):
     for band in band_list:
         bandpaths.append((raster_path, band))
     return MultiBandpath(bandpaths)
-
-
-
 
 def GetRasterPercentiles(raster_path_list, min_percent = 0.02, max_percent = 0.98,
                          band_num_list = [1,2,3], nodata = 0):
@@ -1602,7 +1662,8 @@ def get_srs(ds):
     elif isinstance(ds, osr.SpatialReference):
         srs = ds
     else:
-        print('Unknown input data')
+        print('Unknown srs input data')
+        scroll(ds)
         srs = None
     return srs
 
@@ -1982,56 +2043,58 @@ def MultiplyRasterBand(bandpath_in, bandpath_out, multiplicator, dt = None, comp
 
 
 # Unites geometry from shapefiles
-def Unite(path2shp_list, path2export, proj=None, overwrite=True):
+def Unite(path2shp_list, path2export, proj=None, deafault_srs=4326, overwrite=True):
 
     if check_exist(path2export, ignore=overwrite):
         return 1
 
     t_geom = None
 
+    path2shp_list = obj2list(path2shp_list)
+
+    scroll(path2shp_list)
+
     for path2shp in path2shp_list:
 
-        s_ds = ogr.Open(path2shp)
-
-        if s_ds is None:
-            continue
-
-        s_lyr = s_ds.GetLayer()
+        s_ds, s_lyr = get_lyr_by_path(path2shp)
 
         if s_lyr is None:
+            print('Layer not found: {}'.format(path2shp))
             continue
 
+        s_srs = get_srs(s_lyr)
+
+        if s_srs is None:
+            print('srs not found for: {}'.format(path2shp))
+            s_srs = get_srs(deafault_srs)
+
         if proj is None:
-            proj = s_lyr.GetSpatialRef().ExportToWkt()
+            t_srs = s_srs
+        else:
+            t_srs = get_srs(proj)
+
+        proj = t_srs.ExportToWkt()
 
         for feat in s_ds.GetLayer():
 
+            s_geom = feat.GetGeometryRef()
+
             if t_geom is None:
-                o_feat = feat
-                t_geom = o_feat.GetGeometryRef()
+                t_feat = feat
+                t_geom = s_geom
             else:
-                # o_geom = t_geom
-                n_geom = feat.GetGeometryRef()
-                # print('in')
-                t_geom = t_geom.Union(n_geom)
-                # print('out')
+                t_geom = t_geom.Union(s_geom)
+        print(proj)
+        if ds_match(s_srs, t_srs):
+            return Geom2Shape(path2export, t_geom, proj=proj)
+        else:
+            t_path = tempname('shp')
+            Geom2Shape(t_path, t_geom, proj=s_srs.ExportToWkt())
+            return ReprojectVector(t_path, path2export, t_srs, overwrite=True)
 
-    return Geom2Shape(path2export, t_geom, proj=proj)
+        # print(t_geom.ExportToWkt())
 
-    # t_feat_defn = ogr.FeatureDefn()
-    t_feat = ogr.Feature(ogr.FeatureDefn())
-    t_feat.SetGeometry(t_geom)
-
-    shp_ds = shp(path2export, editable=True)
-    lyr = shp_ds.GetLayer()
-    lyr.CreateFeature(t_feat)
-
-    shp_ds = None
-
-    # Write projection
-    write_prj(path2export[:-4] + '.prj', proj)
-
-    return 0
+    # return Geom2Shape(path2export, t_geom, proj=proj)
 
 def ShapesIntersect(path2shp1, path2shp2):
 
@@ -2065,6 +2128,50 @@ def ShapesIntersect(path2shp1, path2shp2):
                 return True
 
     return False
+
+def Intersection(path2shp1, path2shp2, path_out):
+
+    # print(path2shp1, path2shp2)
+
+    shp1_ds, shp1_lyr = get_lyr_by_path(path2shp1)
+    if shp1_lyr is None:
+        # print('Cannot open shapefile: {}'.format(path2shp1))
+        return 1
+
+    shp2_ds, shp2_lyr = get_lyr_by_path(path2shp2)
+    if shp2_lyr is None:
+        # print('Cannot open shapefile: {}'.format(path2shp2))
+        return 1
+
+    if shp1_lyr.GetSpatialRef() != shp2_lyr.GetSpatialRef():
+        shp2_ds = vec_to_crs(shp2_ds, shp1_lyr.GetSpatialRef(), tempname('shp'))
+        shp2_lyr = shp2_ds.GetLayer()
+
+    print(shp1_lyr.GetExtent())
+    print(shp2_lyr.GetExtent())
+
+    feat1 = shp1_lyr.GetNextFeature()
+    geom = feat1.GetGeometryRef()
+
+    for feat1 in shp1_lyr:
+        geom = geom.Intersection(feat1.GetGeometryRef())
+
+    shp2_lyr.ResetReading()
+    for feat2 in shp2_lyr:
+        geom2 = feat2.GetGeometryRef()
+        # print(geom1.ExportToWkt(), geom2.ExportToWkt())
+        geom = geom.Intersection(geom2)
+    if path_out.endswith('json'):
+        dout = json(path_out, srs=shp1_lyr.GetSpatialRef())
+    else:
+        dout = shp(path_out, copy_ds=path2shp1)
+    dout, lout = get_lyr_by_path(path_out, 1)
+    feat = ogr.Feature(shp1_lyr.GetLayerDefn())
+    feat.SetGeometry(geom)
+    lout.CreateFeature(feat)
+    dout = None
+
+    return 0
 
 # Returns a matrix of intersections between features in two shapefiles
 def intersect_array(shp1, shp2):
@@ -2133,6 +2240,7 @@ def IntersectCovers(path2shp1, path2shp2, path2export, proj=None, overwrite=True
 
 # Writes a single geometry object to a single shapefile without attributes
 def Geom2Shape(path2export, geom, proj=None):
+    print('boo')
     t_feat = ogr.Feature(ogr.FeatureDefn())
     t_feat.SetGeometry(geom)
     shp_ds = shp(path2export, editable=True)
@@ -3111,6 +3219,11 @@ def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, va
     if check_exist(path_out, ignore=overwrite):
         return 1
 
+    ds_in_vector, lyr_in_vector = get_lyr_by_path(path_in_vector)
+
+    if lyr_in_vector is None:
+        return 1
+
     options = {
         'dt': 1,
         'nodata': 0,
@@ -3119,10 +3232,6 @@ def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, va
     }
 
     t_ds = ds(path=path_out, copypath=path_in_raster, options=options, editable=True, overwrite=overwrite)
-    ds_in_vector, lyr_in_vector = get_lyr_by_path(path_in_vector)
-
-    if lyr_in_vector is None:
-        return 1
 
     if value_colname is None:
         rasterize_options = None
@@ -3247,32 +3356,42 @@ class NewFieldsDict():
 
         return feat
 
+# Fixes error in GeoJSON datetime format
+def json_fix_datetime(file, datetimecol='datetime'):
+    data = open(file, 'r').read()
+    s_dtime = re.search(r'"{}": "[^"]+"'.format(datetimecol), data)
+    if s_dtime:
+        dtime = s_dtime.group()[13:-1]
+        new_dtime = dtime.replace(u'\\/', '-').replace(' ', 'T')
+        new_data = data.replace(dtime, new_dtime)
+        if new_data is not None:
+            json = open(file, 'w')
+            json.write(new_data)
+            json = None
+
 def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None, unique_vals = False):
 
-    ds = ogr.Open(path_in)
+    ds_in, lyr_in = get_lyr_by_path(path_in, 1)
     vals = obj2list(vals)
 
     if path_out is None:
-        path_out = globals()['temp_dir_list'].create('shp')
+        path_out = tempname('json')
 
     if path_out.endswith('.json'):
-        new_ds = json(path_out, 1)
+        new_ds = json(path_out, srs=lyr_in.GetSpatialRef())
     else:
-        new_ds = shp(path_out, 1)
-    # new_ds = geodata.shp(globals()['temp_dir_list'].create('shp'), 1)
-    new_lyr = new_ds.GetLayer()
-    lyr = ds.GetLayer()
-    # new_lyr.AlterFieldDefn(lyr.GetLayerDefn())
-    lyr_defn = lyr.GetLayerDefn()
+        new_ds = shp(path_out)
 
-    for key in lyr.GetNextFeature().keys():
+    new_ds, new_lyr = get_lyr_by_path(path_out, 1)
+    lyr_defn = lyr_in.GetLayerDefn()
+
+    for key in lyr_in.GetNextFeature().keys():
         new_lyr.CreateField(lyr_defn.GetFieldDefn(lyr_defn.GetFieldIndex(key)))
 
-    # to_del = {}
-    lyr.ResetReading()
+    lyr_in.ResetReading()
 
-    for feat in lyr:
-        # print(feat.GetField(feat.GetFieldIndex(field)))
+    for feat in lyr_in:
+
         feat_val = feat.GetField(feat.GetFieldIndex(field))
 
         if function is not None:
@@ -3288,9 +3407,10 @@ def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None
             if unique_vals:
                 vals.pop(vals.index(feat_val))
 
-    new_ds = None
+    if path_out.endswith('.shp'):
+        write_prj(path_out[:-4] + '.prj', lyr_in.GetSpatialRef().ExportToWkt())
 
-    # write_prj(path_out[:-4] + '.prj', lyr.GetSpatialRef().ExportToWkt())
+    new_ds = None
 
     return path_out
 
@@ -3378,7 +3498,7 @@ def FilterShapeByColumn(path2shp, path2export, colname, colvals):
     driver = ogr.GetDriverByName('GeoJSON')
     driver.Create(path2export)
 
-def copydeflate(path_in, path_out):
+def copydeflate(path_in, path_out, bigtiff = False, tiled = False):
 
     ds_in = gdal.Open(path_in)
 
@@ -3391,12 +3511,19 @@ def copydeflate(path_in, path_out):
     if not os.path.exists(dir_out):
         os.makedirs(dir_out)
 
+    options = ['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9']
+    if bigtiff:
+        options.append('BIGTIFF=YES')
+    if tiled:
+        options.append('TILED=YES')
+
     driver = gdal.GetDriverByName('GTiff')
-    ds_out = driver.CreateCopy(path_out, ds_in, options=['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9'])
+    ds_out = driver.CreateCopy(path_out, ds_in, options=options)
     ds_out = None
     print('File written {}'.format(path_out))
 
     return 0
+
 
 def AddAlphaChannel(path2raster, use_raster_nodata=True, set_nodata=None):
 
@@ -3428,26 +3555,6 @@ def AddAlphaChannel(path2raster, use_raster_nodata=True, set_nodata=None):
         print('Error creating alpha channel')
         return 1
 
-def copydeflate(path_in, path_out):
-
-    ds_in = gdal.Open(path_in)
-
-    if ds_in is None:
-        print('Cannot open file {}'.format(path_in))
-        return 1
-
-    dir_out = os.path.split(path_out)[0]
-
-    if not os.path.exists(dir_out):
-        os.makedirs(dir_out)
-
-    driver = gdal.GetDriverByName('GTiff')
-    ds_out = driver.CreateCopy(path_out, ds_in, options=['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9'])
-    ds_out = None
-    # print('File written {}'.format(path_out))
-
-    return 0
-
 # Changes geometry in a
 def change_single_geom(path_in, path_geom, path_out):
     ds_in, lyr_in = get_lyr_by_path(path_in)
@@ -3460,7 +3567,7 @@ def change_single_geom(path_in, path_geom, path_out):
     feat_geom = lyr_geom.GetNextFeature()
     geom = feat_geom.GetGeometryRef()
     feat_out.SetGeometry(geom)
-    img_ds = gdal.Open(path_geom.replace('shp', 'tif'))
+    # img_ds = gdal.Open(path_geom.replace('shp', 'tif'))
     # feat_out.SetField('row', img_ds.RasterYSize)
     # feat_out.SetField('col', img_ds.RasterXSize)
     # feat_out.SetField('area_sqkm', round(geom.Area(), 2))
@@ -3629,5 +3736,133 @@ def ReprojectVector(path_in, path_out, epsg, overwrite = True):
 
     return 0
 
+def get_pms_json_from_ms(path_cover, path_out, pms_id, pms_raster_path=''):
 
+    if os.path.exists(path_out):
+        old_ds, old_lyr = get_lyr_by_path(path_out)
+        if len(old_lyr) > 0:
+            return 0
 
+    print('Original PMS data not found for %s, collecting data from MS' % pms_id)
+
+    if not os.path.exists(path_cover):
+        print('Cannot find path: {}'.format(path_cover))
+        return 1
+
+    ms_id = pms_id.replace('.PMS', '.MS')
+    filter_dataset_by_col(path_cover, 'id', ms_id, path_out=path_out)
+
+    pms_ds, pms_lyr = get_lyr_by_path(path_out, 1)
+
+    feat = pms_lyr.GetNextFeature()
+    feat.SetField('id', pms_id)
+    feat.SetField('id_neuro', feat.GetField('id_neuro') + 'PMS')
+    feat.SetField('type', 'PMS')
+
+    if os.path.exists(pms_raster_path):
+        pms_data = gdal.Open(pms_raster_path)
+    else:
+        pms_data = None
+    if pms_data is not None:
+        feat.SetField('rows', int(pms_data.GetYSize))
+        feat.SetField('cols', int(pms_data.GetXSize))
+        feat.SetField('x_size', float(pms_data.GetGeoTransform[0]))
+        feat.SetField('y_size', -float(pms_data.GetGeoTransform[5]))
+    else:
+        pan_id = pms_id.replace('.PMS', '.PAN')
+        tpan_path = filter_dataset_by_col(path_cover, 'id', pan_id)
+        pan_ds, pan_lyr = get_lyr_by_path(tpan_path)
+        pan_feat = pan_lyr.GetNextFeature()
+        feat.SetField('rows', int(pan_feat.GetField('rows')))
+        feat.SetField('cols', int(pan_feat.GetField('cols')))
+        feat.SetField('x_size', float(pan_feat.GetField('x_size')))
+        feat.SetField('y_size', float(pan_feat.GetField('y_size')))
+    # feat.SetField('area', None)
+
+    pms_lyr.SetFeature(feat)
+
+    pms_ds = None
+
+    print('PMS data successfully written for for %s' % pms_id)
+
+    return 0
+
+class VectorFeatureData:
+
+    def __init__(self, vec_list):
+        self.vec_list = obj2list(vec_list)
+        self.reset()
+
+    def __iter__(self):
+        self.reset()
+        return self
+
+    def reset(self):
+        self.vec_num = 0
+        self.feat_num = 0
+        self.data_source = None
+        self.layer = None
+        self.layer_len = 0
+        return self
+
+    def reset_vec(self):
+        self.vec_num += 1
+        self.feat_num = 0
+        self.data_source = None
+        self.layer = None
+        self.layer_len = 0
+        return self
+
+    def __next__(self):
+        feat = None
+        while feat is None:
+            while self.layer is None:
+                try:
+                    vec = self.vec_list[self.vec_num]
+                except IndexError:
+                    raise StopIteration
+                self.data_source, self.layer = get_lyr_by_path(vec)
+                if self.layer is None:
+                    self.reset_vec()
+                else:
+                    self.layer_len = self.layer.GetFeatureCount()
+            if self.feat_num < self.layer_len:
+                feat = self.layer.GetFeature(self.feat_num)
+            if feat is None:
+                self.reset_vec()
+            else:
+                self.feat_num += 1
+                return feat
+
+    def next(self):
+        return self.__next__()
+
+def SaveRasterBands(path_in, bands_list, path_out, options = {}, overwrite = True):
+
+    ds_in = gdal.Open(path_in)
+    if ds_in is None:
+        print('File not found: %s' % path_in)
+        return 1
+
+    if check_exist(path_out, overwrite):
+        return 1
+
+    options['bandnum'] = len(bands_list)
+    ds_out = ds(path=path_out, copypath=path_in, options=options, editable=True, overwrite=overwrite)
+
+    for i, bandnum in enumerate(bands_list):
+        ds_out.GetRasterBand(i+1).WriteArray(ds_in.GetRasterBand(bandnum).ReadAsArray())
+
+    ds_out = None
+
+    return 0
+
+def RasterizeVector2(vec_path, img, msk_out, value_colname=None, compress=None, overwrite=True):
+    crs = get_srs(gdal.Open(img))
+    if not ds_match(ogr.Open(vec_path), crs):
+        vec_reprojected = tempname('shp')
+        # print(vec_reprojected)
+        ds_new = vec_to_crs(ogr.Open(vec_path), crs, vec_reprojected)
+        if os.path.exists(vec_reprojected):
+            vec_path = vec_reprojected
+    RasterizeVector(vec_path, img, msk_out, value_colname=value_colname, compress=compress, overwrite=overwrite)

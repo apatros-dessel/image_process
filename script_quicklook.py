@@ -2,31 +2,57 @@
 
 from geodata import *
 
-dir_in = r'd:\kanopus_new\rgb\Tatarstan'
-dir_out = r'd:\kanopus_new\quicklook\Tatarstan'
+dir_in = r'd:\terratech\resurs_test\RP1_29410_03_GEOTON_20180927_081047_081105.SCN2.PMS.L2'
+
+make_rgb = False
 
 path_in_list = folder_paths(dir_in, files=True, extension='tif')
-dir_out_3857 = fullpath(dir_out, '3857')
-if not os.path.exists(dir_out_3857):
-    os.makedirs(dir_out_3857)
-dir_out_img = fullpath(dir_out, 'img')
-if not os.path.exists(dir_out_img):
-    os.makedirs(dir_out_img)
 
 # scroll(path_in_list)
 
 for i, path_in in enumerate(path_in_list):
     # if not path_in.endswith('newRGB.tif'):
         # continue
-    if path_in.endswith('.tif'):
-        filename = os.path.split(path_in)[1]
-        try:
-            path_out = fullpath(dir_out_3857, filename)
-            res = MakeQuicklook(path_in, path_out, 3857, pixelsize=30, overwrite=False)
-            if res == 0:
-                QuicklookImage(path_out, fullpath(dir_out_img, filename))
-                print('{} File saved: {}'.format(i+1, filename))
+    if 'PMS.L2.tif' in path_in:
+        folder, filename = os.path.split(path_in)
+        filename_rgb = filename.replace('L2.tif', 'L2.RGB.tif')
+        path_rgb = os.path.join(folder, filename_rgb)
+        if make_rgb:
+            try:
+                res = RasterToImage3(path_in,
+                                             path_rgb,
+                                             method=2,
+                                             band_limits=[(0.01, 0.998), (0.01, 0.998), (0.01, 0.998)],
+                                             gamma=0.85,
+                                             exclude_nodata=True,
+                                             enforce_nodata=0,
+                                             band_order=[1, 2, 3],
+                                             GaussianBlur=False,
+                                             reprojectEPSG=3857,
+                                             reproject_method=gdal.GRA_Lanczos,
+                                             compress='DEFLATE',
+                                             overwrite=False,
+                                             alpha=True)
+            except:
+                res = 1
+            if res!=0:
+                print('Error making RGB: %s' % filename)
             else:
-                print('{} File not saved: {}'.format(i + 1, filename))
-        except:
-            print('{} File not saved: {}'.format(i+1, filename))
+                print('RGB written: %s' % filename)
+
+        if os.path.exists(path_rgb):
+            try:
+                filename_ql = filename.replace('L2.tif', 'L2.QL.tif')
+                path_ql = os.path.join(folder, filename_ql)
+                res = MakeQuicklook(path_rgb, path_ql, 3857, pixelsize=30, overwrite=False)
+                if res == 0:
+                    filename_img = filename.replace('L2.tif', 'L2.IMG.tif')
+                    path_img = os.path.join(folder, filename_img)
+                    QuicklookImage(path_ql, path_img)
+                    print('{} File saved: {}'.format(i + 1, filename))
+                else:
+                    print('{} File not saved: {}'.format(i + 1, filename))
+            except:
+                print('{} File not saved: {}'.format(i+1, filename))
+        else:
+            print('RGB file not found, cannot make quicklook: {}'.format(path_rgb))

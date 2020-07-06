@@ -185,7 +185,7 @@ class process(object):
 
     # Adds new path to self.input_list
     def add_scene(self, newpath, imsys):
-        #newscene = scene(path2scene)
+        newscene = scene(newpath, imsys)
         # print(newpath)
         try:
             newscene = scene(newpath, imsys)
@@ -244,6 +244,16 @@ class process(object):
         for ascene in self.scenes:
             ids_list.append(ascene.meta.id)
         return ids_list
+
+    # Filters scenes by id values
+    def filter_ids(self, id_part_dict):
+        proc_new = process()
+        for id in self.get_ids():
+            for id_part in id_part_dict:
+                if id_part in id:
+                    proc_new.input(self.get_scene(id).fullpath)
+                    break
+        return proc_new
 
     # Get scene by id
     def get_scene(self, scene_id):
@@ -312,6 +322,35 @@ class process(object):
 
         return None
 
+    def get_json_cover(self, vector_cover_path):
+
+        fields_dict = OrderedDict()
+        fields_dict['id'] = {'type_id': 4}
+        fields_dict['id_s'] = {'type_id': 4}
+        fields_dict['id_neuro'] = {'type_id': 4}
+        fields_dict['datetime'] = {'type_id': 4}
+        fields_dict['clouds'] = {'type_id': 2}
+        fields_dict['sun_elev'] = {'type_id': 2}
+        fields_dict['sun_azim'] = {'type_id': 2}
+        fields_dict['sat_id'] = {'type_id': 4}
+        fields_dict['sat_view'] = {'type_id': 2}
+        fields_dict['sat_azim'] = {'type_id': 2}
+        fields_dict['channels'] = {'type_id': 0}
+        fields_dict['type'] = {'type_id': 4}
+        fields_dict['format'] = {'type_id': 4}
+        fields_dict['rows'] = {'type_id': 0}
+        fields_dict['cols'] = {'type_id': 0}
+        fields_dict['epsg_dat'] = {'type_id': 0}
+        fields_dict['u_size'] = {'type_id': 0}
+        fields_dict['x_size'] = {'type_id': 2}
+        fields_dict['y_size'] = {'type_id': 2}
+        fields_dict['level'] = {'type_id': 4}
+        fields_dict['area'] = {'type_id': 2}
+
+        geodata.json_fields(vector_cover_path, geodata.ogr.wkbMultiPolygon, 4326, fields_dict)
+        ds_out, lyr_out = geodata.get_lyr_by_path(vector_cover_path, True)
+
+
     def get_vector_cover_json(self, vector_cover_path, attributes = []):
 
         ds_out = geodata.json(vector_cover_path, editable=True)
@@ -377,7 +416,39 @@ class process(object):
 
         return 0
 
+    # Returns json cover with standard set of fields from scenes metadata
+    def GetCoverJSON(self, vector_cover_path, epsg=4326):
 
+        fields_dict = globals()['geodata'].fields_dict
+
+        driver = geodata.ogr.GetDriverByName('GeoJSON')
+        ds_out = driver.CreateDataSource(vector_cover_path)
+
+        if epsg is not None:
+            srs = geodata.osr.SpatialReference()
+            srs.ImportFromEPSG(epsg)
+        else:
+            srs = None
+
+        lyr_out = ds_out.CreateLayer('', srs, geodata.ogr.wkbMultiPolygon)
+
+        for field_id in fields_dict:
+            field_params = fields_dict[field_id]
+            field_defn = geodata.ogr.FieldDefn(field_id, field_params['type_id'])
+            lyr_out.CreateField(field_defn)
+
+        lyr_defn = lyr_out.GetLayerDefn()
+
+        if len(self)>0:
+            for ascene in self.scenes:
+                feat = ascene.json_feat(lyr_defn)
+                lyr_out.CreateFeature(feat)
+                print('Metadata written: {}'.format(ascene.meta.id))
+        # print(len(lyr_out))
+        # for feat in lyr_out: print(feat.GetGeometryRef().ExportToWkt())
+        ds_out = None
+
+        return 0
 
     def get_change(self, old_scene_id, new_scene_id, intersection_mask = None):
 
@@ -559,6 +630,50 @@ class scene:
             return fullpath(self.path, self.meta.datamask)
         else:
             return None
+
+    # Returns a scene cover as a feature with standard set of attributes
+    def json_feat(self, lyr_defn):
+        feat = geodata.ogr.Feature(lyr_defn)
+        ds_mask, lyr_mask = geodata.get_lyr_by_path(self.datamask())
+        if lyr_mask is not None:
+            geom_feat = lyr_mask.GetNextFeature()
+            print(self.datamask(), geom_feat)
+            geom = geom_feat.GetGeometryRef()
+            print(self.datamask(), geom_feat)
+            feat.SetGeometry(geom)
+        feat = globals()['metalib'].get(self.imsys).set_cover_meta(feat, self.meta)
+        '''
+        metadata = self.meta.container.get('metadata')
+        feat.SetField('id', self.meta.id)
+        feat.SetField('id_s', self.meta.name('[location]'))
+        feat.SetField('id_neuro', self.meta.name('[fullsat]-[date]-[location]-[lvl]'))
+        feat.SetField('datetime', get_from_tree(metadata, 'firstLineTimeUtc'))
+        feat.SetField('clouds', None)
+        feat.SetField('sun_elev', get_from_tree(metadata, 'illuminationElevationAngle'))
+        feat.SetField('sun_azim', get_from_tree(metadata, 'illuminationAzimuthAngle'))
+        feat.SetField('sat_id', self.meta.name('[fullsat]'))
+        feat.SetField('sat_view', get_from_tree(metadata, 'satelliteViewAngle'))
+        feat.SetField('sat_azim', get_from_tree(metadata, 'azimuthAngle'))
+        if '.PAN' in self.meta.id:
+            feat.SetField('channels', 1)
+            feat.SetField('type', 'PAN')
+        elif '.MS' in self.meta.id:
+            feat.SetField('channels', 4)
+            feat.SetField('type', 'MS')
+        elif '.PMS' in self.meta.id:
+            feat.SetField('channels', 4)
+            feat.SetField('type', 'PMS')
+        feat.SetField('format', '16U')
+        feat.SetField('rows', get_from_tree(metadata, 'rowCount')[1])
+        feat.SetField('cols', get_from_tree(metadata, 'columnCount')[1])
+        feat.SetField('epsg_dat', int('326' + re.search(r'WGS 84 / UTM zone \d+N', get_from_tree(metadata, 'wktString')).group()[18:-1]))
+        feat.SetField('u_size', 'meter')
+        feat.SetField('x_size', get_from_tree(metadata, 'productResolution'))
+        feat.SetField('y_size', get_from_tree(metadata, 'productResolution'))
+        feat.SetField('level', get_from_tree(metadata, 'productType'))
+        feat.SetField('area', None)
+        '''
+        return feat
 
     def quicklook(self):
         if self.meta.quicklook is not None:

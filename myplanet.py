@@ -138,6 +138,34 @@ def metadata(path):
 
     return meta
 
+# Adds attributes to a standart feature for cover
+def set_cover_meta(feat, meta):
+    print(feat)
+    if meta is not None:
+        metadata = meta.container.get('xmltree')
+        feat.SetField('id', meta.id)
+        feat.SetField('id_s', meta.name('[location]'))
+        feat.SetField('id_neuro', meta.name('[fullsat]-[date]-[location]-[lvl]'))
+        feat.SetField('datetime', get_from_tree(metadata, 'beginPosition'))
+        feat.SetField('clouds', float(get_from_tree(metadata, 'cloudCoverPercentage')[0]))
+        feat.SetField('sun_elev', get_from_tree(metadata, 'illuminationElevationAngle'))
+        feat.SetField('sun_azim', get_from_tree(metadata, 'illuminationAzimuthAngle'))
+        feat.SetField('sat_id', meta.name('[fullsat]'))
+        feat.SetField('sat_view', get_from_tree(metadata, 'spaceCraftViewAngle'))
+        feat.SetField('sat_azim', get_from_tree(metadata, 'azimuthAngle'))
+        feat.SetField('channels', 4)
+        feat.SetField('type', 'MS')
+        feat.SetField('format', '16U')
+        feat.SetField('rows', get_from_tree(metadata, 'numRows'))
+        feat.SetField('cols', get_from_tree(metadata, 'numColumns'))
+        feat.SetField('epsg_dat', get_from_tree(metadata, 'epsgCode'))
+        feat.SetField('u_size', 'meter')
+        feat.SetField('x_size', 3.0)
+        feat.SetField('y_size', 3.0)
+        feat.SetField('level', get_from_tree(metadata, 'productType'))
+        feat.SetField('area', None)
+    return feat
+
 # Modules for data processing
 
 # Calculate Radiance

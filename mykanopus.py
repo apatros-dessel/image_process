@@ -203,6 +203,41 @@ def metadata(path):
 
     return meta
 
+# Adds attributes to a standart feature for cover
+def set_cover_meta(feat, meta):
+    print(feat)
+    if meta is not None:
+        metadata = meta.container.get('metadata')
+        feat.SetField('id', meta.id)
+        feat.SetField('id_s', meta.name('[location]'))
+        feat.SetField('id_neuro', meta.name('[fullsat]-[date]-[location]-[lvl]'))
+        feat.SetField('datetime', get_from_tree(metadata, 'firstLineTimeUtc'))
+        feat.SetField('clouds', None) # The cloud cover percent data are available for only PMS scenes and usually look implausible
+        feat.SetField('sun_elev', get_from_tree(metadata, 'illuminationElevationAngle'))
+        feat.SetField('sun_azim', get_from_tree(metadata, 'illuminationAzimuthAngle'))
+        feat.SetField('sat_id', meta.name('[fullsat]'))
+        feat.SetField('sat_view', get_from_tree(metadata, 'satelliteViewAngle'))
+        feat.SetField('sat_azim', get_from_tree(metadata, 'azimuthAngle'))
+        if '.PAN' in meta.id:
+            feat.SetField('channels', 1)
+            feat.SetField('type', 'PAN')
+        elif '.MS' in meta.id:
+            feat.SetField('channels', 4)
+            feat.SetField('type', 'MS')
+        elif '.PMS' in meta.id:
+            feat.SetField('channels', 4)
+            feat.SetField('type', 'PMS')
+        feat.SetField('format', '16U')
+        feat.SetField('rows', get_from_tree(metadata, 'rowCount')[1])
+        feat.SetField('cols', get_from_tree(metadata, 'columnCount')[1])
+        feat.SetField('epsg_dat', int('326' + re.search(r'WGS 84 / UTM zone \d+N', get_from_tree(metadata, 'wktString')).group()[18:-1]))
+        feat.SetField('u_size', 'meter')
+        feat.SetField('x_size', get_from_tree(metadata, 'productResolution'))
+        feat.SetField('y_size', get_from_tree(metadata, 'productResolution'))
+        feat.SetField('level', get_from_tree(metadata, 'productType'))
+        feat.SetField('area', None)
+    return feat
+
 # Modules for data processing
 
 # Calculate Reflectance

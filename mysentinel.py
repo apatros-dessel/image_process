@@ -179,6 +179,19 @@ def get_sentinel_filepaths(filepath_list):
     # scroll(bandpaths)
     return files, filepaths, bandpaths
 
+def check_mask_paths(path_list, folder=''):
+    path_list = obj2list(path_list)
+    paths_checked = []
+    for path in path_list:
+        path = fullpath(folder, path)
+        if os.path.exists(path):
+            paths_checked.append(path)
+        else:
+            new_path = path.replace('L1C_', 'L2A_')
+            if os.path.exists(new_path):
+                paths_checked.append(new_path)
+    return paths_checked
+
 # Fill <imsys_name> metadata
 def metadata(path):
 
@@ -191,8 +204,13 @@ def metadata(path):
     meta.container['manifest'] = manifest = xml2tree(r'{}\manifest.safe'.format(folder))
 
     meta.sat =          get_from_tree(mtd, 'SPACECRAFT_NAME')
-    meta.fullsat =      'S2%{}'.format(meta.sat[-1])
-    meta.id =           get_from_tree(mtd, 'PRODUCT_URI')
+    meta.fullsat =      'S2{}'.format(meta.sat[-1])
+    # meta.id =           get_from_tree(mtd, 'PRODUCT_URI')
+    for key in ('PRODUCT_URI_2A', 'PRODUCT_URI_1C', 'PRODUCT_URI'):
+        id = get_from_tree(mtd, key)
+        if isinstance(id, str):
+            meta.id = id
+            break
     meta.lvl =          get_from_tree(mtd, 'PROCESSING_LEVEL').split('-')[1]
 
     if meta.lvl == '1C':
@@ -234,17 +252,53 @@ def metadata(path):
     meta.write_time_codes(meta.datetime)
 
     # path2mask = r'{}\{}_datamask.shp'.format(tdir().create(), meta.id)
-    path2mask = '{}_datamask.shp'.format(meta.id)
+    path2mask = r'ip\{}_MSK.shp'.format(meta.id)
     fullpath2mask = fullpath(folder, path2mask)
-    # print(path2mask)
-    path2mask_data = fullpath(folder, get_from_tree(msl, 'MASK_FILENAME', check = {'type': 'MSK_DETFOO', 'bandId': '2'}))
+    suredir(folder + '\\ip')
 
-    JoinShapesByAttributes([path2mask_data], fullpath2mask, attributes = ['maskType'], geom_rule = 1, attr_rule = 0)
+    path2mask_data = check_mask_paths(get_from_tree(msl, 'MASK_FILENAME', check={'type': 'MSK_DETFOO', 'bandId': '2'}), folder)
+
+    # scroll(path2mask_data)
+
+    # JoinShapesByAttributes([path2mask_data], fullpath2mask, attributes = ['maskType'], geom_rule = 1, attr_rule = 0)
+    epsg = int(get_from_tree(msl,'HORIZONTAL_CS_CODE')[-5:])
+    Unite(path2mask_data, fullpath2mask, proj=4326, deafault_srs=epsg, overwrite=False)
 
     meta.datamask =       path2mask
     meta.cloudmask =      get_from_tree(msl, 'MASK_FILENAME', check = {'type': 'MSK_CLOUDS'})
 
     return meta
+
+# Adds attributes to a standart feature for cover
+def set_cover_meta(feat, meta):
+    print(feat)
+    if meta is not None:
+        mtd = meta.container.get('mtd')
+        msl = meta.container.get('msl')
+        print(msl)
+        feat.SetField('id', meta.id.replace('.SAFE', ''))
+        feat.SetField('id_s', meta.name('[location]'))
+        feat.SetField('id_neuro', meta.name('[fullsat]-[date]-[location]-[lvl]'))
+        feat.SetField('datetime', get_from_tree(mtd, 'PRODUCT_START_TIME'))
+        feat.SetField('clouds', get_from_tree(mtd, 'Cloud_Coverage_Assessment'))
+        feat.SetField('sun_elev', 90.0 - float(get_from_tree(msl, 'ZENITH_ANGLE')[0]))
+        feat.SetField('sun_azim', float(get_from_tree(msl, 'AZIMUTH_ANGLE')[0]))
+        feat.SetField('sat_id', meta.name('[fullsat]'))
+        feat.SetField('sat_view', mean(flist(get_from_tree(msl, 'ZENITH_ANGLE')[1:], float)))
+        feat.SetField('sat_azim', mean(flist(get_from_tree(msl, 'AZIMUTH_ANGLE')[1:], float)))
+        feat.SetField('channels', 4)
+        feat.SetField('type', 'MS')
+        feat.SetField('format', '16U')
+        feat.SetField('rows', int(get_from_tree(msl, 'NROWS')[0]))
+        feat.SetField('cols', int(get_from_tree(msl, 'NCOLS')[0]))
+        feat.SetField('epsg_dat', get_from_tree(msl,'HORIZONTAL_CS_CODE')[-5:])
+        feat.SetField('u_size', 'meter')
+        feat.SetField('x_size', 10.0)
+        feat.SetField('y_size', 10.0)
+        feat.SetField('level', 'L2A')
+        feat.SetField('area', None)
+    return feat
+
 
 # Modules for data processing
 

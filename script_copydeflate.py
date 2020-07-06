@@ -3,12 +3,15 @@
 import os
 import gdal
 
-dir_in = r'e:\resursp_new\pansharpened\Krym_unkompressed'
-dir_out = r'e:\resursp_new\pansharpened\Krym_new'
+dir_in = r'e:\rks\digital_earth\pari\TCP-PMS-8CH'
+dir_out = r'e:\rks\digital_earth\pari\Krym\TCP-PMS-8CH'
 
 file_list = os.listdir(dir_in)
 
 print('%i files found' % len(file_list))
+
+if not os.path.exists(dir_out):
+    os.makedirs(dir_out)
 
 for i, file in enumerate(file_list):
 
@@ -22,9 +25,6 @@ for i, file in enumerate(file_list):
     if ds_in is None:
         print('Cannot open file', file)
         continue
-
-    if not os.path.exists(dir_out):
-        os.makedirs(dir_out)
 
     driver = gdal.GetDriverByName('GTiff')
     print(['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9', 'TILED=YES', 'BIGTIFF=YES'])

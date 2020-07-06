@@ -55,3 +55,13 @@ scroll(errors, header='Errors:')
 print('%i files found' % len(files))
 print('%i files successfully written' % len(successes))
 print('%i errors' % len(errors))
+
+def json_fix_datetime(file):
+    data = open(file, 'r').read()
+    dtime = re.search(r'"datetime": "[^"]+"', data).group()[13:-1]
+    new_dtime = dtime.replace(u'\\/', '-').replace(' ', 'T')
+    new_data = data.replace(dtime, new_dtime)
+    if new_data is not None:
+        json = open(file, 'w')
+        json.write(new_data)
+        json = None

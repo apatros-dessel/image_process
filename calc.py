@@ -220,8 +220,8 @@ def get_raster_limits(raster_array, method=0, band_limits = None):
         max = mean + (band_limits[1] * sd)
 
     elif (method == method_list[2]) or (method == 2):              # Count_Cut
-        min = arrlim(raster_array, band_limits[0])
-        max = arrlim(raster_array, band_limits[1])
+        min = arrlim(raster_array.flatten(), band_limits[0])
+        max = arrlim(raster_array.flatten(), band_limits[1])
 
 
     elif (method == method_list[3]) or (method == 3):            # Custom

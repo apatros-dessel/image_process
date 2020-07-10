@@ -2,13 +2,10 @@
 
 # Auxilliary functions for image processor
 
-import os
-import re
+import os, re, shutil, xlrd, xlwt
 import numpy as np
-from collections import OrderedDict
 import xml.etree.ElementTree as et
-import xlrd
-import xlwt
+from collections import OrderedDict
 from datetime import datetime
 from copy import copy, deepcopy
 from PIL import Image
@@ -64,7 +61,7 @@ def check_exist(path, ignore=False):
 # Conversts non-list objects to a list of length 1
 def obj2list(obj):
     new_obj = copy(obj)
-    if isinstance(new_obj, list):
+    if isinstance(new_obj, (tuple, list)):
         return new_obj
     else:
         return [new_obj]
@@ -282,6 +279,21 @@ def intlist(list_):
             list_[val] = 0
     return list_
 
+# Change all values in list using the function
+def flist(l, func, copy=True):
+    if copy:
+        l = deepcopy(l)
+    for i, v in enumerate(l):
+        l[i] = func(v)
+    return l
+
+# Return mean
+def mean(x):
+    y = 0
+    for i in x:
+        y += i
+    return y/len(x)
+
 # Converts data from a root call to a list
 def iter_list(root, call):
     iter_list = []
@@ -411,6 +423,14 @@ def fullpath(folder, file, ext=None):
         ext = ('.' + str(ext).replace('.', ''))
     return r'{}\{}{}'.format(folder, file, ext)
 
+# Splits path to folder, name and extension
+def split3(path):
+    if os.path.isdir(path):
+        return path, '', ''
+    folder, file = os.path.split(path)
+    name, ext = os.path.splitext(file)
+    return folder, name, ext[1:]
+
 # Creates new name to avoid same names as in the list
 def newname2(name, name_list, update_list=False):
 
@@ -522,6 +542,8 @@ def check_name(name, pattern):
 
 # Returns a list of two lists: 0) all folders in the 'path' directory, 1) all files in it
 def fold_finder(path):
+    if len(path) >= 255:
+        return [[], []]
     dir_ = os.listdir(path)
     fold_ = []
     file_ = []
@@ -887,6 +909,7 @@ class scene_metadata:
         if False in check_list.values():
             error_keys = np.array(list(check_list.keys()))[~ np.array(list(check_list.values()))]
             for key in error_keys:
+                # print(self.id, get_from_tree(self.container.get('meta'), 'CATID'))
                 print('Error in key: {} == {}'.format(key, check_list[key]))
             return False
         else:
@@ -955,7 +978,9 @@ class scene_metadata:
     # Make name from a string using the templates
     def name(self, namestring):
         for key in self.namecodes.keys():
-            namestring = namestring.replace(key, self.namecodes.get(key, ''))
+            # print(type(self.namecodes.get(key, '')))
+            # print(delist(self.namecodes.get(key, '')))
+            namestring = namestring.replace(key, delist(self.namecodes.get(key, '')))
         return namestring
 
 # Searches filenames according to template and returns a list of full paths to them
@@ -1051,3 +1076,21 @@ def colfromdict(dict_, key, listed=False):
 def suredir(path):
     if not os.path.exists(path):
         os.makedirs(path)
+
+def delist(obj, item = 0):
+    if isinstance(obj, (list, tuple)):
+        return obj[item]
+    else:
+        return obj
+
+# Returns data from txt file
+def from_txt(txt, tmpt, format='s'):
+    search = re.search(tmpt, txt)
+    if search:
+        data = search.group()
+        if format=='s':
+            return data
+        elif format=='i':
+            return int(data)
+        elif format=='f':
+            return float(data)

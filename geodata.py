@@ -3214,7 +3214,7 @@ def RandomLinesRectangle(path_in, path_out,
 
 # Rasterize vector layer
 # Returns a mask as np.array of np.bool
-def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, value_colname = None, filter_nodata = True, compress = None, overwrite=True):
+def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, data_type = 1, value_colname = None, filter_nodata = True, compress = None, overwrite=True):
 
     if check_exist(path_out, ignore=overwrite):
         return 1
@@ -3225,7 +3225,7 @@ def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, va
         return 1
 
     options = {
-        'dt': 1,
+        'dt': data_type,
         'nodata': 0,
         'compress': compress,
         'bandnum': 1,

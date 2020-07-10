@@ -1,5 +1,11 @@
 from geodata import *
 
+i_image = r'C:\Users\Home\Desktop\test_blue_orig.tif' #
+reference_image = r'F:/102_2020_108_RP/2020-02-02/2074508_22.01.20_Krym/RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.MS_f13121466d65e41f5c181c84cb2e23d2c0553d9a/RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.MS.L2.tif'
+geo_correct_image = r'C:\Users\Home\Desktop\test_blue_pci.tif'
+in_match_chan = [1]
+ref_match_chan = [1]
+
 def pci_auto_coregistration(i_image, reference_image, geo_correct_image, in_match_chan = [1], ref_match_chan = [1], bxpxsz="2.1", polyorder=[1], reject = [5, 1, 1], tresh=[0.88]):
     try:
         from pci.link import link
@@ -74,11 +80,5 @@ def image_psh(ms, pan, psh, bands, bands_ref, enhanced):
         for file in (fili, filo+'.pox'):
             if os.path.exists(file):
                 os.remove(file)
-
-i_image = r'C:\Users\Home\Desktop\test_blue_orig.tif'
-reference_image = r'F:/102_2020_108_RP/2020-02-02/2074508_22.01.20_Krym/RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.MS_f13121466d65e41f5c181c84cb2e23d2c0553d9a/RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.MS.L2.tif'
-geo_correct_image = r'C:\Users\Home\Desktop\test_blue_pci.tif'
-in_match_chan = [1]
-ref_match_chan = [1]
 
 pci_auto_coregistration(i_image, reference_image, geo_correct_image, in_match_chan = in_match_chan, ref_match_chan = ref_match_chan, bxpxsz="2.1", polyorder=[1], reject = [5, 1, 1], tresh=[0.88])

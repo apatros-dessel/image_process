@@ -3,6 +3,10 @@
 from geodata import *
 import shutil
 
+dir_in = r'\\tt-nas-archive\NAS-Archive-2TB-7\kan-pms\sverdlovsk'        # Путь к папке с исходными данными
+dir_out = r'\\tt-nas-archive\NAS-Archive-2TB-6\s3\sverdlovsk_pms'    # Путь к месту хранения конечных данных
+json_in = r'\\tt-nas-archive\NAS-Archive-2TB-4\DigitalEarth_covers\full\102_2020_133_Sverdlovsk_fullcover_PAN-MS.json'                                       # Путь к векторному файлу покрытия
+
 # Filter geojson vector layer by attribute
 def filter_geojson(path_in, field, vals, path_out):
 
@@ -33,14 +37,15 @@ def filter_geojson(path_in, field, vals, path_out):
 
     new_ds = None
 
-def get_pms_json_from_ms(path_cover, path_out, pms_id, pms_raster_path=''):
+def get_pms_json(path_cover, path_out, pms_id, pms_raster_path=''):
 
     if os.path.exists(path_out):
+        filter_dataset_by_col(path_dict['json'], 'id', pms_id, path_out=path_out)
         old_ds, old_lyr = get_lyr_by_path(path_out)
         if len(old_lyr) > 0:
             return 0
 
-    print('Original PMS data not found for %s, collecting data from MS' % pms_id)
+    # print('Original PMS data not found for %s, collecting data from MS' % pms_id)
 
     if not os.path.exists(path_cover):
         print('Cannot find path: {}'.format(path_cover))
@@ -84,21 +89,14 @@ def get_pms_json_from_ms(path_cover, path_out, pms_id, pms_raster_path=''):
 
     return 0
 
-
-dir_in = r'd:\terratech\kanopus_pms\krym_new'        # Путь к папке с исходными данными
-dir_out = r'd:\terratech\s3\krym_new'    # Путь к месту хранения конечных данных
-json_in = r'e:\rks\source\kanopus\2020-06-19\Krym_fullcover_new.json' # Путь к векторному файлу покрытия
-
 ms_list = os.listdir(dir_in)
-ms_list = flist(folder_paths(dir_out,1,'tif'), os.path.basename)
 path_dict = {'ms': dir_in, 'json': json_in}
-path_dict = {'json': json_in}
 
 id_list = []
 for name in ms_list:
     id, ext = os.path.splitext(name)
     ext = ext.replace('.','')
-    if (ext in ['tif', 'tiff', 'tif']) and id.endswith('.PMS.L2'):
+    if (ext in ['tif', 'tiff', 'tif']) and id.endswith('.MS.L2'):
         id_list.append(id)
 
 err_list = []
@@ -110,7 +108,7 @@ for id in id_list:
         if key == 'ms':
             name = (id + '.tif')
             try:
-                shutil.move('%s\\%s' % (path_dict[key], name),
+                shutil.copyfile('%s\\%s' % (path_dict[key], name),
                                 '%s\\%s' % (id_dir, name))
             except:
                 err_list.append(name)
@@ -118,9 +116,8 @@ for id in id_list:
             name = id + '.json'
             path_out = '%s\\%s' % (id_dir, name)
             try:
-                filter_dataset_by_col(path_dict['json'], 'id', id, path_out=path_out)
-                # filter_geojson(path_dict['json'], 'id', id, '%s\\%s' % (id_dir, name))
-                get_pms_json_from_ms(path_dict['json'], path_out, id)
+                # filter_dataset_by_col(path_dict['json'], 'id', id, path_out=path_out)
+                get_pms_json(path_dict['json'], path_out, id)
                 json_fix_datetime(path_out) # Fixes error with Python OGR datetime data
             except:
                 err_list.append(name)

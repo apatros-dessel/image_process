@@ -11,9 +11,9 @@ import myplanet
 import mykanopus
 import mysentinel
 import myresursp
+import mydg
 
 # Constants
-
 
 default_output = os.getcwd() # default output directory for a process
 
@@ -23,6 +23,7 @@ metalib = {
     'PLN': myplanet,
     'KAN': mykanopus,
     'RSP': myresursp,
+    'DG': mydg,
 }
 
 # A dictionary of metadata filenames templates
@@ -627,7 +628,10 @@ class scene:
 
     def datamask(self):
         if self.meta.datamask is not None:
-            return fullpath(self.path, self.meta.datamask)
+            if self.imsys in ('DG'):
+                return self.meta.datamask
+            else:
+                return fullpath(self.path, self.meta.datamask)
         else:
             return None
 
@@ -637,42 +641,13 @@ class scene:
         ds_mask, lyr_mask = geodata.get_lyr_by_path(self.datamask())
         if lyr_mask is not None:
             geom_feat = lyr_mask.GetNextFeature()
-            print(self.datamask(), geom_feat)
             geom = geom_feat.GetGeometryRef()
-            print(self.datamask(), geom_feat)
             feat.SetGeometry(geom)
         feat = globals()['metalib'].get(self.imsys).set_cover_meta(feat, self.meta)
-        '''
-        metadata = self.meta.container.get('metadata')
-        feat.SetField('id', self.meta.id)
-        feat.SetField('id_s', self.meta.name('[location]'))
-        feat.SetField('id_neuro', self.meta.name('[fullsat]-[date]-[location]-[lvl]'))
-        feat.SetField('datetime', get_from_tree(metadata, 'firstLineTimeUtc'))
-        feat.SetField('clouds', None)
-        feat.SetField('sun_elev', get_from_tree(metadata, 'illuminationElevationAngle'))
-        feat.SetField('sun_azim', get_from_tree(metadata, 'illuminationAzimuthAngle'))
-        feat.SetField('sat_id', self.meta.name('[fullsat]'))
-        feat.SetField('sat_view', get_from_tree(metadata, 'satelliteViewAngle'))
-        feat.SetField('sat_azim', get_from_tree(metadata, 'azimuthAngle'))
-        if '.PAN' in self.meta.id:
-            feat.SetField('channels', 1)
-            feat.SetField('type', 'PAN')
-        elif '.MS' in self.meta.id:
-            feat.SetField('channels', 4)
-            feat.SetField('type', 'MS')
-        elif '.PMS' in self.meta.id:
-            feat.SetField('channels', 4)
-            feat.SetField('type', 'PMS')
-        feat.SetField('format', '16U')
-        feat.SetField('rows', get_from_tree(metadata, 'rowCount')[1])
-        feat.SetField('cols', get_from_tree(metadata, 'columnCount')[1])
-        feat.SetField('epsg_dat', int('326' + re.search(r'WGS 84 / UTM zone \d+N', get_from_tree(metadata, 'wktString')).group()[18:-1]))
-        feat.SetField('u_size', 'meter')
-        feat.SetField('x_size', get_from_tree(metadata, 'productResolution'))
-        feat.SetField('y_size', get_from_tree(metadata, 'productResolution'))
-        feat.SetField('level', get_from_tree(metadata, 'productType'))
-        feat.SetField('area', None)
-        '''
+        if self.imsys=='KAN' and 'NP' in self.meta.id:
+            for type in ('mul', 'pan'):
+                if type in self.meta.files:
+                    mykanopus.meta_from_raster(feat, self.get_raster_path(type))
         return feat
 
     def quicklook(self):

@@ -2,31 +2,39 @@
 
 from geodata import *
 
+# Перечень векторных файлов для создания масок, с указанием условного обозначения типа маски
 path_shp_dict = {
-    'MWT': r'd:\terratech\neuro\MASK_part2\water_cut.shp',
-    'MGR': r'd:\terratech\neuro\MASK_part2\grunt_cut.shp',
-    'MBD': r'd:\terratech\neuro\MASK_part2\urban_cut.shp',
-    # 'MQR': r'D:/terratech/neuro/MASK_part2/quarry_KAN_sub_all.shp',
-    # 'MGR': r'D:/terratech/neuro/MASK_part2/quarry_KAN_sub_all.shp',
-    # 'MCN': r'D:/terratech/neuro/MASK_part2/quarry_KAN_sub_all.shp',
+    'MWS': r'e:\rks\neuro\tbo_new\Neiro_TBO_svalki_narushZem.shp'
 }
+
+# Перечни кодов в рамках каждой маски (чтобы разделять векторные файлы с несколькими типами масок)
 gridcode = {
     'MQR':(1,10,11,12,13),
+    'MWS':(2,24,25,26),
     'MGR':(2,20,21,22,23),
     'MGR':(2,20,21,22,23),
     'MCN':(3,30,31,32,33),
     'MBD':(5,51,52,53),
     'MWT':9,
 }
-raster_path = r'd:\terratech\razmetka'
-path_out = r'e:\test\razmetka\data\set022'
-img_colname = 'layer'      # Название векторного поля, содержащего id растра
+
+# Перечни путей к корневым папкам растровых файлов
+raster_path = [r'\\172.21.195.2\FTP-Share\ftp\db_etalons',
+            r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-7\kan-pms',
+               r'\\172.21.195.2\FTP-Share\ftp\proc\kanopus',
+               r'\\172.21.195.2\FTP-Share\ftp\s3',
+               r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-6\s3']
+
+# Путь для сохранения конечных файлов
+path_out = r'\\172.21.195.2\FTP-Share\ftp\train_data\set025'
+
+img_colname = 'name'      # Название векторного поля, содержащего id растра
 obj_index_col = 'GRIDCODE'  # Название векторного поля, содержащего id объекта
 compression = 'DEFLATE'     # Алгоритм сжатия растровых данных
 overwrite =  False          # Заменять существующие файлы
 pms = True                  # Использовать паншарпы
 
-report_xls = r'e:\test\razmetka\data\set022_1.xls'
+report_xls = r'\\172.21.195.2\FTP-Share\ftp\train_data\set025_1.xls'
 
 # Parse Kanopus name
 def parse_kanopus(id):
@@ -82,12 +90,17 @@ def check_nonzeros(path):
     print(l)
     return bool(l)
 
+def get_raster_paths(raster_path):
+    export = []
+    for folder in obj2list(raster_path):
+        export.extend(folder_paths(folder, 1, 'tif'))
+    return export
+
 baseline = OrderedDict()
 for key in ('id', 'img', 'img_out', 'MWT', 'MBD', 'MGR', 'MQR', 'MCN'):
     baseline[key] = ''
 
-
-img_list = folder_paths(raster_path, 1, 'tif')
+img_list = get_raster_paths(raster_path)
 
 report = OrderedDict()
 empty_masks = []
@@ -101,7 +114,7 @@ for maskid in path_shp_dict:
     vec_path = filter_dataset_by_col(path_shp_dict[maskid], obj_index_col, gridcode[maskid])
     print(vec_path)
     raster_ids = get_col_keys(vec_path, img_colname)
-    # scroll(raster_ids)
+    scroll(raster_ids)
 
     for neuroid in raster_ids:
         trueid = filter_id(neuroid, pms = True)

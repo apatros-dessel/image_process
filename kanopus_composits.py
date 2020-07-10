@@ -7,8 +7,16 @@ import os, sys, re, time
 
 import subprocess
 import numpy as np
-# from tools import xls_to_dict, folder_paths, scroll, tdir
-# from geodata import copydeflate
+from tools import *
+from geodata import copydeflate, SaveRasterBands
+
+init_image = None
+final_image = None
+input_folder = r'f:\pari\planet_test' # Путь к исходным растровым данным
+output_folder = r'f:\pari\planet_test' # Путь для сохранения итоговых композитов
+bands_order = [1, 2, 3, 4, 1, 2, 3, 4] # Порядок каналов; для обработки Planet использовать [3,2,1,4,3,2,1,4]
+images_order = ['i','i','i','i','f','f','f','f'] # Порядок изображений для отбора каналов (4 с первого снимка, 4 с последнего)
+path2xls = r'f:\pari\planet_test\planet_test.xls' # Путь к таблице с названиями файлов для коррегистрации, указанных соответственно в колонках 'old' и 'new'; в колонке 'composit' должно быть указано уникальное имя конечного файла (расширение можно не указывать)
 
 def Usage():
     print(
@@ -236,58 +244,42 @@ def scroll(obj, print_type=True, header=None):
     else:
         print('  {}'.format(obj))
 
-init_image = None
-final_image = None
-output_folder = r'e:\rks\digital_earth\pari\Tver\TCP-PMS-8CH'
-bands_order = [1, 2, 3, 4, 1, 2, 3, 4]
-images_order = ['i','i','i','i','f','f','f','f']
-path2xls = r'e:\rks\digital_earth\pari\Tver\tver_pairs.xls' # Путь к таблице с названиями файлов для коррегистрации, указанных соответственно в колонках 'old' и new'
-
-path2selected = r'e:\rks\digital_earth\pari\Tver\TCP-8CH'
-selected_list = os.listdir(path2selected)
-
-scroll(selected_list)
-
 xls_data = xls_to_dict(path2xls)
 
 test = xls_data[1]
 init_test = test['old']
 final_test = test['new']
+composit_test = test['composit']
+channels_test = test['channels']
 
 init_image_list = []
 final_image_list = []
+composit_image_list = []
+channels_list = []
 
 for i in xls_data.keys():
 	test = xls_data[i]
 	init_test = test['old']#.replace('.PMS','.MS')
-	satI, orbitI, marshrutI, partI, satnameI, imgdateI, imgtime1I, productI = init_test.split('_')
-	imgtime2I, sceneI, productI = productI.split('.')
 	final_test = test['new']#.replace('.PMS','.MS')
-	satF, orbitF, marshrutF, partF, satnameF, imgdateF, imgtime1F, productF = final_test.split('_')
-	imgtime2F, sceneF, productF = productF.split('.')
-	tcp_name = '%s-%s_%s_%s_%s_%s-%s_%s_%s_%s.tif'%(imgdateI, imgdateF, satI, marshrutI, partI, sceneI, satF, marshrutF, partF, sceneF)
-	print(tcp_name)
 	# time.sleep(5)
-	if tcp_name in selected_list:
-		# print(init_test, final_test)
-		for path in folder_paths(r'e:\rks\digital_earth\pms_tver')[1]:
-			if init_test in path and path.endswith('.tif'):
-				init_image_list.append(path)
-			if final_test in path and path.endswith('.tif'):
-				final_image_list.append(path)
+	# print(init_test, final_test)
+	for path in folder_paths(input_folder, 1, 'tif'):
+		if init_test in path:
+			init_image_list.append(path)
+        if final_test in path:
+			final_image_list.append(path)
+	composit_image_list.append(fullpath(output_folder, test['composit'], 'tif'))
 
 argv = sys.argv
 
 if argv is None:
     sys.exit(1)
 
-for name1, name2 in zip(init_image_list, final_image_list):
-	scroll([name1, name2], header = 'Old & New')
+#for name1, name2, name3 in zip(init_image_list, final_image_list, composit_image_list):
+	#scroll([name1, name2, name3], header = 'Old & New')
 
 if not os.path.exists(output_folder):
 	os.makedirs(output_folder)
-
-print(len(init_image_list))
 	
 # sys.exit(1)
 
@@ -331,43 +323,32 @@ if output_folder is None:
 
 error_list = []
 
-for init_image, final_image in zip(init_image_list, final_image_list):
+for init_image, final_image, composit_image in zip(init_image_list, final_image_list, composit_image_list):
 
-    if re.search(r'^k.*.l2\.tif$', os.path.basename(init_image).lower(), flags=0) and re.search(r'^k.*.l2\.tif$', os.path.basename(init_image).lower(), flags=0):
-        satI, orbitI, marshrutI, partI, satnameI, imgdateI, imgtime1I, productI = os.path.basename(init_image).split('_')
-        imgtime2I, sceneI, productI, levelI, fileextI = productI.split('.')
-        scene_idI = '_'.join([marshrutI, partI, sceneI])
-        satF, orbitF, marshrutF, partF, satnameF, imgdateF, imgtime1F, productF = os.path.basename(final_image).split('_')
-        imgtime2F, sceneF, productF, levelF, fileextF = productF.split('.')
-        scene_idF = '_'.join([marshrutF, partF, sceneF])
         imI_wkt, imI_epsg, imI_srs, imI_gt = ImageProperties(init_image)
         imF_wkt, imF_epsg, imF_srs, imF_gt = ImageProperties(final_image)
         imI_geom = ogr.CreateGeometryFromWkt(imI_wkt, imI_srs)
         imF_geom = ogr.CreateGeometryFromWkt(imF_wkt, imF_srs)
-
-        if imI_epsg!=imF_epsg:
-            imF_geom.TransformTo(imI_srs)
-
         intersection_geom = imI_geom.Intersection(imF_geom)
-        overlap = round(100*intersection_geom.Area()/imI_geom.Area(), 2)
+        overlap = round(100 * intersection_geom.Area() / imI_geom.Area(), 2)
 
         if overlap>0:
-            composit_image = os.path.join(output_folder, '%s-%s_%s_%s-%s_%s.tif'%(imgdateI, imgdateF, satI, scene_idI, satF, scene_idF))
-            # corregistred_image = os.path.join(output_folder,'%s-%s_%s_corrected.tif'%(imgdateF, satF, scene_idF))
             if os.path.exists(composit_image):
                 print('File already exists: {}'.format(composit_image))
                 continue
-            t_composit_image = os.path.join(os.environ['TMP'], '%s-%s_%s_%s-%s_%s.tif' % ( imgdateI, imgdateF, satI, scene_idI, satF, scene_idF ))
-            t_corregistred_image = os.path.join(output_folder, '%s-%s_%s_corrected.tif' % ( imgdateF, satF, scene_idF ))
+            t_composit_image = '%s_t.tif' % composit_image[:-4]
+            t_corregistred_image = '%s_t_corrected.tif' % composit_image[:-4]
             init_image_sname = os.path.basename(init_image)
             final_image_sname = os.path.basename(final_image)
 
             try:
-
+                
                 if not os.path.exists(t_corregistred_image):
-                    pci_auto_coregistration(final_image, init_image, t_corregistred_image, in_match_chan = [
-                        bands_order[images_order.index('f')]], ref_match_chan = [bands_order[images_order.index('i')]], bxpxsz=str(imI_gt[1]), polyorder=[1], reject = [5, 1, 1], tresh=[0.88])
-
+                    pci_auto_coregistration(final_image, init_image, t_corregistred_image,
+                        in_match_chan = [bands_order[images_order.index('f')]],
+                        ref_match_chan = [bands_order[images_order.index('i')]],
+                        bxpxsz=str(imI_gt[1]), polyorder=[1], reject = [5, 1, 1], tresh=[0.88])
+                
                 if os.path.exists(t_corregistred_image):
                     imC_wkt, imC_epsg, imC_srs, imC_gt = ImageProperties(t_corregistred_image)
                     imC_geom = ogr.CreateGeometryFromWkt(imC_wkt, imC_srs)
@@ -383,7 +364,7 @@ for init_image, final_image in zip(init_image_list, final_image_list):
                     imageI_sub=gdal.Open( TemporyInitImage, gdalconst.GA_ReadOnly )
                     imageF_sub=gdal.Open( TemporyFinImage, gdalconst.GA_ReadOnly )
                     used_bands = []
-
+                    
                     for b in bands_order:
                         if b not in used_bands:
                             used_bands+=[b]
@@ -416,6 +397,8 @@ for init_image, final_image in zip(init_image_list, final_image_list):
                     print(t_composit_image, composit_image)
                     copydeflate(t_composit_image, composit_image)
 
+                    SaveRasterBands(composit_image, [5,1,6], composit_image[:-4]+'_3CH.tif', options={'compress': 'DEFLATE'}, overwrite=False)
+
                     for i_f in [TemporyInitImage, TemporyFinImage, t_corregistred_image, t_composit_image]:
                         if os.path.exists(i_f):
                             os.remove(i_f)
@@ -433,4 +416,3 @@ for init_image, final_image in zip(init_image_list, final_image_list):
         # raise Exception
 
 scroll(error_list, header='Errors found')
-			

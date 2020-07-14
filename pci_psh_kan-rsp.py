@@ -7,6 +7,27 @@ import os, sys, re, time
 from datetime import datetime
 from geodata import *
 
+try:
+    from pci.pansharp import *
+    from pci.fexport import *
+except:
+    print('\nPCI GEOMATICA not available.\n')
+    sys.exit(1)
+
+try:
+    import gdal
+    use_deflate = True
+except:
+    print('Error importing GDAL, cannot apply deflate')
+    use_deflate = False
+
+data_source_folder = r'\\tt-nas-archive\NAS-Archive-2TB-5\na-va\102_2020_91'   # Путь к исходным данным Канопус/Ресурс-П PAN+MS
+output_folder = r'\\tt-nas-archive\NAS-Archive-2TB-7\kan-pms\sverdlovsk' # Путь к конечным паншарпам
+filter_path = r'e:\DigitalEarth_QL_reports\Kemerovo_selected.xls' # Путь к файлу с перечнем сцен для обработки (txt или xls)
+
+bands = [1,2,3,4]
+bands_ref = [1,2,3,4]
+enhanced = "YES"
 
 def Usage():
     print(
@@ -22,30 +43,7 @@ output_folder - output folder
       """)
     sys.exit(1)
 
-try:
-    from pci.pansharp import *
-    from pci.fexport import *
-except:
-    print('')
-    print('PCI GEOMATICA not available.')
-    print('')
-    sys.exit(1)
-
-try:
-    import gdal
-    use_deflate = True
-except:
-    print('Error importing GDAL, cannot apply deflate')
-    use_deflate = False
-
-data_source_folder = r'd:\terratech\razmetka\kan_new'
-output_folder = r'd:\terratech\razmetka\kan_new'
-bands = [1,2,3,4]
-bands_ref = [1,2,3,4]
-enhanced = "YES"
-filter_path = None
-
-def get_filter_names(filter_path, xlscolname=None, txtsep='\n'):
+def get_filter_names(filter_path, xlscolname=None, txtsep=';'):
     if os.path.exists(filter_path):
         if filter_path.endswith('xls'):
             filter_xls = xls_to_dict(filter_path)
@@ -55,9 +53,7 @@ def get_filter_names(filter_path, xlscolname=None, txtsep='\n'):
                 filter_names = colfromdict(filter_xls, 'new', True)
         elif filter_path.endswith('txt'):
             with open(filter_path) as txt:
-                # print(txt.read())
-                str_ = txt.read()
-                filter_names = str_.split(txtsep)
+                filter_names = txt.read().split(txtsep)
         else:
             print('Unreckognized filter path extension: need .xls or .txt')
             filter_names = None
@@ -66,10 +62,7 @@ def get_filter_names(filter_path, xlscolname=None, txtsep='\n'):
         filter_names = None
     if filter_names is not None:
         for i, name in enumerate(filter_names):
-            # print(filter_names[i])
             filter_names[i] = name.replace('.MS.', '.PMS.').replace('.PAN.', '.PMS.')
-            print(filter_names[i])
-        print(filter_names)
     return filter_names
 
 # Make pansharpened image
@@ -107,7 +100,8 @@ def pms_iter(data_source_folder,
              bands_ref = [1,2,3],
              enhanced = 'YES',
              use_deflate = False,
-             filter_names = None):
+             filter_names = None,
+             trynum = 20):
 
     # Parse command line arguments.
     i = 1
@@ -154,19 +148,8 @@ def pms_iter(data_source_folder,
             else:
                 loop[scene_id]={product:os.path.join(root, f)}
 
-        # Kanopus new
-        elif re.search(r'^f.*\d\.tif$', f.lower(), flags=0):
-            product_path = root
-            sat, orbit, marshrut, part, satname, imgdate, imgtime1, product, appendix = os.path.basename(root).split('_')
-            imgtime2, scene, product = product.split('.')
-            scene_id = '_'.join([marshrut, part, scene])
-            if loop.has_key(scene_id):
-                loop[scene_id][product]=os.path.join(root, f)
-            else:
-                loop[scene_id]={product:os.path.join(root, f)}
-
         # Resurs-P
-        elif re.search(r'^rp.*.l2\.tif$', f.lower(), flags=0):
+        if re.search(r'^rp.*.l2\.tif$', f.lower(), flags=0):
             product_path = root
             sat, orbit, part, satname, imgdate, imgtime1, product = f.split('_')
             imgtime2, scene, product, level, fileext = product.split('.')
@@ -184,11 +167,9 @@ def pms_iter(data_source_folder,
     for item, v in loop.items():
 
         if v.has_key('PAN') and v.has_key('MS'):
-            f, n, e = split3(os.path.basename(v['MS']))
-            if not n.lower().startswith('kv'):
-                n = re.search(r'^K.*MS', os.path.split(os.path.split(v['MS'])[0])[1]).group() + '.L2'
-            filename = n.replace('.MS', '.PMS')
-            psh = os.path.join(output_folder, filename, e)
+
+            filename = os.path.basename(v['MS']).replace('.MS', '.PMS')
+            psh = os.path.join(output_folder, filename)
 
             if filter_names is not None:
                 stop = True
@@ -211,13 +192,28 @@ def pms_iter(data_source_folder,
 
             # print('Starting %s' % psh)
 
-            if use_deflate:
-                tpath = tempname('tif')
-                image_psh(v['MS'], v['PAN'], tpath, bands, bands_ref, enhanced)
-                copydeflate(tpath, psh, bigtiff = True, tiled = True)
-                os.remove(tpath)
+            t = 0
+            while t < trynum:
+                try:
+                    if use_deflate:
+                        tpath = tempname('tif')
+                        image_psh(v['MS'], v['PAN'], tpath, bands, bands_ref, enhanced)
+                        copydeflate(tpath, psh, bigtiff = True, tiled = True)
+                        os.remove(tpath)
+                    else:
+                        image_psh(v['MS'], v['PAN'], psh, bands, bands_ref, enhanced)
+                    success = True
+                except:
+                    print('Error processing %s, try again' % filename)
+                    success = False
+                    t += 1
+                    time.sleep(30)
+
+
+            if success:
+                pass
             else:
-                image_psh(v['MS'], v['PAN'], psh, bands, bands_ref, enhanced)
+                print('Error processing %s' % filename)
 
             i+=1
 
@@ -235,9 +231,9 @@ if argv is None:
 
 suredir(output_folder)
 
+filter_names = get_filter_names(filter_path, xlscolname=None, txtsep=';')
 
-# filter_names = get_filter_names(filter_path, xlscolname=None, txtsep=';')
-# scroll(filter_names, header = 'Filter names:')
+scroll(filter_names, header = 'Filter names for new tver:')
 
 filter_names = pms_iter(data_source_folder,
              output_folder,
@@ -245,7 +241,11 @@ filter_names = pms_iter(data_source_folder,
              bands_ref = bands_ref,
              enhanced = enhanced,
              use_deflate=use_deflate,
-             filter_names=None)
+             filter_names=filter_names,
+                trynum=20)
+
+scroll(filter_names)
+print(len(filter_names))
 
 # sf=StereoFortuitous(data_source, output_file, relief_type, automode)
 # if len(sf.all_metadata)==0:

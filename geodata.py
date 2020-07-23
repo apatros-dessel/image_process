@@ -77,6 +77,7 @@ fields_dict['x_size'] = {'type_id': 2}
 fields_dict['y_size'] = {'type_id': 2}
 fields_dict['level'] = {'type_id': 4}
 fields_dict['area'] = {'type_id': 2}
+fields_dict['path'] = {'type_id': 4}
 
 
 # Define ogr data type

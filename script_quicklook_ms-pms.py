@@ -2,12 +2,12 @@
 
 from geodata import *
 
-dir_in = r'd:\digital_earth\102_2020_91.KV1_35803_28473_00_KANOPUS_20190104_053019_053030.SCN2.MS.L2'
+dir_in = r'e:\rks\resurs_granules_new\RP1_28583_05_GEOTON_20180804_081628_081701.SCN3.PMS.L2.GRN36036032'
 
 path_in_list = folder_paths(dir_in, files=True, extension='tif')
 i = 0
 for path_in in path_in_list:
-    if path_in.endswith('.MS.L2.tif') or path_in.endswith('.PMS.L2.tif'):
+    if path_in.endswith('.MS.L2.tif') or path_in.endswith('.PMS.L2.tif') or re.search('.GRN\d+.tif$', path_in):
         i += 1
         folder, filename = os.path.split(path_in)
         filename_rgb =  filename.replace('L2', 'L2.RGB')

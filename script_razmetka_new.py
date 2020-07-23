@@ -2,12 +2,12 @@
 
 from geodata import *
 
-pin = [r'e:\rks\neuro\snt_masks']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
-vin = r''                   # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
-pout = r'e:\rks\razmetka\set025'                  # Путь для сохранения конечных файлов
-maskid = 'MWS'                # Индекс масок (MWT, MFS и т.д.)
+pin = [r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-4\resursp_grn']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
+vin = r'\\172.21.195.2/Development/TT-NAS-Archive/NAS-Archive-2TB-4/resursp_grn/shp_for_masks/eco_KRYM_SIMFEROPOLSKIY_20191209.shp'                   # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
+pout = r'e:\rks\razmetka\set027'                  # Путь для сохранения конечных файлов
+maskid = 'MDP'                # Индекс масок (MWT, MFS и т.д.)
 image_col = 'name'              # Название колонки идентификатора растровой сцены (если vin != 0)
-code_col = 'GRIDCODE'               # Название колонки с кодовыми значениями
+code_col = 'gridcode'               # Название колонки с кодовыми значениями
 compress = 'DEFLATE'        # Алгоритм сжатия растровых данных
 overwrite =  False          # Заменять существующие файлы
 pms = True                  # Использовать паншарпы
@@ -18,6 +18,19 @@ def parse_kanopus(id):
     satid, loc1, loc2, sentnum, kanopus, date, num1, ending = id.split('_')
     num2, scn, type, lvl = ending.split('.')
     return satid, loc1, loc2, sentnum, date, num1, num2, scn, type, lvl
+
+# Parse Resurs name
+def parse_resurs(id):
+    satid, loc1, sentnum, geoton, date, num1, ending = id.split('_')
+    ending = ending.split('.')
+    if len(ending)==4:
+        num2, scn, type, lvl = ending
+        return satid, loc1, sentnum, date, num1, num2, scn, type, lvl, ''
+    elif len(ending)==5:
+        num2, scn, type, lvl, grn = ending
+        return satid, loc1, sentnum, date, num1, num2, scn, type, lvl, grn
+    else:
+        raise Exception('Wrong ending length for %s' % id)
 
 # Parse Sentinel name
 def parse_sentinel(id):
@@ -33,6 +46,12 @@ def get_neuroid(id):
         satid, loc1, loc2, sentnum, date, num1, num2, scn, type, lvl = parse_kanopus(id)
         loc = loc1+loc2+scn[3:]
         if type=='PMS':
+            lvl += type
+    elif re.search(r'RP.+L2.GRN\d+', id):
+        id = re.search(r'RP.+L2.GRN\d+', id).group()
+        satid, loc1, sentnum, date, num1, num2, scn, type, lvl, grn = parse_resurs(id)
+        loc = loc1 + scn[3:] + grn[3:]
+        if type == 'PMS':
             lvl += type
     elif re.search(r'^S2.+\d+T\d+$' ,id):
         satid, date, time, loc, lvl = parse_sentinel(id)
@@ -55,7 +74,7 @@ def get_col_keys(vec, colname):
         return keys
 
 def filter_id(id, pms=False):
-    for tmpt in (r'KV.+SCN\d+', r'IM4-KV.+-L2', r'IM4-KV.+\d{2,}', r'^S2.+\d+T\d+$'):
+    for tmpt in (r'KV.+SCN\d+', r'IM4-KV.+-L2', r'IM4-KV.+\d{2,}', r'^S2.+\d+T\d+$', r'RP.+L2.GRN\d+'):
         search = re.search(tmpt, id)
         if search:
             report = search.group()
@@ -145,7 +164,7 @@ else:
     raster_paths = get_raster_paths(pin)
     input = get_pairs(raster_paths, vin, image_col, pms=pms)
 
-scroll(input)
+scroll(input, header='Source layers:')
 
 suredir(pout)
 
@@ -163,9 +182,4 @@ for i, neuroid in enumerate(input):
             vec_reprojected = vec_filtered
         RasterizeVector(vec_reprojected, img_out, msk_out, data_type = 2,
                         value_colname=code_col, compress=compress, overwrite=overwrite)
-    din = gdal.Open(msk_out, 1)
-    arr_ = din.GetRasterBand(1).ReadAsArray()
-    arr_[arr_ == 5] = 501
-    din.GetRasterBand(1).WriteArray(arr_)
-    din = None
     print('%i mask written: %s' % (i+1, neuroid))

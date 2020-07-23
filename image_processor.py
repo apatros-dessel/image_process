@@ -12,6 +12,7 @@ import mykanopus
 import mysentinel
 import myresursp
 import mydg
+import myskysat
 
 # Constants
 
@@ -24,6 +25,7 @@ metalib = {
     'KAN': mykanopus,
     'RSP': myresursp,
     'DG': mydg,
+    'SS': myskysat,
 }
 
 # A dictionary of metadata filenames templates
@@ -206,23 +208,28 @@ class process(object):
         if imsys_list is None:
             imsys_list = globals()['template_dict'].keys()
         # print(imsys_list)
+        errors = []
         for path2scene in path:
             file = os.path.isfile(path2scene)
             if file:
-                fin = False
-                for imsys in imsys_list:
-                    if fin:
-                        break
-                    templates = globals()['template_dict'].get(imsys)
-                    # print(templates)
-                    if templates is not None:
-                        for template in templates:
-                            # print(template)
-                            if re.search(template, path2scene) is not None:
-                                # print(re.search(template, path2scene).group())
-                                self.add_scene(path2scene, imsys)
-                                fin = True
-                                break
+                try:
+                    fin = False
+                    for imsys in imsys_list:
+                        if fin:
+                            break
+                        templates = globals()['template_dict'].get(imsys)
+                        # print(templates)
+                        if templates is not None:
+                            for template in templates:
+                                # print(template)
+                                if re.search(template, path2scene) is not None:
+                                    # print(re.search(template, path2scene).group())
+                                    self.add_scene(path2scene, imsys)
+                                    fin = True
+                                    break
+                except:
+                    print('Error making scene: %s' % path2scene)
+                    errors.append(path2scene)
             else:
                 input_list = walk_find(path2scene, globals()['template_dict'].keys(), globals()['template_dict'].values())
                 # scroll('Input list: {}'.format(input_list))
@@ -236,7 +243,19 @@ class process(object):
                         if imsys not in imsys_list:
                             continue
 
-                        self.add_scene(newpath, imsys)
+                        try:
+                            self.add_scene(newpath, imsys)
+                        except:
+                            # self.add_scene(newpath, imsys)
+                            print('Error making scene: %s' % newpath)
+                            errors.append(newpath)
+
+        if len(errors) > 0:
+            log = tempname('txt').replace('.txt', 'log_input.txt')
+            with open(log, 'w') as txt:
+                txt.write('\n'.join(errors))
+            print('List of errors in %s' % log)
+
         return self
 
     # Get list of scene_ids
@@ -347,6 +366,7 @@ class process(object):
         fields_dict['y_size'] = {'type_id': 2}
         fields_dict['level'] = {'type_id': 4}
         fields_dict['area'] = {'type_id': 2}
+        fields_dict['path'] = {'type_id': 4}
 
         geodata.json_fields(vector_cover_path, geodata.ogr.wkbMultiPolygon, 4326, fields_dict)
         ds_out, lyr_out = geodata.get_lyr_by_path(vector_cover_path, True)
@@ -418,7 +438,7 @@ class process(object):
         return 0
 
     # Returns json cover with standard set of fields from scenes metadata
-    def GetCoverJSON(self, vector_cover_path, epsg=4326):
+    def GetCoverJSON(self, vector_cover_path, epsg=4326, add_path=True):
 
         fields_dict = globals()['geodata'].fields_dict
 
@@ -434,6 +454,8 @@ class process(object):
         lyr_out = ds_out.CreateLayer('', srs, geodata.ogr.wkbMultiPolygon)
 
         for field_id in fields_dict:
+            if field_id=='path' and not add_path:
+                continue
             field_params = fields_dict[field_id]
             field_defn = geodata.ogr.FieldDefn(field_id, field_params['type_id'])
             lyr_out.CreateField(field_defn)
@@ -441,10 +463,22 @@ class process(object):
         lyr_defn = lyr_out.GetLayerDefn()
 
         if len(self)>0:
+            errors = []
             for ascene in self.scenes:
-                feat = ascene.json_feat(lyr_defn)
-                lyr_out.CreateFeature(feat)
-                print('Metadata written: {}'.format(ascene.meta.id))
+                try:
+                    feat = ascene.json_feat(lyr_defn, add_path=add_path)
+                    lyr_out.CreateFeature(feat)
+                    # print('Metadata written: {}'.format(ascene.meta.id))
+                except:
+                    # feat = ascene.json_feat(lyr_defn)
+                    # lyr_out.CreateFeature(feat)
+                    print('Error writing metadata: %s' % ascene.path)
+                    errors.append(ascene.path)
+            if len(errors) > 0:
+                log = tempname('txt').replace('.txt', 'log_cover.txt')
+                with open(log, 'w') as txt:
+                    txt.write('\n'.join(errors))
+                print('List of errors in %s' % log)
         # print(len(lyr_out))
         # for feat in lyr_out: print(feat.GetGeometryRef().ExportToWkt())
         ds_out = None
@@ -636,7 +670,7 @@ class scene:
             return None
 
     # Returns a scene cover as a feature with standard set of attributes
-    def json_feat(self, lyr_defn):
+    def json_feat(self, lyr_defn, add_path=True):
         feat = geodata.ogr.Feature(lyr_defn)
         ds_mask, lyr_mask = geodata.get_lyr_by_path(self.datamask())
         if lyr_mask is not None:
@@ -648,6 +682,10 @@ class scene:
             for type in ('mul', 'pan'):
                 if type in self.meta.files:
                     mykanopus.meta_from_raster(feat, self.get_raster_path(type))
+        elif self.imsys=='SS':
+            myskysat.meta_from_raster(feat, self.get_raster_path('Analytic'))
+        if add_path:
+            feat.SetField('path', self.path)
         return feat
 
     def quicklook(self):

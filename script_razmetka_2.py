@@ -4,7 +4,7 @@ from geodata import *
 
 # Перечень векторных файлов для создания масок, с указанием условного обозначения типа маски
 path_shp_dict = {
-    'MWS': r'e:\rks\neuro\tbo_new\Neiro_TBO_svalki_narushZem.shp'
+    'MWS': r'\\172.21.195.2/FTP-Share/ftp/ТБО_нейросеть/Neiro_TBO_svalki_narushZem.shp'
 }
 
 # Перечни кодов в рамках каждой маски (чтобы разделять векторные файлы с несколькими типами масок)
@@ -23,18 +23,21 @@ raster_path = [r'\\172.21.195.2\FTP-Share\ftp\db_etalons',
             r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-7\kan-pms',
                r'\\172.21.195.2\FTP-Share\ftp\proc\kanopus',
                r'\\172.21.195.2\FTP-Share\ftp\s3',
-               r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-6\s3']
+               r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-6\s3',
+               r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-1\Kanopus',
+               r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-2\Kanopus',
+               r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-5\na-va']
 
 # Путь для сохранения конечных файлов
-path_out = r'\\172.21.195.2\FTP-Share\ftp\train_data\set025'
+path_out = r'e:\rks\razmetka\set028'
 
 img_colname = 'name'      # Название векторного поля, содержащего id растра
-obj_index_col = 'GRIDCODE'  # Название векторного поля, содержащего id объекта
+obj_index_col = 'gridcode'  # Название векторного поля, содержащего id объекта
 compression = 'DEFLATE'     # Алгоритм сжатия растровых данных
 overwrite =  False          # Заменять существующие файлы
-pms = True                  # Использовать паншарпы
+pms = False                  # Использовать паншарпы
 
-report_xls = r'\\172.21.195.2\FTP-Share\ftp\train_data\set025_1.xls'
+report_xls = r'e:\rks\razmetka\set028_1.xls'
 
 # Parse Kanopus name
 def parse_kanopus(id):
@@ -117,7 +120,7 @@ for maskid in path_shp_dict:
     scroll(raster_ids)
 
     for neuroid in raster_ids:
-        trueid = filter_id(neuroid, pms = True)
+        trueid = filter_id(neuroid, pms = pms)
         if not trueid in report:
             report[trueid] = deepcopy(baseline)
             report[trueid]['id'] = neuroid

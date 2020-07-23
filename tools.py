@@ -557,7 +557,7 @@ def fold_finder(path):
 
 # Searches filenames according to template and returns a list of full paths to them
 # Doesn't use os.walk to avoid using generators
-def walk_find(path, ids_list, templates_list, id_max=10000):
+def walk_find(path, ids_list, templates_list, id_max=100000):
     #templates_list = listoftype(templates_list, str, export_tuple=True)
     if os.path.exists(path):
         if not os.path.isdir(path):
@@ -697,7 +697,7 @@ def get_date_from_string(date_str):
     day = int(date_str[8:10])
     hour = int(date_str[11:13])
     minute = int(date_str[14:16])
-    second = float(date_str[17:-1])
+    second = float(re.search(r'\d+\.\d+', date_str[17:-1]).group())
     return datetime(year, month, day)
 
 # Reads .xml file and returns metadata as element tree
@@ -984,7 +984,7 @@ class scene_metadata:
         return namestring
 
 # Searches filenames according to template and returns a list of full paths to them
-def folder_paths(path, files = False, extension = None, id_max=10000):
+def folder_paths(path, files = False, extension = None, id_max=100000):
     # templates_list = listoftype(templates_list, str, export_tuple=True)
     if os.path.exists(path):
         if not os.path.isdir(path):

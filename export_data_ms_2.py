@@ -3,10 +3,10 @@
 from geodata import *
 import shutil
 
-dir_in = r'd:\digital_earth\102_2020_91.KV1_35803_28473_00_KANOPUS_20190104_053019_053030.SCN2.MS.L2'        # Путь к папке с исходными данными
-dir_out = r'd:\digital_earth\102_2020_91.KV1_35803_28473_00_KANOPUS_20190104_053019_053030.SCN2.MS.L2'    # Путь к месту хранения конечных данных
-json_in = r'd:\digital_earth\102_2020_91.KV1_35803_28473_00_KANOPUS_20190104_053019_053030.SCN2.MS.L2\KV1_35803_28473_00_KANOPUS_20190104_053019_053030.SCN2.MS.L2.json' # Путь к векторному файлу покрытия
-id_xls = r'd:\digital_earth\102_2020_91.KV1_35803_28473_00_KANOPUS_20190104_053019_053030.SCN2.MS.L2\test.xls' # Путь к таблице xls с перечнем id отобранных снимков
+dir_in = r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-4\resursp_grn'        # Путь к папке с исходными данными
+dir_out = r'e:\rks\resurs_granules_new'    # Путь к месту хранения конечных данных
+json_in = r'E:/rks/resurs_otbor1.shp' # Путь к векторному файлу покрытия
+id_xls = r'C:\Users\admin\Desktop\granules_selected.xls' # Путь к таблице xls с перечнем id отобранных снимков
 
 # Find filenames in a folder by id
 def find_path_by_id(id_dict, dir, ext='tif'):

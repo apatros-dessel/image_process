@@ -10,7 +10,7 @@ from geodata import *
 
 # Templates for SkySat metadata filenames
 templates = (
-    r'\d{8}_\d+_.+_metadata.json',
+    r'\d{8}_\d+_ss.+_metadata.json',
 )
 
 # Raster files indices for SkySat scenes

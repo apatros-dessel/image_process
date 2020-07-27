@@ -42,11 +42,40 @@ dg_sats = {
 # Functions for Digital Globe metadata processing
 
 # Gets DG file names as ordered dictionary
-def get_filepaths(file):
+def get_filepaths(folder):
     export = OrderedDict()
-    export['data'] = file + 'TIF'
-    export['image'] = file + '-BROWSE.JPG'
+    files = os.listdir(folder)
+    i = 1
+    for file in files:
+        if file.endswith('.tif'):
+            export['data%i' % i] = file
+            i += 1
+        elif file.endswith('.jpg'):
+            export['image'] = file
     return export
+
+def get_bandpaths(filepaths):
+    export = OrderedDict()
+    for key in filepaths:
+        if key.startswith('data'):
+            export.update({
+                'blue%s' % key[4:]: (key, 1),
+                'green%s' % key[4:]: (key, 2),
+                'red%s' % key[4:]: (key, 3),
+                'nir%s' % key[4:]: (key, 4),
+            })
+        elif key=='image':
+            export.update({
+                'red_img': ('image', 1),
+                'green_img': ('image', 2),
+                'blue_img': ('image', 3),
+            })
+    return export
+
+def get_baselist(filepaths):
+    baselist = list(filepaths.keys())
+    baselist.pop(baselist.index('image'))
+    return baselist
 
 # Gets DG scene date and time
 def get_dg_datetime(meta):
@@ -79,8 +108,9 @@ def metadata(path):
     meta.lvl =          delist(get_from_tree(dg, 'PRODUCTLEVEL')),
     meta.id =           delist(get_from_tree(dg, 'CATID', digit_to_float=False))
     meta.files =        globals()['dg_files']
-    meta.filepaths =    get_filepaths(file)
-    meta.bandpaths =    globals()['dg_bandpaths']
+    meta.filepaths =    get_filepaths(folder)
+    meta.bandpaths =    get_bandpaths(meta.filepaths)
+    meta.base =         get_baselist(meta.filepaths)
     loc_list = get_from_tree(dg, 'PRODUCTORDERID', digit_to_float=False).split('_')
     meta.location =     ''.join(loc_list[:2])
     meta.datetime =     get_dg_datetime(dg)
@@ -105,7 +135,7 @@ def metadata(path):
 
 # Adds attributes to a standart feature for cover
 def set_cover_meta(feat, meta):
-    print(feat)
+    # print(feat)
     if meta is not None:
         metadata = meta.container.get('meta')
         feat.SetField('id', meta.id)

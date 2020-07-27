@@ -22,9 +22,9 @@ skysat_files = [
 # Tuples with raster file index and band number for SkySat raster data bands
 skysat_bandpaths = OrderedDict(
     {
-        'blue': ('Analytic', 3),
+        'blue': ('Analytic', 1),
         'green': ('Analytic', 2),
-        'red': ('Analytic', 1),
+        'red': ('Analytic', 3),
         'nir': ('Analytic', 4),
         'mask': ('Mask', 1),
     }
@@ -64,6 +64,7 @@ def metadata(path):
     meta.files =        globals()['skysat_files']
     meta.filepaths =    get_skysat_files(f)
     meta.bandpaths =    meta.bandpaths = globals()['skysat_bandpaths']
+    meta.base =         'Analytic'
     meta.location =     loc1 + satcam[-2:] + loc2
     meta.datetime =     get_date_from_string(feat.GetField('acquired'))
 
@@ -87,7 +88,7 @@ def metadata(path):
 
 # Adds attributes to a standart feature for cover
 def set_cover_meta(feat, meta):
-    print(feat)
+    # print(feat)
     if meta is not None:
         feat0 = meta.container.get('feat')
         feat.SetField('id', meta.id)

@@ -1,5 +1,12 @@
 from geodata import *
 
+dir_in = [
+    r'e:\test\razmetka\data\set022',
+    r''
+]
+
+dir_out = r'd:\terratech\razmetka\set022__20200702__doobuchenie_MWT_MGR_MQR_MCN_MBD_PMS\masks\full\kanopus'
+
 def collect_masks(dir_in):
     report = OrderedDict()
     for file in folder_paths(dir_in,1,'tif'):
@@ -53,9 +60,6 @@ def sum_rasters(path_list, path_out, order_keys=(), overwrite=True):
     dout.GetRasterBand(1).WriteArray(raster_array)
     dout = None
     return 0
-
-dir_in = r'e:\test\razmetka\data\set022'
-dir_out = r'd:\terratech\razmetka\set022__20200702__doobuchenie_MWT_MGR_MQR_MCN_MBD_PMS\masks\full\kanopus'
 
 suredir(dir_out)
 

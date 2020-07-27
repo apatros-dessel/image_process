@@ -2,10 +2,10 @@
 
 from geodata import *
 
-pin = [r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-4\resursp_grn']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
-vin = r'\\172.21.195.2/Development/TT-NAS-Archive/NAS-Archive-2TB-4/resursp_grn/shp_for_masks/eco_KRYM_SIMFEROPOLSKIY_20191209.shp'                   # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
-pout = r'e:\rks\razmetka\set027'                  # Путь для сохранения конечных файлов
-maskid = 'MDP'                # Индекс масок (MWT, MFS и т.д.)
+pin = [r'\\172.21.195.2\FTP-Share\ftp\landcover\Sentinel masks\les\set027']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
+vin = None                   # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
+pout = r'e:\rks\razmetka\set027_forest_sentinel'                  # Путь для сохранения конечных файлов
+maskid = 'MFS'                # Индекс масок (MWT, MFS и т.д.)
 image_col = 'name'              # Название колонки идентификатора растровой сцены (если vin != 0)
 code_col = 'gridcode'               # Название колонки с кодовыми значениями
 compress = 'DEFLATE'        # Алгоритм сжатия растровых данных
@@ -182,4 +182,9 @@ for i, neuroid in enumerate(input):
             vec_reprojected = vec_filtered
         RasterizeVector(vec_reprojected, img_out, msk_out, data_type = 2,
                         value_colname=code_col, compress=compress, overwrite=overwrite)
+        ds_edit = gdal.Open(msk_out, 1)
+        arr_ = ds_edit.GetRasterBand(1).ReadAsArray()
+        arr_[arr_==2] = 4
+        ds_edit.GetRasterBand(1).WriteArray(arr_)
+        ds_edit = None
     print('%i mask written: %s' % (i+1, neuroid))

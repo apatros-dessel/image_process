@@ -20,13 +20,15 @@ gridcode = {
 
 # Перечни путей к корневым папкам растровых файлов
 raster_path = [r'\\172.21.195.2\FTP-Share\ftp\db_etalons',
-            r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-7\kan-pms',
+            # r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-7\kan-pms',
                r'\\172.21.195.2\FTP-Share\ftp\proc\kanopus',
                r'\\172.21.195.2\FTP-Share\ftp\s3',
-               r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-6\s3',
-               r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-1\Kanopus',
-               r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-2\Kanopus',
-               r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-5\na-va']
+               # r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-6\s3',
+               # r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-1\Kanopus',
+               # r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-2\Kanopus',
+               # r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-5\na-va',
+               r'G:', r'K:',
+               ]
 
 # Путь для сохранения конечных файлов
 path_out = r'e:\rks\razmetka\set028'
@@ -132,9 +134,12 @@ for maskid in path_shp_dict:
             error = True
             f, n, e = split3(img)
             # print(checkval, trueid, n)
+            if re.search(r'^\d+_2020_\d+\.', n):
+                n = n[len(re.search(r'^\d+_2020_\d+\.', n).group())]
             if checkval==n or trueid==n:
+            # if n.endswith(checkval) or n.endswith(trueid):
                 error = False
-                print(checkval, n)
+                # print(checkval, n)
                 report[trueid]['img'] = img
                 if n.startswith('KV'):
                     img_name = get_neuroid(n)

@@ -119,6 +119,7 @@ def metadata(path):
     meta.write_time_codes(meta.datetime)
 
     meta.filepaths = getplanetfiles(meta.container.get('xmltree'))
+    meta.base = 'Analytic'
 
     # if meta.lvl == 'L3B':
         # meta.filepaths = getplanetfiles_new(meta)
@@ -140,7 +141,7 @@ def metadata(path):
 
 # Adds attributes to a standart feature for cover
 def set_cover_meta(feat, meta):
-    print(feat)
+    # print(feat)
     if meta is not None:
         metadata = meta.container.get('xmltree')
         feat.SetField('id', meta.id)

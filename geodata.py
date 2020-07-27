@@ -393,7 +393,7 @@ def shp(path2shp, editable = False, copy_ds = None):
     else:
         srs = None
         defn = None
-        geom_type = None
+        geom_type = ogr.wkbMultiPolygon
 
     drv = ogr.GetDriverByName("ESRI Shapefile")
     dst_ds = drv.CreateDataSource(path2shp)
@@ -1012,6 +1012,7 @@ def unite_vector(path2vector_list, path2export): # No georeference check is used
 
     return None
 
+# Create raster_vector mask
 def vector_mask(path2raster, path2save_raster_mask, path2shp, limits, sign, nodata=None):
 
     raster_ds = gdal.Open(path2raster)
@@ -1790,7 +1791,7 @@ def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, resoluti
 
     return 0
 
-def Mosaic(path2raster_list, export_path, band_num=1, options=None):
+def Mosaic(path2raster_list, export_path, band_num=1, band_order=None, options=None):
 
     # t_ds = gdal.BuildVRT(export_path, path2raster_list)
 
@@ -1805,8 +1806,15 @@ def Mosaic(path2raster_list, export_path, band_num=1, options=None):
 
     t_ds = gdal.Open(export_path, 1)
     for path2raster in path2raster_list:
-        s_ds = gdal.Open(path2raster)
+        if band_order is None:
+            s_ds = gdal.Open(path2raster)
+        else:
+            traster = tempname('tif')
+            SaveRasterBands(path2raster, band_order, traster, options={'compress': 'DEFLATE'}, overwrite=True)
+            s_ds = gdal.Open(traster)
         gdal.ReprojectImage(s_ds, t_ds)
+        if band_order is not None:
+            os.remove(traster)
         print('Added to mosaic: {}'.format(path2raster))
         s_ds = None
 
@@ -1878,7 +1886,7 @@ def RasterLimits(path2raster_list, method=0, band_limits=None, band_num = 3, exc
     return band_limits
 
 # Saves raster data mask to shapefile
-def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata = None, alpha=None, overwrite = True):
+def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata = None, alpha=None, epsg=None, overwrite = True):
 
     if check_exist(path2export, ignore=overwrite):
         return 1
@@ -1886,6 +1894,10 @@ def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata =
     s_ds = gdal.Open(path2raster)
     if s_ds is None:
         return 1
+
+    if epsg is not None:
+        path2export0 = path2export
+        path2export = tempname('shp')
 
     tfolder = globals()['temp_dir_list'].create()
     tpath = newname(tfolder, 'tif')
@@ -1930,13 +1942,19 @@ def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata =
     shp_ds = shp(path2export, editable = True)
     lyr = shp_ds.GetLayer()
 
-    # save_raster(path2export[:-4] + '.tif', mask_array, copypath=tpath, compress='LERC_DEFLATE', overwrite=True)
+    save_raster(path2export[:-4] + '.tif', mask_array, copypath=tpath, compress='LERC_DEFLATE', overwrite=True)
+    print(path2export[:-4] + '.tif')
+    print(np.unique(mask_array))
 
     gdal.Polygonize(mask_band, mask_band, lyr, 0, [], callback=gdal.TermProgress_nocb)
+    # gdal.Polygonize(mask_band, mask_band, lyr, 0, [], callback=returnnone)
     shp_ds = None
 
     # Write projection
     write_prj(path2export[:-4] + '.prj', s_ds.GetProjection())
+
+    if epsg is not None:
+        ReprojectVector(path2export, path2export0, epsg, overwrite=True)
 
     return 0
 

@@ -16,8 +16,9 @@ if not os.path.exists(default_temp):
     os.makedirs(default_temp)
 
 # Function always returning None
-def returnnone(obj):
-    return None
+def returnnone(*args):
+    # print(tuple(*args))
+    return 1
 
 # Function always returning object
 def returnobj(obj):

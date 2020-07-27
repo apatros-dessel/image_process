@@ -438,7 +438,7 @@ class process(object):
         return 0
 
     # Returns json cover with standard set of fields from scenes metadata
-    def GetCoverJSON(self, vector_cover_path, epsg=4326, add_path=True):
+    def GetCoverJSON(self, vector_cover_path, epsg=4326, add_path=True, data_mask=False):
 
         fields_dict = globals()['geodata'].fields_dict
 
@@ -466,12 +466,12 @@ class process(object):
             errors = []
             for ascene in self.scenes:
                 try:
-                    feat = ascene.json_feat(lyr_defn, add_path=add_path)
+                    feat = ascene.json_feat(lyr_defn, add_path=add_path, data_mask=data_mask)
                     lyr_out.CreateFeature(feat)
                     # print('Metadata written: {}'.format(ascene.meta.id))
                 except:
-                    # feat = ascene.json_feat(lyr_defn)
-                    # lyr_out.CreateFeature(feat)
+                    feat = ascene.json_feat(lyr_defn, add_path=add_path, data_mask=data_mask)
+                    lyr_out.CreateFeature(feat)
                     print('Error writing metadata: %s' % ascene.path)
                     errors.append(ascene.path)
             if len(errors) > 0:
@@ -670,7 +670,7 @@ class scene:
             return None
 
     # Returns a scene cover as a feature with standard set of attributes
-    def json_feat(self, lyr_defn, add_path=True):
+    def json_feat(self, lyr_defn, add_path=True, data_mask=False, srs=4326):
         feat = geodata.ogr.Feature(lyr_defn)
         ds_mask, lyr_mask = geodata.get_lyr_by_path(self.datamask())
         if lyr_mask is not None:
@@ -686,6 +686,24 @@ class scene:
             myskysat.meta_from_raster(feat, self.get_raster_path('Analytic'))
         if add_path:
             feat.SetField('path', self.path)
+        if data_mask:
+            path2export = tempname('shp')
+            if isinstance(self.meta.base, list):
+                cover_list = []
+                for base in self.meta.base:
+                    temp_cover = tempname('shp')
+                    geodata.RasterDataMask(base, temp_cover, use_nodata=True, enforce_nodata=None, alpha=None, epsg=srs, overwrite=True)
+                    cover_list.append(temp_cover)
+                geodata.Unite(cover_list, path2export, proj=None, deafault_srs=srs, overwrite=True)
+            else:
+                geodata.RasterDataMask(self.get_raster_path(self.meta.base), path2export, use_nodata=True, enforce_nodata=None, alpha=None, epsg=srs, overwrite=True)
+            # print(path2export)
+            new_ds, new_lyr = geodata.get_lyr_by_path(path2export)
+            new_feat = new_lyr.GetNextFeature()
+            new_geom = new_feat.GetGeometryRef()
+            # print(new_geom.ExportToWkt())
+            feat.SetGeometry(new_geom)
+
         return feat
 
     def quicklook(self):

@@ -35,13 +35,14 @@ skysat_bandpaths = OrderedDict(
 # Gets SkySat file names as ordered dictionary
 def get_skysat_files(folder):
     files = OrderedDict()
-    img_folder = fullpath(folder, 'analytic')
-    if os.path.exists(img_folder):
-        for img in os.listdir(img_folder):
-            if re.search(r'\d{8}_\d+_.+_analytic.tif', img):
-                files['Analytic'] = r'analytic\\%s' % img
-            elif re.search(r'\d{8}_\d+_.+_analytic_udm.tif', img):
-                files['Mask'] = r'analytic\\%s' % img
+    if os.path.exists(folder):
+        for img in flist(folder_paths(folder,1,'tif'), lambda x: x[len(folder)+1:]):
+            # print(img)
+            if re.search(r'\d{8}_\d+_.+_analytic.*.tif', img):
+                files['Analytic'] = img
+            elif re.search(r'\d{8}_\d+_.+_analytic_udm.*.tif', img):
+                files['Mask'] = img
+    # print(files)
     return files
 
 # Fill SkySat metadata

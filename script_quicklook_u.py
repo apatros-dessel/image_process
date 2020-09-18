@@ -2,18 +2,18 @@
 
 from geodata import *
 
-dir_in = r'e:\rks\s3'
+dir_in = r'e:\rks\resurs_granules_newnew'
 
 names_tmpt = {
     'sentinel': '^S2[AB]_MSI.+\d$',
     'planet': '.*AnalyticMS(_SR)?$',
     'planet_neuro': 'IM4-PLN.*',
+    'resursp_grn': '^RP.*GRN\d+$',
 }
 
 def valid_str(str_, tmpt_list):
     tmpt_list = obj2list(tmpt_list)
     for tmpt in tmpt_list:
-
         if re.search(tmpt, str_):
             return True
     return False

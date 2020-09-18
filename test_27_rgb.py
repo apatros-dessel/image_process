@@ -1,7 +1,7 @@
 from geodata import *
 from datetime import datetime
-path_in = r'e:\kanopus_new\pansharpened\Krym_add/!KV3_08248_06472_00_KANOPUS_20190729_084114_084143.SCN8.PMS.L2.tif'
-path_out = r'C:/Users/admin/Desktop/030_REPR_REPR_ZERO_ZERO.tif'
+path_in = r'\\172.21.195.2\FTP-Share\ftp\proc\resurs\Krym\pms\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.tif'
+path_out = r'\\172.21.195.2\FTP-Share\ftp\proc\resurs\Krym\rgb\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.RGB.tif'
 
 t = datetime.now()
 RasterToImage3(path_in,

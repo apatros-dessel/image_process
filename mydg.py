@@ -45,8 +45,10 @@ dg_sats = {
 def get_filepaths(folder):
     export = OrderedDict()
     files = os.listdir(folder)
+    # print(files)
     i = 1
     for file in files:
+        file = file.lower()
         if file.endswith('.tif'):
             export['data%i' % i] = file
             i += 1
@@ -105,10 +107,11 @@ def metadata(path):
 
     meta.sat =          delist(get_from_tree(dg, 'SATID', digit_to_float=False))
     meta.fullsat =      meta.sat # globals()['dg_sats'].get(meta.sat)
-    meta.lvl =          delist(get_from_tree(dg, 'PRODUCTLEVEL')),
+    meta.lvl =          delist(get_from_tree(dg, 'PRODUCTLEVEL'))
     meta.id =           delist(get_from_tree(dg, 'CATID', digit_to_float=False))
-    meta.files =        globals()['dg_files']
+    # meta.files =        globals()['dg_files']
     meta.filepaths =    get_filepaths(folder)
+    meta.files =        meta.filepaths.keys()
     meta.bandpaths =    get_bandpaths(meta.filepaths)
     meta.base =         get_baselist(meta.filepaths)
     loc_list = get_from_tree(dg, 'PRODUCTORDERID', digit_to_float=False).split('_')

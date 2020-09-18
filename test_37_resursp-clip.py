@@ -3,8 +3,13 @@
 from geodata import *
 from shutil import copyfile
 
+path_in = r'\\172.21.195.2\FTP-Share\ftp\images\region82\RP1_38863_06_GEOTON_20200605_080512_080526.SCN2.PMS_d9dc7f44602c68945ece55b5d7e07e88ba55147c' # Путь к исходным сценам Ресурс-П
+raster_fullcover = r'C:/Users/admin/Documents/vector_cover.json'      # Путь к файлу покрытия Ресурс-П
+vector_path = r'd:\digital_earth\granules_grid.shp'                                         # Путь кфайлу сетки гранул
+out_dir = r'e:\rks\resurs_granules_newnew'                                                             # Путь к готовым гранулам
+
 def crop_bigraster_gdal(path_in, path_vec, path_out):
-    command = "gdalwarp -of GTiff -cutline {path_vec} -crop_to_cutline -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 {path_in} {path_out}".format(path_vec=path_vec, path_in=path_in, path_out=path_out)
+    command = "gdalwarp -of GTiff -cutline {path_vec} -crop_to_cutline -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 {path_in} {path_out} -co NUM_THREADS=ALL_CPUS".format(path_vec=path_vec, path_in=path_in, path_out=path_out)
     # print(command)
     os.system(command)
 
@@ -44,13 +49,6 @@ def granule_metadata_json(path_granule, path_cover_meta, path_out, raster_path):
     # Save new feature
     lout.SetFeature(fout)
     dout = None
-
-
-
-path_in = r'd:\terratech\resursp_new\102_2020_108_PSH' # Путь к исходным сценам Ресурс-П
-raster_fullcover = r'd:\terratech\resursp_new\102_2020_108_PSH\Resurs_krym_new_fullcover.json'      # Путь к файлу покрытия Ресурс-П
-vector_path = r'd:\terratech\resurs_test\granules_grid.shp'                                         # Путь кфайлу сетки гранул
-out_dir = r'e:\rks\resurs_granules_new'                                                             # Путь к готовым гранулам
 
 suredir(out_dir)
 

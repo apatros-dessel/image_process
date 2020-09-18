@@ -91,7 +91,7 @@ def gdal_options(compress = None):
 
     if compress is not None:
         if compress == 'DEFLATE':
-            options.extend(['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9'])
+            options.extend(['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9', 'NUM_THREADS=ALL_CPUS'])
         elif compress in globals()['tiff_compress_list']:
             options.append('COMPRESS={}'.format(compress))
         else:
@@ -173,6 +173,17 @@ def vec_to_crs(ogr_dataset, t_crs, export_path):
     else:
         outDataSet = ogr_dataset
     return outDataSet
+
+def changeXY(geom):
+    coords = geom.ExportToWkt().split(',')
+    for i, coord in enumerate(coords):
+        vals = re.search('\d+\.?\d+ \d+\.?\d+', coord).group()
+        xy = vals.split(' ')
+        xy.reverse()
+        new_vals = ' '.join(xy)
+        coords[i] = coord.replace(vals, new_vals)
+    new_geom = ogr.Geometry(wkt = ','.join(coords))
+    return new_geom
 
 # Adapts the vector mask to the specified raster extent (the projections must be the same)
 def extent_mask(array_shape, geotrans_0, extent):
@@ -355,6 +366,8 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
             options = []
     else:
         options = []
+    options.extend(['BIGTIFF=YES', 'NUM_THREADS=ALL_CPUS'])
+    # options.extend(['BIGTIFF=YES'])
 
     driver = gdal.GetDriverByName(driver_name)
     raster_ds = driver.Create(path, xsize, ysize, bandnum, dt, options = options)
@@ -1633,17 +1646,14 @@ def Composite(export_path, bandpath = None, rasterpath = None, band_order = None
     if raster_data is None:
         return 1
 
-    reproject = False
-    if epsg is not None:
-        with gdal.Open(bandpath[:-1].path) as ds_in:
-            if ds_match(epsg, ds_in):
-                ds_out = create_reprojected_raster(bandpath[:-1].path, export_path, srs_out.ExportToWkt(),
-                                                   band_num=len(bandpath), compress=compress, editable=True)
-                reproject = True
+    raster = ds(export_path, copypath=bandpath[0][0], bandnum=4, options = ['COMPRESS=%s' % compress], editable = True)
 
-    if reproject:
-        for band in MultiRasterData:
-            pass
+    for i, arr in enumerate(raster_data.get(2)):
+        raster.GetRasterBand(i+1).WriteArray(arr)
+
+    raster = None
+
+
 
 def ds_match(ds1, ds2):
     srs1 = get_srs(ds1)
@@ -1791,21 +1801,30 @@ def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, resoluti
 
     return 0
 
-def Mosaic(path2raster_list, export_path, band_num=1, band_order=None, options=None):
+def Mosaic(path2raster_list, export_path, band_num=1, band_order=None, copyraster=None, options=None):
 
     # t_ds = gdal.BuildVRT(export_path, path2raster_list)
 
-    tfolder = globals()['temp_dir_list'].create()
-    tpath = newname(tfolder, 'tif')
-    vrt = gdal.BuildVRT(tpath, path2raster_list)
-    driver = gdal.GetDriverByName('GTiff')
-    t_ds = driver.CreateCopy(export_path, vrt, band_num, options = options)
-    t_ds = None
+    if copyraster:
+        if options is None:
+            options_ = {'bandnum': band_num}
+        else:
+            options_ = deepcopy(options)
+            options_['bandnum'] = band_num
+        t_ds = ds(export_path, copypath=copyraster, options=options_, editable=True)
+    else:
+        tfolder = globals()['temp_dir_list'].create()
+        tpath = newname(tfolder, 'tif')
+        vrt = gdal.BuildVRT(tpath, path2raster_list)
+        driver = gdal.GetDriverByName('GTiff')
+        t_ds = driver.CreateCopy(export_path, vrt, band_num, options = options)
+        t_ds = None
 
     print('Started mosaic of %i images' % len(path2raster_list))
 
     t_ds = gdal.Open(export_path, 1)
     for path2raster in path2raster_list:
+        print('Start adding to mosaic: {}'.format(path2raster))
         if band_order is None:
             s_ds = gdal.Open(path2raster)
         else:
@@ -1995,18 +2014,14 @@ def MakeQuicklook(path_in, path_out, epsg = None, pixelsize = None, method = gda
         pixelsize = pixelsize / 50000
 
     if srs_in != srs_out:
-        geotransform = ds_in.GetGeoTransform()
-        x_res = geotransform[1]
-        y_res = geotransform[5]
-        # print(srs_out.ExportToWkt())
-        # print(srs_in.ExportToWkt())
-        t_raster_base = gdal.AutoCreateWarpedVRT(ds_in, srs_out.ExportToWkt(), srs_in.ExportToWkt())
+        t_raster_base = gdal.AutoCreateWarpedVRT(ds_in, srs_in.ExportToWkt(), srs_out.ExportToWkt())
         x_0, x, x_ang, y_0, y_ang, y = t_raster_base.GetGeoTransform()
         newXcount = int(math.ceil(t_raster_base.RasterXSize * (x / pixelsize)))
         newYcount = - int(math.ceil(t_raster_base.RasterYSize * (y / pixelsize)))
-        # print(newXcount, newYcount)
     else:
         x_0, x, x_ang, y_0, y_ang, y = ds_in.GetGeoTransform()
+        newXcount = int(math.ceil(ds_in.RasterXSize * (x / pixelsize)))
+        newYcount = - int(math.ceil(ds_in.RasterYSize * (y / pixelsize)))
 
     options = {
         'dt':       ds_in.GetRasterBand(1).DataType,
@@ -3387,6 +3402,8 @@ def json_fix_datetime(file, datetimecol='datetime'):
             json = open(file, 'w')
             json.write(new_data)
             json = None
+    else:
+        print('dtime not found for: %s' % file)
 
 def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None, unique_vals = False):
 
@@ -3885,3 +3902,107 @@ def RasterizeVector2(vec_path, img, msk_out, value_colname=None, compress=None, 
         if os.path.exists(vec_reprojected):
             vec_path = vec_reprojected
     RasterizeVector(vec_path, img, msk_out, value_colname=value_colname, compress=compress, overwrite=overwrite)
+
+def RasterDataCartesianArea(pin, set_nodata=None, use_single_band=True):
+    raster = gdal.Open(pin)
+    if raster is None:
+        print('Cannot open raster: %s' % pin)
+        return None
+    x = raster.RasterXSize
+    y = raster.RasterYSize
+    arr_ = np.zeros((y,x)).astype(bool)
+    if use_single_band:
+        max = 2
+    else:
+        max = raster.RasterCount+1
+    for band_num in range(1, max):
+        band = raster.GetRasterBand(band_num)
+        if set_nodata is None:
+            nodata = band.GetNoDataValue()
+        else:
+            nodata = set_nodata
+        arr_[band.ReadAsArray()==nodata] = True
+    geotrans = raster.GetGeoTransform()
+    x_m = geotrans[1]
+    y_m = - geotrans[-1]
+    return (x * y - np.sum(arr_)) * x_m * y_m
+
+def Composite2(path2raster_list, export_path, copypath = None, options=None):
+
+    # t_ds = gdal.BuildVRT(export_path, path2raster_list)
+
+    if copypath is None:
+        tfolder = globals()['temp_dir_list'].create()
+        tpath = newname(tfolder, 'tif')
+        vrt = gdal.BuildVRT(tpath, path2raster_list)
+        driver = gdal.GetDriverByName('GTiff')
+        t_ds = driver.CreateCopy(export_path, vrt, band_num, options = options)
+        t_ds = None
+    else:
+        t_ds = ds(export_path, copypath = copypath, options = options, editable = True)
+
+    print('Started mosaic of %i images' % len(path2raster_list))
+
+    t_ds = gdal.Open(export_path, 1)
+    for path2raster in path2raster_list:
+        print('Start adding to mosaic: {}'.format(path2raster))
+        if band_order is None:
+            s_ds = gdal.Open(path2raster)
+        else:
+            traster = tempname('tif')
+            SaveRasterBands(path2raster, band_order, traster, options={'compress': 'DEFLATE'}, overwrite=True)
+            s_ds = gdal.Open(traster)
+        gdal.ReprojectImage(s_ds, t_ds)
+        if band_order is not None:
+            os.remove(traster)
+        print('Added to mosaic: {}'.format(path2raster))
+        s_ds = None
+
+    t_ds = None
+    print('Finished mosaic of %i images' % len(path2raster_list))
+
+    return 0
+
+def StackBand(bpin, bpout, tile_size=10000):
+    pin, bnin = bpin
+    pout, bnout = bpout
+    rasterin = gdal.Open(pin)
+    rasterout = gdal.Open(pout, 1)
+    x = rasterout.RasterXSize
+    y = rasterout.RasterYSize
+    assert x == rasterin.RasterXSize
+    assert y == rasterin.RasterYSize
+    print('%i x %i' % (x, y))
+    '''ReadAsArray(self, xoff=0, yoff=0, win_xsize=None, win_ysize=None, buf_xsize=None, buf_ysize=None, buf_type=None, 
+        buf_obj=None, resample_alg=gdalconst.GRIORA_NearestNeighbour, callback=None, callback_data=None)'''
+    '''WriteArray(self, array, xoff=0, yoff=0, resample_alg=gdalconst.GRIORA_NearestNeighbour, callback=None, callback_data=None)'''
+    bandin = rasterin.GetRasterBand(bnin)
+    for x_i in range(x//tile_size+1):
+        for y_i in range(y//tile_size+1):
+            rasterout = gdal.Open(pout, 1)
+            bandout = rasterout.GetRasterBand(bnout)
+            arr_ = bandin.ReadAsArray(xoff=x_i*tile_size, yoff=y_i*tile_size, win_xsize=min(tile_size, x-x_i*tile_size),
+                                      win_ysize=min(tile_size, y-y_i*tile_size))
+            bandout.WriteArray(arr_, xoff=x_i*tile_size, yoff=y_i*tile_size)
+            rasterout = None
+    return 0
+
+# Set NoData value for all bands in raster
+def SetNoData(pin, nodataval):
+    raster = gdal.Open(pin,1)
+    for bandnum in range(1, raster.RasterCount+1):
+        band = raster.GetRasterBand(bandnum)
+        band.SetNoDataValue(nodataval)
+    raster = None
+
+# Заменить значения в конечном растре, в соответствии со словарём
+def ReplaceRasterValues(f, replace):
+    raster = gdal.Open(f, 1)
+    band = raster.GetRasterBand(1)
+    arr_ = band.ReadAsArray()
+    for key in replace:
+        if key in arr_:
+            arr_[arr_ == key] = replace[key]
+    band.WriteArray(arr_)
+    raster = None
+    print(split3(f)[1], list(np.unique(gdal.Open(f).ReadAsArray())))

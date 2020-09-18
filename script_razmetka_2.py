@@ -28,18 +28,19 @@ raster_path = [r'\\172.21.195.2\FTP-Share\ftp\db_etalons',
                # r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-2\Kanopus',
                # r'\\172.21.195.2\Development\TT-NAS-Archive\NAS-Archive-2TB-5\na-va',
                r'G:', r'K:',
+               r'\\172.21.195.2\FTP-Share\ftp\proc\kanopus\pms'
                ]
 
 # Путь для сохранения конечных файлов
-path_out = r'e:\rks\razmetka\set028'
+path_out = r'e:\rks\razmetka\set030'
 
 img_colname = 'name'      # Название векторного поля, содержащего id растра
 obj_index_col = 'gridcode'  # Название векторного поля, содержащего id объекта
 compression = 'DEFLATE'     # Алгоритм сжатия растровых данных
 overwrite =  False          # Заменять существующие файлы
-pms = False                  # Использовать паншарпы
+pms = True                  # Использовать паншарпы
 
-report_xls = r'e:\rks\razmetka\set028_1.xls'
+report_xls = r'e:\rks\razmetka\set030.xls'
 
 # Parse Kanopus name
 def parse_kanopus(id):
@@ -135,7 +136,9 @@ for maskid in path_shp_dict:
             f, n, e = split3(img)
             # print(checkval, trueid, n)
             if re.search(r'^\d+_2020_\d+\.', n):
-                n = n[len(re.search(r'^\d+_2020_\d+\.', n).group())]
+                # print(n)
+                n = n[len(re.search(r'^\d+_2020_\d+\.', n).group()):]
+                # print(n)
             if checkval==n or trueid==n:
             # if n.endswith(checkval) or n.endswith(trueid):
                 error = False

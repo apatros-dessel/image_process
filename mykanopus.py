@@ -12,15 +12,19 @@ from geodata import *
 # r'KV1_37111_29083_01_KANOPUS_20190331_092700_092901.SCN1.PMS.L2.DC.xml'
 # r'KVI_13437_09482_00_KANOPUS_20191216_083055_083108.SCN5.MS.L2.DC.xml'
 # r'fr1_KV1_32147_25610_01_3NP2_07_S_595808_080518.xml'
+# r'fr_0041_0102_03146_1_03135_08_00.xml'
 
 # Object containing data about Kanopus image system
 
 # Templates for Kanopus metadata filenames
 templates = (
-    r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.PMS.L\d.DC.xml',   # For pan-multispectral data
-    r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.PAN.L\d.DC.xml',   # For panchromatic data
-    r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.MS.L\d.DC.xml',    # For multispectral data
-    r'fr\d+_KV\d+_.+NP.+\.xml',                                      # For new metadata type
+    r'KV.+_KANOPUS_.+SCN\d+.+.MD.xml',
+    # r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.PMS.L\d.DC.xml',   # For pan-multispectral data
+    # r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.PAN.L\d.DC.xml',   # For panchromatic data
+    # r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.MS.L\d.DC.xml',    # For multispectral data
+    # r'fr\d+_KV\d+_.+NP.+\.xml',                                      # For new metadata type
+    # r'fr_[0-9_]+\.xml',                                              # For new metadata type 2
+    # r'fr_[0-9_]+_ORT_K\.xml',                                        # For new metadata type 2 with orthotransform
 )
 
 # Raster files indices for Kanopus scenes
@@ -123,14 +127,18 @@ def get_kanopus_type(kan_id):
 
 # Fill Kanopus metadata
 def metadata(path):
+    f,n,e = split3(path)
     if re.search(r'fr\d+_KV\d+_.+NP.+\.xml', path):
+    # if False:
         meta =  get_alternate_metadata(path)
+        # print(meta.files, meta.filepaths)
     else:
         meta = scene_metadata('KAN')
-        meta.container['description'] = xml2tree(path)
-        meta.id = get_from_tree(meta.container.get('description'), 'productId')
+        # meta.container['description'] = xml2tree(path)
+        # meta.id = get_from_tree(meta.container.get('description'), 'productId')
+        meta.id = split3(path)[1].replace('.MD','')
         folder, file = os.path.split(path)
-        for file_id in ['metadata', 'quality', 'new_metadata']:
+        for file_id in ['description', 'metadata', 'quality', 'new_metadata']:
             file_name = get_kanopus_filename(meta.id, file_id)
             if file_name is not None:
                 file_path = fullpath(folder, file_name, 'xml')
@@ -148,12 +156,20 @@ def metadata(path):
             meta.location = get_kanopus_location(meta.id)
             meta.datetime = get_date_from_string(get_from_tree(cur_meta, 'firstLineTimeUtc'))
             meta.lvl = get_from_tree(cur_meta, 'productType')
-        meta.datamask = get_kanopus_datamask(meta.id)
+
+        datamask = get_kanopus_datamask(meta.id)
+        if os.path.exists(fullpath(f,datamask)):
+            meta.datamask = datamask
+        else:
+            paths = folder_paths(f,1,'shp')
+            if len(paths)==1:
+                meta.datamask = os.path.basename(paths[0])
+
         try:
             meta.quicklook = get_kanopus_filename(meta.id, 'quicklook') + r'.jpg'
         except:
             print('Error writing quicklook for {}'.format(meta.id))
-
+    # print(meta.files, meta.filepaths)
     meta.sat =          meta.id[:3]
     meta.fullsat =      meta.id[:3]
     meta.bandpaths =    globals()['kanopus_bandpaths'].get(meta.files[0], {})
@@ -178,13 +194,13 @@ def get_alternate_metadata(path):
     meta.id = from_txt(txt, r'DataFileName = ".+"')[16:-1]
     satid, loc1, loc2, sentnum, fr, num1, num2, scn_num = parse_kanopus_alternate(meta.id)
     meta.files = [{'PAN':'pan','MS':'mul','PMS':'mul'}.get(get_type_alternate(txt))]
-    meta.filepaths = {meta.files[0]: '%s.tif' % meta.id[:-3]}
+    meta.filepaths = {meta.files[0]: ('%s.tif' % meta.id[:-3].replace('_OB','')).replace('..','.')}
     meta.location = loc1+loc2+scn_num
     date = from_txt(txt, 'SessionDate = \d+/\d+/\d+')[14:]
     time = from_txt(txt, 'SessionTime = \d+:\d+:\d+.\d+')[14:]
     meta.datetime = get_date_from_string('%s-%s-%sT%s' % (date[-4:], date[3:5], date[:2], time))
     meta.lvl = from_txt(txt, 'ProcLevel = ".+"')[13:-1]
-    meta.datamask = '%s.shp' % meta.id[:-3]
+    meta.datamask = ('%s.shp' % meta.id[:-3].replace('_OB','')).replace('..','.')
     meta.quicklook = '%s.jpg' % meta.id[:-3]
     return meta
 

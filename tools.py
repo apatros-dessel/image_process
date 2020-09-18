@@ -2,7 +2,7 @@
 
 # Auxilliary functions for image processor
 
-import os, re, shutil, xlrd, xlwt
+import sys, os, re, shutil, xlrd, xlwt
 import numpy as np
 import xml.etree.ElementTree as et
 from collections import OrderedDict
@@ -29,9 +29,8 @@ class counter:
     def __init__(self, startfrom = 0, step = 1):
         self.count = startfrom - 1
         self.step = step
-    def __iter__(self, startfrom = None, step = 1):
-        if startfrom is not None:
-            self.count = startfrom - 1
+    def __iter__(self, startfrom = 0, step = 1):
+        # self.restart(startfrom)
         self.step = step
         return self
     def __next__(self):
@@ -39,6 +38,9 @@ class counter:
         return self.count
     def next(self):
         return self.__next__()
+    def restart(self, startfrom = 0):
+        self.count = startfrom - 1
+        return self
 
 # An iterator endlessly returning None
 class iternone:
@@ -52,10 +54,13 @@ class iternone:
         return self.__next__()
 
 # Check existance of file
-def check_exist(path, ignore=False):
+def check_exist(path, ignore=False, check_size=None):
     if not ignore:
         if os.path.exists(path):
-            print('The file already exists: {}'.format(path))
+            if check_size:
+                if os.path.getsize(path)<check_size:
+                    return False
+            # print('The file already exists: {}'.format(path))
             return True
     return False
 
@@ -542,13 +547,15 @@ def check_name(name, pattern):
         return True
 
 # Returns a list of two lists: 0) all folders in the 'path' directory, 1) all files in it
-def fold_finder(path):
+def fold_finder(path, filter_folder=[]):
     if len(path) >= 255:
         return [[], []]
     dir_ = os.listdir(path)
     fold_ = []
     file_ = []
     for name in dir_:
+        if name in filter_folder:
+            continue
         full = path + '\\' + name
         if os.path.isfile(full):
             file_.append(full)
@@ -560,6 +567,7 @@ def fold_finder(path):
 # Doesn't use os.walk to avoid using generators
 def walk_find(path, ids_list, templates_list, id_max=100000):
     #templates_list = listoftype(templates_list, str, export_tuple=True)
+    ids_list = list(ids_list)
     if os.path.exists(path):
         if not os.path.isdir(path):
             path = os.path.split(path)[0]
@@ -653,13 +661,13 @@ class tdir():
         return fin
 
     # Deletes all data when the interpreter is closed
-    def __del__(self):
-        try:
-            destroydir(self.corner)
+    # def __del__(self):
+        # try:
+            # destroydir(self.corner)
             # if self.empty() and cleardir(self.corner):
                 # os.rmdir(self.corner)
-        except:
-            pass
+        # except:
+            # pass
 
     # Create path to a new file
 
@@ -673,13 +681,17 @@ def winprint(obj, decoding = None):
     print(obj)
     return None
 
-def scroll(obj, print_type=True, decoding=None, header=None):
+def scroll(obj, print_type=True, decoding=None, header=None, lower=None):
     if header is not None:
         print(header)
     elif print_type:
         print('Object of {}:'.format(type(obj)))
     if hasattr(obj, '__iter__'):
-        if len(obj) == 0:
+        try:
+            len_ = len(obj)
+        except:
+            len_ = 0
+        if len_==0:
             print('  <empty>')
         elif isinstance(obj, (dict, OrderedDict)):
             for val in obj:
@@ -689,6 +701,8 @@ def scroll(obj, print_type=True, decoding=None, header=None):
                 winprint('  {}'.format(val), decoding=decoding)
     else:
         winprint('  {}'.format(obj), decoding=decoding)
+    if lower is not None:
+        print(lower)
 
 # Get datetime from string
 def get_date_from_string(date_str):
@@ -700,6 +714,15 @@ def get_date_from_string(date_str):
     minute = int(date_str[14:16])
     second = float(re.search(r'\d+\.\d+', date_str[17:-1]).group())
     return datetime(year, month, day)
+
+# Datetime object from string datetime as YYYY-MM-DDThh:mm:ss
+def isodatetime(isodatestr):
+    get = re.search('\d+-\d+-\d+T\d+:\d+:\d{2}', isodatestr)
+    if get:
+        date, time = get.group()[:-1].split('T')
+        year, month, day = flist(date.split('-'), int)
+        hour, minute, second = flist(time.split(':'), int)
+        return datetime(year, month, day, hour, minute, second)
 
 # Reads .xml file and returns metadata as element tree
 def xml2tree(path):
@@ -985,7 +1008,7 @@ class scene_metadata:
         return namestring
 
 # Searches filenames according to template and returns a list of full paths to them
-def folder_paths(path, files = False, extension = None, id_max=100000):
+def folder_paths(path, files = False, extension = None, id_max=100000, filter_folder=[]):
     # templates_list = listoftype(templates_list, str, export_tuple=True)
     if os.path.exists(path):
         if not os.path.isdir(path):
@@ -999,14 +1022,14 @@ def folder_paths(path, files = False, extension = None, id_max=100000):
     export_files = []
     while id < len(path_list) < id_max:
         for id_fold, folder in enumerate(path_list[id]):
-            fold_, file_ = fold_finder(folder)
+            fold_, file_ = fold_finder(folder, filter_folder=filter_folder)
             if fold_ != []:
                 path_list.append(fold_)
             if extension is None:
                 export_files.extend(file_)
             else:
                 for f in file_:
-                    if f.endswith('.{}'.format(extension)):
+                    if f.lower().endswith('.{}'.format(extension.lower())):
                         export_files.append(f)
         id += 1
     if len(path_list) > id_max:
@@ -1061,7 +1084,7 @@ def QuicklookImage(path_in, path_out, image_size = (100, 100)):
 
     orig_img = Image.open(path_in)
     new_img = orig_img.resize(image_size)
-    # new_img.show()
+    new_img.show()
     new_img.save(path_out)
 
     return None
@@ -1095,3 +1118,14 @@ def from_txt(txt, tmpt, format='s'):
             return int(data)
         elif format=='f':
             return float(data)
+
+# Returns corner directory
+def get_corner_dir(path, rank=1):
+    if os.path.exists(path):
+        path_ = path
+        while rank:
+            path_ = os.path.split(path_)[0]
+            if path_==os.path.split(path_)[0]:
+                break
+            rank -= 1
+        return path_

@@ -3,7 +3,7 @@ from __future__ import print_function
 __author__ = 'factory'
 __version__ = "1.0.0"
 
-import os, sys, re, time
+import os, sys, re, time, argparse
 from datetime import datetime
 from geodata import *
 
@@ -21,9 +21,16 @@ except:
     print('Error importing GDAL, cannot apply deflate')
     use_deflate = False
 
-data_source_folder = r'\\tt-nas-archive\NAS-Archive-2TB-5\na-va\102_2020_91'   # Путь к исходным данным Канопус/Ресурс-П PAN+MS
-output_folder = r'\\tt-nas-archive\NAS-Archive-2TB-7\kan-pms\sverdlovsk' # Путь к конечным паншарпам
-filter_path = r'e:\DigitalEarth_QL_reports\Kemerovo_selected.xls' # Путь к файлу с перечнем сцен для обработки (txt или xls)
+parser = argparse.ArgumentParser(description='Given 2 geotiff images finds transformation between')
+parser.add_argument('-f', default=None, dest='filter_path', help='Temporary directory')
+parser.add_argument('data_source_folder', help='Folder with source tif files for pansharpening')
+parser.add_argument('output_folder', help='Output folder for pansharpened tif files')
+
+args = parser.parse_args()
+
+data_source_folder = args.data_source_folder   # Путь к исходным данным Канопус/Ресурс-П PAN+MS
+output_folder = args.output_folder # Путь к конечным паншарпам
+filter_path = args.filter_path # Путь к файлу с перечнем сцен для обработки (txt или xls)
 
 bands = [1,2,3,4]
 bands_ref = [1,2,3,4]
@@ -103,27 +110,8 @@ def pms_iter(data_source_folder,
              filter_names = None,
              trynum = 20):
 
-    # Parse command line arguments.
-    i = 1
-    while i < len(argv):
-        arg = argv[i]
-        if data_source_folder is None:
-            data_source_folder = argv[i]
-        elif output_folder is None:
-            output_folder = argv[i]
-        elif arg == '-bands':
-            i = i + 1
-            bands = [int(j) for j in argv[i].split()]
-        elif arg == '-refbands':
-            i = i + 1
-            bands_ref = [int(j) for j in argv[i].split()]
-        elif arg == '-ne':
-            enhanced = "NO"
-        else:
-            Usage()
-        i = i + 1
-
     if data_source_folder is None:
+        raise Exception
         # Usage()
         data_source_folder=os.getcwd()
     if output_folder is None:
@@ -134,6 +122,8 @@ def pms_iter(data_source_folder,
     loop={}
 
     for filepath in folder_paths(data_source_folder, files = True, extension='tif'):
+
+        print(filepath)
 
         root, f = os.path.split(filepath)
 
@@ -148,6 +138,20 @@ def pms_iter(data_source_folder,
             else:
                 loop[scene_id]={product:os.path.join(root, f)}
 
+        # Kanopus new fr20_KV5_07320_05502_00_3NP2_07_S_502404_220420.tif
+        if re.search(r'^fr.*\.tif$', f.lower(), flags=0):
+            product_path = root
+            frag, sat, orbit, marshrut, part, np, num, product, num1, num2 = f.split('_')
+            scene_id = '_'.join([marshrut, part, frag])
+            if product=='S':
+                product = 'MS'
+            elif product=='PSS1':
+                product = 'PAN'
+            if loop.has_key(scene_id):
+                loop[scene_id][product] = os.path.join(root, f)
+            else:
+                loop[scene_id] = {product: os.path.join(root, f)}
+
         # Resurs-P
         if re.search(r'^rp.*.l2\.tif$', f.lower(), flags=0):
             product_path = root
@@ -160,16 +164,22 @@ def pms_iter(data_source_folder,
             else:
                 loop[scene_id]={product:os.path.join(root, f)}
 
-    # scroll(loop, header = 'Files:')
+    scroll(loop, header = 'Files:', lower='%i objects found' % len(loop))
     # print(len(loop))
+    finish = []
 
     i=1
     for item, v in loop.items():
 
         if v.has_key('PAN') and v.has_key('MS'):
 
-            filename = os.path.basename(v['MS']).replace('.MS', '.PMS')
+            filename = os.path.basename(v['MS']).replace('.MS', '.PMS').replace('_S_', '_PSS4_')
+            finish.append(filename)
             psh = os.path.join(output_folder, filename)
+
+            if os.path.exists(psh):
+                print('File already exists: %s' % psh)
+                continue
 
             if filter_names is not None:
                 stop = True
@@ -192,22 +202,18 @@ def pms_iter(data_source_folder,
 
             # print('Starting %s' % psh)
 
-            t = 0
-            while t < trynum:
-                try:
-                    if use_deflate:
-                        tpath = tempname('tif')
-                        image_psh(v['MS'], v['PAN'], tpath, bands, bands_ref, enhanced)
-                        copydeflate(tpath, psh, bigtiff = True, tiled = True)
-                        os.remove(tpath)
-                    else:
-                        image_psh(v['MS'], v['PAN'], psh, bands, bands_ref, enhanced)
-                    success = True
-                except:
-                    print('Error processing %s, try again' % filename)
-                    success = False
-                    t += 1
-                    time.sleep(30)
+            try:
+                if use_deflate:
+                    tpath = tempname('tif')
+                    image_psh(v['MS'], v['PAN'], tpath, bands, bands_ref, enhanced)
+                    copydeflate(tpath, psh, bigtiff = True, tiled = True)
+                    os.remove(tpath)
+                else:
+                    image_psh(v['MS'], v['PAN'], psh, bands, bands_ref, enhanced)
+                success = True
+            except:
+                print('Error processing %s, try again' % filename)
+                success = False
 
 
             if success:
@@ -219,8 +225,10 @@ def pms_iter(data_source_folder,
 
         else:
             print(item, v.keys(), u'%s from %s' % (i, len(loop.keys())))
-
-    return filter_names
+    if filter_names is None:
+        return finish
+    else:
+        return filter_names
 
 argv = sys.argv
 if argv is None:
@@ -231,9 +239,13 @@ if argv is None:
 
 suredir(output_folder)
 
-filter_names = get_filter_names(filter_path, xlscolname=None, txtsep=';')
+if filter_path:
+    filter_names = get_filter_names(filter_path, xlscolname=None, txtsep=';')
+else:
+    filter_names = None
 
-scroll(filter_names, header = 'Filter names for new tver:')
+if filter_names:
+    scroll(filter_names, header = 'Filter names for new tver:')
 
 filter_names = pms_iter(data_source_folder,
              output_folder,
@@ -244,8 +256,7 @@ filter_names = pms_iter(data_source_folder,
              filter_names=filter_names,
                 trynum=20)
 
-scroll(filter_names)
-print(len(filter_names))
+scroll(filter_names, lower = '%i files written' % len(filter_names))
 
 # sf=StereoFortuitous(data_source, output_file, relief_type, automode)
 # if len(sf.all_metadata)==0:

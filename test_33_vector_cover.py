@@ -4,9 +4,27 @@ import sys
 from image_processor import *
 from shutil import copyfile
 
-path_in = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\PSB\Collect\clip_PSB_cad3_jul7_SkySatCollect_5c9fe7b6-dd76-46ec-bb2d-a8e969d18b26\files\SkySatCollect\20200707_114232_ssc8_u0001'
-path_cover = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\PSB\Collect\clip_PSB_cad3_jul7_SkySatCollect_5c9fe7b6-dd76-46ec-bb2d-a8e969d18b26\files\SkySatCollect\20200707_114232_ssc8_u0001\cover_test1.json'
+path_in = [
+    # r'\\172.21.195.2\FTP-Share\ftp\images',
+    r'\\172.21.195.2\FTP-Share\ftp\images',
+    # r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339'
+]
+path_cover = r'\\172.21.195.2\FTP-Share\ftp\images\test_сover.json'
 
-proc = process().input(path_in, imsys_list=['PLN','DG','SS'])
+proc = process().input(path_in)
 
-proc.GetCoverJSON(path_cover, add_path=True, data_mask=True)
+# scroll(proc.get_ids())
+for ascene in proc.scenes:
+    meta = ascene.meta
+    print('id: %s\ndatamask:%s' % (meta.id, meta.datamask))
+
+proc.GetCoverJSON(path_cover, add_path=True, cartezian_area=False, data_mask=False)
+
+sys.exit()
+
+path_in_list = obj2list(path_in)
+for i, path_in in enumerate(path_in_list):
+
+    path_cover_fin = path_cover.replace('.json','%s.json' % path_in[-8:].replace('\\','_'))
+    #print(path_cover_fin)
+

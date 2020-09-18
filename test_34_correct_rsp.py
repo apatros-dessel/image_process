@@ -91,11 +91,12 @@ def correct_rsp(ms_path, pan_path, rgbn_path, pms_path):
 # os.remove(pms_temp)
 
 path_in_list = [
-    r'D:/terratech/Krym_areas/clip_image/RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2__Simferopol.tif',
-    r'D:/terratech/Krym_areas/clip_image/RP1_33500_07_GEOTON_20190621_080150_080200.SCN1.PMS.L2__Kerch.tif',
+    r'\\172.21.195.2\FTP-Share\ftp\s3\resursp\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036231\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036231.tif',
+    r'\\172.21.195.2\FTP-Share\ftp\s3\resursp\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036232\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036232.tif',
+    r'\\172.21.195.2\FTP-Share\ftp\s3\resursp\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036331\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036331.tif'
 ]
 
-path_out = r'd:\terratech\Krym_areas\rgbn_fin'
+path_out = r'e:\rks\resurs_granules_new'
 
 for path_in in path_in_list:
 
@@ -114,7 +115,9 @@ for path_in in path_in_list:
         (path_in , 4),# NIR
     ]
 
-    raster2raster(raster_band_paths, os.path.join(path_out, file),
+    raster_fin_path = os.path.join(path_out, file)
+
+    raster2raster(raster_band_paths, raster_fin_path,
                   method = gdal.GRA_NearestNeighbour,
                   exclude_nodata = True,
                   enforce_nodata = 0,
@@ -122,4 +125,22 @@ for path_in in path_in_list:
                   overwrite = True)
 
     os.remove(blue_path)
+
+    rgb_fin_path = raster_fin_path[:-4]+'.RGB.tif'
+
+    RasterToImage3(raster_fin_path,
+                   rgb_fin_path,
+                   method=2,
+                   band_limits=[(0.01, 0.998), (0.01, 0.998), (0.01, 0.998)],
+                   gamma=0.85,
+                   exclude_nodata=True,
+                   enforce_nodata=0,
+                   band_order=[1, 2, 3],
+                   GaussianBlur=False,
+                   reprojectEPSG=3857,
+                   reproject_method=gdal.GRA_Lanczos,
+                   compress='DEFLATE',
+                   overwrite=False,
+                   alpha=True)
+
     print('File written: %s' % file)

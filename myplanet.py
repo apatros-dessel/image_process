@@ -131,10 +131,11 @@ def metadata(path):
 
     id_code_list = meta.namecodes.get('[id]').split('_')
     datamask_template = r'{}.*\.json'.format('_'.join(id_code_list[:3]), meta.sat)
-    for filename in os.listdir(os.path.split(path)[0]):
+    for filename in folder_paths(get_corner_dir(path, 2), 1, 'json'):
         search = re.search(datamask_template, filename)
         if search is not None:
-            meta.datamask = search.group().strip()
+            meta.datamask = filename
+            # print(meta.datamask)
             break
 
     return meta

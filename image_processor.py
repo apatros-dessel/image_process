@@ -678,18 +678,25 @@ class scene:
     # Returns a scene cover as a feature with standard set of attributes
     def json_feat(self, lyr_defn, add_path=True, cartesian_area = False, data_mask=False, srs=4326):
         feat = geodata.ogr.Feature(lyr_defn)
-        # print(self.datamask())
+        print(self.datamask())
         ds_mask, lyr_mask = geodata.get_lyr_by_path(self.datamask())
         t_crs = geodata.get_srs(srs)
         if lyr_mask is not None:
             geom_feat = lyr_mask.GetNextFeature()
             geom = geom_feat.GetGeometryRef()
-            v_crs = geodata.get_srs(lyr_mask)
-            if not geodata.ds_match(v_crs, t_crs):
-                coordTrans = geodata.osr.CoordinateTransformation(v_crs, t_crs)
-                geom.Transform(coordTrans)
-            if sys.version.startswith('3'):
-                geom = geodata.changeXY(geom)
+            # print(geom.ExportToWkt())
+            v_crs = lyr_mask.GetSpatialRef()
+            if (v_crs is None) and self.imsys=='PLD':
+                v_crs = geodata.osr.SpatialReference()
+                v_crs.ImportFromEPSG(4326)
+                geom = geodata.MultipolygonFromMeta(self.fullpath, v_crs)
+            else:
+                if not geodata.ds_match(v_crs, t_crs):
+                    coordTrans = geodata.osr.CoordinateTransformation(v_crs, t_crs)
+                    scroll(coordTrans)
+                    geom.Transform(coordTrans)
+                if sys.version.startswith('3'):
+                    geom = geodata.changeXY(geom)
             feat.SetGeometry(geom)
         feat = globals()['metalib'].get(self.imsys).set_cover_meta(feat, self.meta)
         if self.imsys=='KAN' and 'NP' in self.meta.id:

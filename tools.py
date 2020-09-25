@@ -681,26 +681,27 @@ def winprint(obj, decoding = None):
     print(obj)
     return None
 
-def scroll(obj, print_type=True, decoding=None, header=None, lower=None):
+def scroll(obj, print_type=True, decoding=None, header=None, lower=None, depth=0):
+    tab = '  '*depth
     if header is not None:
         print(header)
     elif print_type:
-        print('Object of {}:'.format(type(obj)))
+        print('{}Object of {}:'.format(tab, type(obj)))
     if hasattr(obj, '__iter__'):
         try:
             len_ = len(obj)
         except:
             len_ = 0
         if len_==0:
-            print('  <empty>')
+            print('{}<empty>'.format(tab+'  '))
         elif isinstance(obj, (dict, OrderedDict)):
             for val in obj:
-                winprint('  {}: {}'.format(val, obj[val]), decoding=decoding)
+                winprint('{}{}: {}'.format(tab+'  ', val, obj[val]), decoding=decoding)
         else:
             for val in obj:
-                winprint('  {}'.format(val), decoding=decoding)
+                winprint('{}{}'.format(tab+'  ',val), decoding=decoding)
     else:
-        winprint('  {}'.format(obj), decoding=decoding)
+        winprint('{}{}'.format(tab+'  ',obj), decoding=decoding)
     if lower is not None:
         print(lower)
 
@@ -1129,3 +1130,16 @@ def get_corner_dir(path, rank=1):
                 break
             rank -= 1
         return path_
+
+def find_parts(list_, start, fin):
+    results = []
+    passingby = True
+    for i, line in enumerate(list_):
+        if passingby:
+            if re.search(start, line):
+                i_start = i + 1
+                passingby = False
+        elif re.search(fin, line):
+            results.append(list_[i_start:i])
+            passingby = True
+    return results

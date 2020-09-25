@@ -1,8 +1,8 @@
 from geodata import *
 
-raster_old = r'\\172.21.195.2/FTP-Share/ftp/planet_imgs/!Sasha/Planet2SREZ/Ostashkovskoe_lesnichestvo_2019/Planet_mosaic_2019Feb.tif'
-raster_new = r'\\172.21.195.2/FTP-Share/ftp/planet_imgs/!Sasha/Planet2SREZ/Ostashkovskoe_lesnichestvo_2019/Planet_mosaic_2020Feb.tif'
-export_path = r'\\172.21.195.2/FTP-Share/ftp/planet_imgs/!Sasha/Planet2SREZ/Ostashkovskoe_lesnichestvo_2019/Planet_mosaic_2019-2020.tif'
+raster_old = r'D:/digital_earth/planet_20200920/2019-08-02_v2/Madashenskoe_20190802_rgb_v2.tif'
+raster_new = r'D:/digital_earth/planet_20200920/2019-08-08_v2/Madashenskoe_20190808_rgb_v2.tif'
+export_path = r'd:\digital_earth\planet_20200920\Madashenskoe_2019aug02-08_rgb_v2.tif'
 
 path2raster_list = [
     (raster_new, 1),

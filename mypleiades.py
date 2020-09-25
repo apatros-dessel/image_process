@@ -27,6 +27,9 @@ pleiades_bandpaths = OrderedDict(
         }
 )
 
+# STRIP_DS_PHR1A_202008170615476_FR1_PX_E094N68_0321_01654_DIM.XML
+strip_ds_tmpt = STRIP_DS_PHR1A_202008170615476_FR1_PX_E094N68_0321_01654_DIM.XML
+
 # Functions for Pleiades metadata processing
 
 # Gets Pleiades file names and filepaths as list and ordered dictionary respectively
@@ -119,10 +122,17 @@ def set_cover_meta(feat, meta):
         feat.SetField('format', '16U')
         feat.SetField('rows', delist(get_from_tree(metadata, 'NROWS')))
         feat.SetField('cols', delist(get_from_tree(metadata, 'NCOLS')))
-        feat.SetField('epsg_dat', get_from_tree(metadata, 'PROJECTED_CRS_NAME'))
+        epsg = get_from_tree(metadata, 'PROJECTED_CRS_NAME')
+        if epsg==[]:
+            epsg = '4326'
+        feat.SetField('epsg_dat', epsg)
         feat.SetField('u_size', 'meter')
-        feat.SetField('x_size', delist(get_from_tree(metadata, 'XDIM')))
-        feat.SetField('y_size', delist(get_from_tree(metadata, 'YDIM')))
+        x_size = get_from_tree(metadata, 'XDIM')
+        if x_size:
+            feat.SetField('x_size', delist(x_size))
+        y_size = get_from_tree(metadata, 'YDIM')
+        if y_size:
+            feat.SetField('y_size', delist(y_size))
         feat.SetField('level', meta.lvl)
         feat.SetField('area', float(get_from_tree(metadata, 'SURFACE_AREA'))*1000000)
     return feat

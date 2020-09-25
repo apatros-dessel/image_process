@@ -5,18 +5,16 @@ from image_processor import *
 from shutil import copyfile
 
 path_in = [
-    # r'\\172.21.195.2\FTP-Share\ftp\images',
-    r'\\172.21.195.2\FTP-Share\ftp\images',
-    # r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339'
+    r'\\TT-PC-10-Quadro\FTP_Share14TB\Рослесинфорг\AIRBUS',
 ]
-path_cover = r'\\172.21.195.2\FTP-Share\ftp\images\test_сover.json'
+path_cover = r'\\TT-PC-10-Quadro\FTP_Share14TB\Рослесинфорг\AIRBUS\RSP_сover2.json'
 
-proc = process().input(path_in)
+proc = process().input(path_in, imsys_list=['PLD'])
 
-# scroll(proc.get_ids())
-for ascene in proc.scenes:
-    meta = ascene.meta
-    print('id: %s\ndatamask:%s' % (meta.id, meta.datamask))
+scroll(proc.get_ids())
+# for ascene in proc.scenes:
+    # meta = ascene.meta
+    # print('id: %s\ndatamask:%s' % (meta.id, meta.datamask))
 
 proc.GetCoverJSON(path_cover, add_path=True, cartezian_area=False, data_mask=False)
 

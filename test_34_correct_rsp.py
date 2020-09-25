@@ -90,48 +90,50 @@ def correct_rsp(ms_path, pan_path, rgbn_path, pms_path):
 # copydeflate(pms_temp, pms_path, bigtiff = True, tiled = True)
 # os.remove(pms_temp)
 
-path_in_list = [
-    r'\\172.21.195.2\FTP-Share\ftp\s3\resursp\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036231\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036231.tif',
-    r'\\172.21.195.2\FTP-Share\ftp\s3\resursp\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036232\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036232.tif',
-    r'\\172.21.195.2\FTP-Share\ftp\s3\resursp\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036331\RP1_36120_04_GEOTON_20191209_080522_080539.SCN1.PMS.L2.GRN36036331.tif'
-]
+pin = r'e:\rks\resurs_crimea\Zagorskoe'
+path_out = r'e:\rks\resurs_crimea\Zagorskoe'
 
-path_out = r'e:\rks\resurs_granules_new'
+path_in_list = folder_paths(pin,1,'tif')
 
 for path_in in path_in_list:
 
+    if 'REP' in path_in:
+        continue
+
     folder, file = os.path.split(path_in)
 
-    blue_calc_path = RasterMultiBandpath(path_in, [1, 2, 4])
+    raster_fin_path = os.path.join(path_out, file.replace('.tif', '.REP.tif'))
 
-    blue_path = tempname('tif')
+    if not os.path.exists(raster_fin_path):
 
-    raster_calculator(blue_calc_path, blue_path, new_blue)
+        blue_calc_path = RasterMultiBandpath(path_in, [1, 2, 4])
 
-    raster_band_paths = [
-        (path_in , 1), # RED
-        (path_in , 2), # GREEN
-        (blue_path , 1), # BLUE
-        (path_in , 4),# NIR
-    ]
+        blue_path = tempname('tif')
 
-    raster_fin_path = os.path.join(path_out, file)
+        raster_calculator(blue_calc_path, blue_path, new_blue)
 
-    raster2raster(raster_band_paths, raster_fin_path,
-                  method = gdal.GRA_NearestNeighbour,
-                  exclude_nodata = True,
-                  enforce_nodata = 0,
-                  compress = 'DEFLATE',
-                  overwrite = True)
+        raster_band_paths = [
+            (path_in , 1), # RED
+            (path_in , 2), # GREEN
+            (blue_path , 1), # BLUE
+            (path_in , 4),# NIR
+        ]
 
-    os.remove(blue_path)
+        raster2raster(raster_band_paths, raster_fin_path,
+                      method = gdal.GRA_NearestNeighbour,
+                      exclude_nodata = True,
+                      enforce_nodata = 0,
+                      compress = 'DEFLATE',
+                      overwrite = False)
+
+        os.remove(blue_path)
 
     rgb_fin_path = raster_fin_path[:-4]+'.RGB.tif'
 
     RasterToImage3(raster_fin_path,
                    rgb_fin_path,
                    method=2,
-                   band_limits=[(0.01, 0.998), (0.01, 0.998), (0.01, 0.998)],
+                   band_limits=[(0.01, 0.9998), (0.01, 0.9998), (0.01, 0.9998)],
                    gamma=0.85,
                    exclude_nodata=True,
                    enforce_nodata=0,
@@ -144,3 +146,5 @@ for path_in in path_in_list:
                    alpha=True)
 
     print('File written: %s' % file)
+
+    # sys.exit()

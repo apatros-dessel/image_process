@@ -3,8 +3,11 @@
 from image_processor import process, scene
 from geodata import *
 
-path_in = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\!Sasha\Planet2SREZ\Ostashkovskoe_lesnichestvo_2019\clip_forrest_ohvatskoe_2020feb5_PSScene4band_399a3b84-232c-4c8b-a66c-e3d2618aa98c'
-path_out = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\!Sasha\Planet2SREZ\Ostashkovskoe_lesnichestvo_2019\Planet_mosaic_2020Feb.tif'
+path_in = r'd:\digital_earth\planet_20200920\clip_fire_madashenskoye_2019aug6_PSScene4Band_a2bedcfb-061c-4030-bc96-673cad6e30d3'
+path_out = r'd:\digital_earth\planet_20200920\2019aug6\Planet_mosaic_madashenskoye_2019aug6.tif'
+
+folder_out, name_out, ext_out = split3(path_out)
+suredir(folder_out)
 
 # path_in_list = folder_paths(path_in,1,'tif')
 rgblist = []
@@ -13,7 +16,7 @@ for ascene in process().input(path_in, imsys_list=['PLN']).scenes:
     file = ascene.get_raster_path('Analytic')
     f,n,e = split3(file)
     if re.search(r'^\d{8}_.+_3B_AnalyticMS_clip$',n):
-        path_rgb = fullpath(r'e:\rks\mosaics\cut2\rgb',n+'.RGB',e)
+        path_rgb = fullpath(folder_out,n+'.RGB',e)
         up_lim = 1 - (float(get_from_tree(ascene.meta.container.get('xmltree'), 'cloudCoverPercentage')[0])/100.0)
         print(up_lim)
         res = RasterToImage3(file,

@@ -4,27 +4,20 @@ from tools import *
 from geodata import *
 
 # Examples of Kanopus metadata filenames
-# r'KV1_31813_25365_01_KANOPUS_20180416_085258_085407.SCN4.PMS.L2'
 # r'new_KV1_31813_25365_01_KANOPUS_20180416_085258_085407.SCN4.PMS.L2.MD.xml'
-
-# r'KV1_37111_29083_01_KANOPUS_20190331_092700_092901.SCN1.MS.L2.DC.xml'
-# r'KV1_37111_29083_01_KANOPUS_20190331_092700_092901.SCN1.PAN.L2.DC.xml'
-# r'KV1_37111_29083_01_KANOPUS_20190331_092700_092901.SCN1.PMS.L2.DC.xml'
-# r'KVI_13437_09482_00_KANOPUS_20191216_083055_083108.SCN5.MS.L2.DC.xml'
-# r'fr1_KV1_32147_25610_01_3NP2_07_S_595808_080518.xml'
+# r'ETRIS.KV3.MSS.12923.1.0.2020-06-01.L0.ISS_KRS.NTSOMZ_MSK.xml'
+# r'ETRIS.KV3.MSS.12939.1.0.2020-06-02.L0.NTSOMZ_MSK.NTSOMZ_MSK.xml'
+# r'fr_0041_0102_02770_1_02767_07_ORT_K.xml'
 # r'fr_0041_0102_03146_1_03135_08_00.xml'
 
 # Object containing data about Kanopus image system
 
 # Templates for Kanopus metadata filenames
 templates = (
-    r'KV.+_KANOPUS_.+SCN\d+.+.MD.xml',
-    # r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.PMS.L\d.DC.xml',   # For pan-multispectral data
-    # r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.PAN.L\d.DC.xml',   # For panchromatic data
-    # r'KV\S_\d+_\d+_\d+_KANOPUS_\d+_\d+_\d+.SCN\d+.MS.L\d.DC.xml',    # For multispectral data
-    # r'fr\d+_KV\d+_.+NP.+\.xml',                                      # For new metadata type
-    # r'fr_[0-9_]+\.xml',                                              # For new metadata type 2
-    # r'fr_[0-9_]+_ORT_K\.xml',                                        # For new metadata type 2 with orthotransform
+    r'KV.+_KANOPUS_.+SCN\d+.+.MD.xml$', # APOI?
+    # r'ETRIS.KV.+NTSOMS_MSK.xml$',     # Basic cover?
+    r'fr_.+ORT_K.xml', # KTOI without ortho
+    r'fr_.+\d.xml', # KTOI with ortho
 )
 
 # Raster files indices for Kanopus scenes
@@ -46,6 +39,13 @@ kanopus_bandpaths = {
 
     'pan':  {
                 'pan':      ('pan',     1),
+            },
+
+    'rgb':  {
+
+                'green':    ('mul',     2),
+                'blue':     ('mul',     3),
+                'red':      ('mul',     1),
             },
 }
 
@@ -111,7 +111,10 @@ def get_kanopus_datamask(kan_id, get_json = True):
 # Returns Kanopus location id
 def get_kanopus_location(kan_id):
     idlist = kan_id.split('_')
-    location = ''.join(idlist[1:3] + [idlist[-1].split(r'.')[1][-1]])
+    if kan_id.startswith('fr_'):
+        location = ''.join([idlist[3]] + idlist[5:6])
+    else:
+        location = ''.join(idlist[1:3] + [idlist[-1].split(r'.')[1][-1]])
     return location
 
 # Returns Kanopys data type
@@ -128,20 +131,40 @@ def get_kanopus_type(kan_id):
 # Fill Kanopus metadata
 def metadata(path):
     f,n,e = split3(path)
-    if re.search(r'fr\d+_KV\d+_.+NP.+\.xml', path):
-    # if False:
-        meta =  get_alternate_metadata(path)
-        # print(meta.files, meta.filepaths)
+    meta = scene_metadata('KAN')
+    meta.id = n.replace('.MD', '')
+    meta.location = get_kanopus_location(meta.id)
+    if re.search(r'fr_.+ORT_K.+.xml', path):
+        meta.container['metadata3'] = cur_meta = open(path).read()
+        meta.files = ['rgb']
+        meta.filepaths = re.search(r'DataFileName = "[^"]+"', cur_meta).group()
+    if re.search(r'fr_.+.xml', path):
+        meta.container['metadata2'] = cur_meta = xml2tree(path)
+        meta.files = ['rgb']
+        meta.filepaths = {'rgb': get_from_tree(cur_meta, 'DataFileName')}
+        date = get_from_tree(cur_meta, 'SceneDate')
+        date = '%s-%s-%s' % (date[-4:], date[3:5], date[:2])
+        time = get_from_tree(cur_meta, 'SceneTime')
+        datetime = '{}T{}Z'.format(date, time).replace('/','-')
+        print(datetime)
+        meta.datetime = get_date_from_string(datetime)
+        lvl = get_from_tree(cur_meta, 'Level')
+        if 'ORT' in meta.id:
+            lvl += 'ORT'
+        meta.lvl = lvl
+        try:
+            meta.quicklook = get_kanopus_filename(meta.id, 'FileName_quicklook')
+        except:
+            print('Error writing quicklook for {}'.format(meta.id))
+        datamask = '%s.shp' % meta.id
+
     else:
-        meta = scene_metadata('KAN')
         # meta.container['description'] = xml2tree(path)
         # meta.id = get_from_tree(meta.container.get('description'), 'productId')
-        meta.id = split3(path)[1].replace('.MD','')
-        folder, file = os.path.split(path)
         for file_id in ['description', 'metadata', 'quality', 'new_metadata']:
             file_name = get_kanopus_filename(meta.id, file_id)
             if file_name is not None:
-                file_path = fullpath(folder, file_name, 'xml')
+                file_path = fullpath(f, n, 'xml')
                 if os.path.exists(file_path):
                     try:
                         meta.container[file_id] = xml2tree(file_path)
@@ -153,22 +176,22 @@ def metadata(path):
             print('Metadata file not found for {}'.format(meta.id))
         else:
             meta.filepaths = {meta.files[0]: get_from_tree(cur_meta, 'rasterFileName')}
-            meta.location = get_kanopus_location(meta.id)
             meta.datetime = get_date_from_string(get_from_tree(cur_meta, 'firstLineTimeUtc'))
             meta.lvl = get_from_tree(cur_meta, 'productType')
-
         datamask = get_kanopus_datamask(meta.id)
-        if os.path.exists(fullpath(f,datamask)):
-            meta.datamask = datamask
-        else:
-            paths = folder_paths(f,1,'shp')
-            if len(paths)==1:
-                meta.datamask = os.path.basename(paths[0])
 
         try:
             meta.quicklook = get_kanopus_filename(meta.id, 'quicklook') + r'.jpg'
         except:
             print('Error writing quicklook for {}'.format(meta.id))
+
+    if os.path.exists(fullpath(f, datamask)):
+        meta.datamask = datamask
+    else:
+        paths = folder_paths(f, 1, 'shp')
+        if len(paths) == 1:
+            meta.datamask = os.path.basename(paths[0])
+
     # print(meta.files, meta.filepaths)
     meta.sat =          meta.id[:3]
     meta.fullsat =      meta.id[:3]
@@ -189,9 +212,7 @@ def metadata(path):
 # Gets metadata from alternate format
 def get_alternate_metadata(path):
     meta = scene_metadata('KAN')
-    meta.container['NP'] = txt = open(path).read()
-    # print(txt)
-    meta.id = from_txt(txt, r'DataFileName = ".+"')[16:-1]
+    meta.container['metadata'] = xml2tree(file_path)
     satid, loc1, loc2, sentnum, fr, num1, num2, scn_num = parse_kanopus_alternate(meta.id)
     meta.files = [{'PAN':'pan','MS':'mul','PMS':'mul'}.get(get_type_alternate(txt))]
     meta.filepaths = {meta.files[0]: ('%s.tif' % meta.id[:-3].replace('_OB','')).replace('..','.')}

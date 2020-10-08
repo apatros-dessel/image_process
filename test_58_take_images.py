@@ -1,4 +1,5 @@
 from geodata import *
+from image_processor import process
 
 pin = [
     r'\\172.21.195.2\FTP-Share\ftp',
@@ -6,16 +7,21 @@ pin = [
     r'e:\resursp_filtered',
     r'e:\rks',
     r'F:\102_2020_108_RP',
+    r'\\tt-pc-10-quadro\FTP_Share14TB\S3',
 ]
 id_list_txt = None # r'e:\rks\s3\kanopus_pms\names_TBO_krasnoyarsk.txt'
-name_tmpt = r'RP.+[NB0-9]$'
-cover_vector_path = r'\\172.21.195.2\FTP-Share\ftp\!region_shows\krym\Эко\Свалки\KRYM_SIMFEROPOLSKIY_border.shp'#tbo_krym_narusheniya.shp#tbo_krym_poligon
-pout = r'd:\digital_earth\RSP_Simferopol'
+name_tmpt = r'fr\d+_KV.+PSS4_.*REF\d?$'#r'RP.+[LNB0-9]$'
+cover_vector_path = r'D:\digital_earth\NN.shp'#D:/digital_earth/RSP_Tatarstan/Tatarstan_objects.shp
+pout = r'D:/digital_earth/KV_Nizhniy'
 target = 'LIST COPY PATHS'
-# target = 'COPY RASTER'
-file_paths = r'd:\digital_earth\RSP_Simferopol\file_list.txt'
+target = 'COPY RASTER'
+file_paths = r'd:\digital_earth\tif_list.txt'
+search_for_vector_cover = False
 
 def raster_geom(ds, reference=None):
+    if ds is None:
+        print('ERROR: DS IS NONE')
+        return None
     width = ds.RasterXSize
     height = ds.RasterYSize
     srs = osr.SpatialReference()
@@ -47,6 +53,21 @@ def raster_geom(ds, reference=None):
             # geom = changeXY(geom)
     return geom
 
+def json_geom(json_path, reference=None):
+    jds, jlyr = get_lyr_by_path(json_path)
+    if jlyr:
+        feat = jlyr.GetNextFeature()
+        if feat:
+            new_cover_geom = feat.GetGeometryRef()
+            if new_cover_geom:
+                geom = new_cover_geom
+                new_cover_srs = jlyr.GetSpatialReference()
+                if new_cover_srs:
+                    if new_cover_srs != reference:
+                        coordTrans = osr.CoordinateTransformation(new_cover_srs, reference)
+                        geom.Transform(coordTrans)
+                    return geom
+
 def copy_file(file_in, file_out, id='<file>'):
     if os.path.exists(file_out):
         print('FILE EXISTS: %s' % id)
@@ -75,24 +96,40 @@ elif target=='COPY RASTER':
 else:
     print('Unreckognized target: need "LIST COPY PATHS" or "COPY RASTER"')
 
-scroll(files)
+# scroll(files)
 # scroll(id_list)
+scene_folders = []
+suredir(pout)
 
 for file in files:
     f,n,e = split3(file)
     if name_tmpt:
         if not re.search(name_tmpt, n):
             continue
-    print(file)
+    # print(file)
     if id_list_txt:
         for id in id_list:
             if re.search(id, n):
                 copy_file(file_in, fullpath(pout,n,e), id=n)
+                if not f in scene_folders:
+                    scene_folders.append(f)
     if cover_vector_path:
         ds_cover, lyr_cover = get_lyr_by_path(cover_vector_path)
         if lyr_cover:
             srs = lyr_cover.GetSpatialRef()
-            raster_geometry = raster_geom(gdal.Open(file), reference=srs)
+            if search_for_vector_cover:
+                json_paths = folder_paths(f,1,'json')
+                if json_paths:
+                    for json_ in json_paths:
+                        jf, jn, j = split3(json_)
+                        if re.search(name_tmpt, jn):
+                            raster_geometry = json_geom(json_, reference=srs)
+                            if raster_geometry:
+                                break
+            else:
+                raster_geometry = None
+            if raster_geometry is None:
+                raster_geometry = raster_geom(gdal.Open(file), reference=srs)
             if raster_geometry is None:
                 print('UNABLE TO EXTRACT GEOMETRY FROM: %s' % n)
                 continue
@@ -101,14 +138,21 @@ for file in files:
                 # print('r: '+raster_geometry.ExportToWkt()[:50])
                 # print('v: '+vector_geometry.ExportToWkt()[:50])
                 if raster_geometry.Intersects(vector_geometry):
+                    print('MATCH: %s' % n)
                     if copy_:
                         copy_file(file, fullpath(pout, n, e), id=n)
                     else:
                         copy_paths.append(file)
+                    if not f in scene_folders:
+                        scene_folders.append(f)
                     break
 
 if target=='LIST COPY PATHS':
     if len(copy_paths) > 0:
-        suredir(pout)
         with open(fullpath(pout, 'copy_paths.txt'), 'w') as txt:
             txt.write('\n'.join(copy_paths))
+        try:
+            proc = process().input(scene_folders, imsys_list=['RSP'])
+            proc.GetCoverJSON(fullpath(pout, 'vector_cover.json'))
+        except:
+            print('ERROR CREATING VECTOR COVER')

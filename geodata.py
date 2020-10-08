@@ -1782,7 +1782,7 @@ def create_reprojected_raster(path_in, path_out, proj, band_num = None, compress
     newYcount = int(math.ceil(t_raster_base.RasterYSize * (y / y_res)))
     if band_num is None:
         band_num = ds_in.RasterCount
-    options = {
+    optionsMosaic = {
         'dt': ds_in.GetRasterBand(1).DataType,
         'prj': t_raster_base.GetProjection(),
         'geotrans': (x_0, x_res, x_ang, y_0, y_ang, y_res),

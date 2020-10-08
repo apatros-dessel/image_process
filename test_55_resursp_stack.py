@@ -4,9 +4,9 @@ pin = r'i:\Resurs_Krym'
 pout = r'e:\rks\resurs_crimea'
 resursp_channels = {
     '21': 'RED',
-    '22': 'GREEN',
-    '23': 'BLUE',
-    '33': 'NIR',
+    '22': 'NIR',
+    '23': 'GREEN',
+    '33': 'BLUE',
 }
 
 files = folder_paths(pin,1,'tiff')

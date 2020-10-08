@@ -1,11 +1,13 @@
 from image_processor import process
 from geodata import *
 
-pin = r'd:\digital_earth\planet_20200920\clip_fire_madashenskoye_2019aug8_PSScene4Band_7824956a-a67d-4633-8535-d9e76ec4a09c'
-pout = r'd:\digital_earth\planet_20200920\2019-08-08_v3\Madashenskoe_20190808_rgb_v3.tif'
+pin = r'd:\digital_earth\sour\region69\grn'
+pout = r'd:\digital_earth\sour\region69\grn\Mosaic2.tif'
 tmpts = [#'KV.+KANOPUS',
-         '_.{4}_.+AnalyticMS_clip',
+        r'RP.+PMS.L2',
+         # '_.{4}_.+AnalyticMS$',
         ]
+band_order = [1,2,3]
 
 def GetRasterPercentileUInteger(files, min_p = 0.02, max_p = 0.98, bands = [1,2,3], nodata = 0, max = 65536, manage_clouds = False):
     max = int(max)
@@ -89,20 +91,20 @@ folder_out = os.path.dirname(pout)
 suredir(folder_out)
 mosaic_list = []
 for group in groups.values():
-    params = GetRasterPercentileUInteger(group, 0.01, 0.998, manage_clouds=True)
+    params = GetRasterPercentileUInteger(group, 0.01, 0.998, manage_clouds=False, bands=band_order)
     print(params)
     for file in group:
         f,n,e = split3(file)
         rgb = n+'.RGB'
         rgb_out = fullpath(folder_out, rgb, e)
-        RasterToImage3(file, rgb_out, method=3, band_limits=params, alpha=True, compress='DEFLATE', gamma=(0.80, 0.80, 0.85),
-                       enforce_nodata=0, overwrite=False)
+        RasterToImage3(file, rgb_out, method=3, band_limits=params, alpha=True, compress='DEFLATE', gamma=0.8,
+                       band_order=band_order, enforce_nodata=0, overwrite=False)
         print('File written: %s' % rgb)
         mosaic_list.append(rgb_out)
 
 print('FINISHED RGB FOR: {}'.format(datetime.now()-t))
 
-Mosaic(mosaic_list, pout, band_num=3, options=['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9', 'BIGTIFF=YES', 'NUM_THREADS=ALL_CPUS'])
+# Mosaic(mosaic_list, pout, band_num=3, band_order=band_order, options=['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9', 'BIGTIFF=YES', 'NUM_THREADS=ALL_CPUS'])
 
-print('FINISHED MOSAIC FOR: {}'.format(datetime.now()-t))
+# print('FINISHED MOSAIC FOR: {}'.format(datetime.now()-t))
 

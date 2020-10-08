@@ -3,9 +3,9 @@
 from geodata import *
 import shutil
 
-dir_in = r'\\tt-nas-archive\NAS-Archive-2TB-7\kan-pms\sverdlovsk'        # Путь к папке с исходными данными
-dir_out = r'\\tt-nas-archive\NAS-Archive-2TB-6\s3\sverdlovsk_pms'    # Путь к месту хранения конечных данных
-json_in = r'\\tt-nas-archive\NAS-Archive-2TB-4\DigitalEarth_covers\full\102_2020_133_Sverdlovsk_fullcover_PAN-MS.json'                                       # Путь к векторному файлу покрытия
+dir_in = r'd:\digital_earth\sour\region69\grn'        # Путь к папке с исходными данными
+dir_out = r'd:\digital_earth\sour\region69\grn_pms_fin'    # Путь к месту хранения конечных данных
+json_in = r'D:/digital_earth/sour/region69/RP_Tver_cover.json'                                       # Путь к векторному файлу покрытия
 
 # Filter geojson vector layer by attribute
 def filter_geojson(path_in, field, vals, path_out):

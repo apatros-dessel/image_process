@@ -11,9 +11,14 @@ from copy import copy, deepcopy
 from PIL import Image
 
 default_temp = '{}\image_processor'.format(os.environ['TMP'])
+silent = False
 
 if not os.path.exists(default_temp):
     os.makedirs(default_temp)
+
+def sprint(s):
+    if not (globals().get('silent')):
+        print(s)
 
 # Function always returning None
 def returnnone(*args):
@@ -1143,3 +1148,15 @@ def find_parts(list_, start, fin):
             results.append(list_[i_start:i])
             passingby = True
     return results
+
+def DictTuples(dict_):
+    export = []
+    for key in dict_:
+        export.append((key, dict_[key]))
+    return export
+
+def TuplesDict(list_):
+    export = {}
+    for key, value in list_:
+        export[key] = value
+    return export

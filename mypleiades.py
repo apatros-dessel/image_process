@@ -28,7 +28,6 @@ pleiades_bandpaths = OrderedDict(
 )
 
 # STRIP_DS_PHR1A_202008170615476_FR1_PX_E094N68_0321_01654_DIM.XML
-strip_ds_tmpt = STRIP_DS_PHR1A_202008170615476_FR1_PX_E094N68_0321_01654_DIM.XML
 
 # Functions for Pleiades metadata processing
 

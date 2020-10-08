@@ -153,11 +153,16 @@ def pms_iter(data_source_folder,
                 loop[scene_id] = {product: os.path.join(root, f)}
 
         # Resurs-P
-        if re.search(r'^rp.*.l2\.tif$', f.lower(), flags=0):
+        if re.search(r'^rp.*.l2.*\.tif$', f.lower(), flags=0):
             product_path = root
             sat, orbit, part, satname, imgdate, imgtime1, product = f.split('_')
-            imgtime2, scene, product, level, fileext = product.split('.')
-            scene_id = '_'.join([orbit, part, scene])
+            ending = product.split('.')
+            if len(ending)==5:
+                imgtime2, scene, product, level, fileext = product.split('.')
+                scene_id = '_'.join([orbit, part, scene])
+            elif len(ending)==6:
+                imgtime2, scene, product, level, grnid, fileext = product.split('.')
+                scene_id = '_'.join([orbit, part, scene, grnid])
 
             if loop.has_key(scene_id):
                 loop[scene_id][product]=os.path.join(root, f)

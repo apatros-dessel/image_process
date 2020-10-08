@@ -1,10 +1,10 @@
 from geodata import *
 
-folder_in = r'\\172.21.195.2\FTP-Share\ftp\s3\tver_pms'
-txt_names_in = None # r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339\2020-07-06_2748.txt'
-folder_out = r'e:\rks\ref\tver_pms'
-references_path = r'h:\References'
-source_name_tmpt = r'kv1.+l2$' # fr1_KV3_13044_10269_01_3NP2_20_S_584506_090620.tif
+folder_in = r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339'
+txt_names_in = None #r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339\2020-07-08_1418.txt'
+folder_out = r'd:\digital_earth\KV_Tatarstan'
+references_path = r'\\172.21.195.2\FTP-Share\ftp\References'
+source_name_tmpt = r'fr13_kv1_33892_26862_01.' # fr1_KV3_13044_10269_01_3NP2_20_S_584506_090620.tif
 align_renaming_template = (r'fr.+_s_.+$', '_S_', '_PSS1_')
 folder_pansharp = None
 
@@ -64,7 +64,7 @@ def raster_match(path1, path2):
     result = 2 * int(geom1.Intersects(geom2)) + crs_match
     return result
 
-def align_system(pin, ref, pout, tempdir=None, align_file=None, reproject_method=gdal.GRA_Bilinear):
+def align_system(pin, ref, pout, tempdir=None, align_file=None, reproject_method=gdal.GRA_NearestNeighbour):
     base = pin
     if tempdir is None:
         tempdir = os.environ['TMP']
@@ -91,7 +91,7 @@ def align_system(pin, ref, pout, tempdir=None, align_file=None, reproject_method
             ReprojectRaster(align_file, repr_raster, int(srs_ref.GetAttrValue('AUTHORITY', 1)), method=reproject_method)
             align_file = repr_raster
 
-    cmd_autoalign = r'python37 C:\soft\rss_align-master\autoalign.py {align_file} {ref} {transform} -l -t {tempdir}'.format(
+    cmd_autoalign = r'python37 C:\Users\TT\PycharmProjects\pereprivyazka\autoalign.py {align_file} {ref} {transform} -l -t {tempdir}'.format(
         align_file = align_file.replace(' ', '***'),
         ref = ref.replace(' ', '***'),
         transform = transform,
@@ -101,7 +101,7 @@ def align_system(pin, ref, pout, tempdir=None, align_file=None, reproject_method
     os.system(cmd_autoalign)
 
     if os.path.exists(transform):
-        cmd_warp = r'python37 C:\soft\rss_align-master\warp.py {pin} {transform} {pout} -t {tempdir}'.format(
+        cmd_warp = r'python37 C:\Users\TT\PycharmProjects\pereprivyazka\warp.py {pin} {transform} {pout} -t {tempdir}'.format(
             pin = pin.replace(' ', '***'),
             transform = transform,
             pout = pout.replace(' ', '***'),
@@ -132,13 +132,18 @@ names = flist(files, lambda x: split3(x)[1])
     # sys.exit()
 
 suredir(folder_out)
+print(files)
 
 print('\nSTART REFERENCING %i FILES' % len(files))
-
+count = 0
 for file in files:
+    count+=1
+    print(count, "/", len(files))
     fail = True
     p,n,e = split3(file)
+
     if re.search(source_name_tmpt, n.lower()) is None:
+        print("wrong name pattern", n.lower())
         continue
     composition[file] = OrderedDict()
     align_file = file
@@ -161,17 +166,26 @@ for file in files:
             else:
                 print('False align file: %s' % align_file)
     composition[file]['align_file'] = align_file
-
+    print(n, folder_out)
     pout = fullpath(folder_out, n + '.REF', e)
+    exist = False
     composition[file]['output_file'] = pout
     if os.path.exists(pout):
         print('\nFILE ALREADY EXISTS: %s' % pout)
-        continue
+        # continue
+        exist = True
+
     intersect_dict = OrderedDict()
     for ref in references_in:
         match = raster_match(align_file, ref)
         if match==3:
-            align_system(file, ref, pout, align_file=align_file)
+            if exist == True:
+                print("match == 3; trying reproject with bilinear")
+                pout3 = fullpath(folder_out, n + '.REF_new', e)
+                align_system(file, ref, pout3, align_file=align_file, reproject_method=gdal.GRA_Bilinear)
+            else:
+                print("match == 3; didn't exist")
+                align_system(file, ref, pout, align_file=align_file)
             fail = False
             break
         else:
@@ -181,6 +195,7 @@ for file in files:
         scroll(intersect_dict)
         for ref in intersect_dict:
             if intersect_dict[ref] == 2:
+                # pout2 = fullpath(folder_out, n + '.REF2', e)
                 align_system(file, ref, pout, align_file=None, reproject_method=gdal.GRA_Bilinear)
                 # for method_id in reproject_methods_dict:
                     # pout_new = pout.replace('.tif', '_%s.tif' % method_id)

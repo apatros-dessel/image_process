@@ -1,8 +1,8 @@
 from geodata import *
 
-raster_old = r'D:/digital_earth/planet_20200920/2019-08-02_v2/Madashenskoe_20190802_rgb_v2.tif'
-raster_new = r'D:/digital_earth/planet_20200920/2019-08-08_v2/Madashenskoe_20190808_rgb_v2.tif'
-export_path = r'd:\digital_earth\planet_20200920\Madashenskoe_2019aug02-08_rgb_v2.tif'
+raster_old = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\LES\ZAINSKOE_LESNICHESTVO\Zainskoe_lesnichestvo\Срезы\1\Zainskoe_lesnichestvo2019_may01.tif'
+raster_new = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\LES\ZAINSKOE_LESNICHESTVO\Zainskoe_lesnichestvo\Срезы\23\Zainskoe_lesnichestvo2020_jul26-28.tif'
+export_path = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\LES\ZAINSKOE_LESNICHESTVO\Zainskoe_lesnichestvo\Срезы\1-23\Zainskoe_lesnichestvo2020_may01-28.tif'
 
 path2raster_list = [
     (raster_new, 1),
@@ -20,6 +20,7 @@ t = datetime.now()
 temp_old_red_2 = tempname('tif')
 Mosaic([temp_old_red], temp_old_red_2, band_num=1, band_order=None, copyraster=raster_new, options={'compress':'DEFLATE'})
 print('Old red reprojected for {}'.format(datetime.now() - t))
+suredir(os.path.dirname(export_path))
 
 t = datetime.now()
 ds(export_path, copypath=raster_new, options={'bandnum':3, 'compress':'DEFLATE'})

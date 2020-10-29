@@ -2,6 +2,8 @@ pyth# Describes class "scene"
 
 from service import *
 
+print('hohoho')
+
 athmo_corr_methods_list = ['None', 'DOS1', 'DOS2']
 
 def create_virtual_dataset(proj, geotrans, shape_, num_bands, dtype):

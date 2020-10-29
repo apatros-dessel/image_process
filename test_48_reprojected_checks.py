@@ -1,10 +1,11 @@
 from geodata import *
+import csv
 
-folder_in = r'd:\rks\KV_sverdlovsk'
-txt_names_in = None # r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339\2020-07-06_2748.txt'
-folder_out = r'd:\rks\KV_sverdlovsk\ref'
-references_path = r'e:\rks\References'
-source_name_tmpt = r'kv.+\d{2,}$' # fr1_KV3_13044_10269_01_3NP2_20_S_584506_090620.tif
+folder_in = r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339\2020-07-08'
+txt_names_in = None #r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339\2020-07-08_1418.txt'
+folder_out = r'\\172.21.195.2\FTP-Share\ftp\Aligned_pms\2020-07-08-checked'
+references_path = r'\\172.21.195.2\FTP-Share\ftp\References'
+source_name_tmpt = r'kv1.' # fr1_KV3_13044_10269_01_3NP2_20_S_584506_090620.tif
 align_renaming_template = (r'fr.+_s_.+$', '_S_', '_PSS1_')
 folder_pansharp = None
 
@@ -91,7 +92,7 @@ def align_system(pin, ref, pout, tempdir=None, align_file=None, reproject_method
             ReprojectRaster(align_file, repr_raster, int(srs_ref.GetAttrValue('AUTHORITY', 1)), method=reproject_method)
             align_file = repr_raster
 
-    cmd_autoalign = r'python37 C:\soft\rss_align-master\autoalign.py {align_file} {ref} {transform} -l -t {tempdir}'.format(
+    cmd_autoalign = r'python37 "\\172.21.195.2\FTP-Share\ftp\proc\py\anrdew\rss_align-master\autoalign.py" {align_file} {ref} {transform} -l -t {tempdir}'.format(
         align_file = align_file.replace(' ', '***'),
         ref = ref.replace(' ', '***'),
         transform = transform,
@@ -101,7 +102,7 @@ def align_system(pin, ref, pout, tempdir=None, align_file=None, reproject_method
     os.system(cmd_autoalign)
 
     if os.path.exists(transform):
-        cmd_warp = r'python37 C:\soft\rss_align-master\warp.py {pin} {transform} {pout} -t {tempdir}'.format(
+        cmd_warp = r'python37 "\\172.21.195.2\FTP-Share\ftp\proc\py\anrdew\rss_align-master\warp.py" {pin} {transform} {pout} -t {tempdir}'.format(
             pin = pin.replace(' ', '***'),
             transform = transform,
             pout = pout.replace(' ', '***'),
@@ -124,6 +125,11 @@ else:
     files = folder_paths(folder_in, 1, 'tif')
 names = flist(files, lambda x: split3(x)[1])
 
+file_csv = open('files.csv', 'w+', newline='')
+with file_csv:
+    write = csv.writer(file_csv)
+    write.writerows(files)
+
 # scroll(files, lower='len=%s Finish it?' % len(files))
 
 # fin = input()
@@ -132,13 +138,19 @@ names = flist(files, lambda x: split3(x)[1])
     # sys.exit()
 
 suredir(folder_out)
+print(names)
+
 
 print('\nSTART REFERENCING %i FILES' % len(files))
-
+count = 0
 for file in files:
+    count+=1
     fail = True
     p,n,e = split3(file)
+    print(count, "/", len(files), '-', n)
+
     if re.search(source_name_tmpt, n.lower()) is None:
+        print("wrong name pattern", n.lower())
         continue
     composition[file] = OrderedDict()
     align_file = file
@@ -154,24 +166,53 @@ for file in files:
         '''
         for i, name in enumerate(names):
             align_file_new = files[i]
-            if raster_match(align_file_new, file)==3:
+            if raster_match(align_file_new, file) == 3:
                 align_file = align_file_new
                 print('Align file found: %s' % align_file)
-                break
+                if fr2 in align_file:
+                    break
             else:
-                print('False align file: %s' % align_file)
+                print('False align file: %s' % align_file_new)
     composition[file]['align_file'] = align_file
-
     pout = fullpath(folder_out, n + '.REF', e)
+    exist = False
     composition[file]['output_file'] = pout
     if os.path.exists(pout):
         print('\nFILE ALREADY EXISTS: %s' % pout)
-        continue
+        # continue
+        exist = True
+
     intersect_dict = OrderedDict()
     for ref in references_in:
         match = raster_match(align_file, ref)
-        if match==3:
-            align_system(file, ref, pout, align_file=align_file)
+        if match == 3:
+            if not exist:
+                print("match == 3; didn't exist")
+                align_system(file, ref, pout, align_file=align_file)
+            if fr2 in file:
+                continue
+            print("match == 3; trying reproject with bilinear")
+            pout3 = fullpath(folder_out, n + '.REF3', e)
+            composition[file]['output_file2'] = pout3
+            if os.path.exists(pout3):
+                continue
+            align_system(file, ref, pout3, align_file=align_file, reproject_method=gdal.GRA_Bilinear)
+
+
+            # if exist:
+            #     if fr2 in file:
+            #         print("existed pan")
+            #         continue
+            #     print("match == 3; trying reproject with bilinear")
+            #     pout3 = fullpath(folder_out, n + '.REF3', e)
+            #     composition[file]['output_file2'] = pout3
+            #     if os.path.exists(pout3):
+            #         continue
+            #     align_system(file, ref, pout3, align_file=align_file, reproject_method=gdal.GRA_Bilinear)
+            #
+            # else:
+            #     print("match == 3; didn't exist")
+            #     align_system(file, ref, pout, align_file=align_file)
             fail = False
             break
         else:
@@ -181,6 +222,10 @@ for file in files:
         scroll(intersect_dict)
         for ref in intersect_dict:
             if intersect_dict[ref] == 2:
+                # pout2 = fullpath(folder_out, n + '.REF2', e)
+                print("match == 2")
+                if exist:
+                    continue
                 align_system(file, ref, pout, align_file=None, reproject_method=gdal.GRA_Bilinear)
                 # for method_id in reproject_methods_dict:
                     # pout_new = pout.replace('.tif', '_%s.tif' % method_id)
@@ -191,7 +236,7 @@ for file in files:
         globals()['errors_list'].append(os.path.basename(file))
         print('REFERENCE NOT FOUND FOR: %s' % file)
 
-dict_to_xls(fullpath(folder_out, 'reprojection_report.xls'), composition)
+dict_to_xls(fullpath(folder_out, 'reprojection_report2.xls'), composition)
 
 if folder_pansharp:
     cmd_pansharp = 'python pci_psh_kan-rsp.py {pin} {pout}'.format(

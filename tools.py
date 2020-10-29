@@ -553,19 +553,22 @@ def check_name(name, pattern):
 
 # Returns a list of two lists: 0) all folders in the 'path' directory, 1) all files in it
 def fold_finder(path, filter_folder=[]):
-    if len(path) >= 255:
-        return [[], []]
-    dir_ = os.listdir(path)
     fold_ = []
     file_ = []
-    for name in dir_:
-        if name in filter_folder:
-            continue
-        full = path + '\\' + name
-        if os.path.isfile(full):
-            file_.append(full)
-        else:
-            fold_.append(full)
+    # if len(path) >= 255:
+        # return [[], []]
+    try:
+        dir_ = os.listdir(path)
+        for name in dir_:
+            if name in filter_folder:
+                continue
+            full = path + '\\' + name
+            if os.path.isfile(full):
+                file_.append(full)
+            else:
+                fold_.append(full)
+    except:
+        print('Error fold_finder')
     return [fold_, file_]
 
 # Searches filenames according to template and returns a list of full paths to them
@@ -1085,15 +1088,6 @@ temp_dir_list = tdir()
 # Make temp file or folder path with predefined extension
 def tempname(ext = None):
     return globals()['temp_dir_list'].create(ext)
-
-def QuicklookImage(path_in, path_out, image_size = (100, 100)):
-
-    orig_img = Image.open(path_in)
-    new_img = orig_img.resize(image_size)
-    new_img.show()
-    new_img.save(path_out)
-
-    return None
 
 def colfromdict(dict_, key, listed=False):
     col_dict = OrderedDict()

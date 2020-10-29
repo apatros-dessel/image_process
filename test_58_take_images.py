@@ -2,21 +2,22 @@ from geodata import *
 from image_processor import process
 
 pin = [
-    r'\\172.21.195.2\FTP-Share\ftp',
-    r'd:\digital_earth',
-    r'e:\resursp_filtered',
-    r'e:\rks',
-    r'F:\102_2020_108_RP',
-    r'\\tt-pc-10-quadro\FTP_Share14TB\S3',
+    # r'\\172.21.195.2\FTP-Share\ftp',
+    # r'd:\digital_earth',
+    # r'e:\resursp_filtered',
+    # r'e:\rks',
+    # r'e:\20200713_kanopus',
+    # r'\\tt-pc-10-quadro\FTP_Share14TB\S3',
+    r'\\172.21.195.215\thematic\14T_all\S3'
 ]
-id_list_txt = None # r'e:\rks\s3\kanopus_pms\names_TBO_krasnoyarsk.txt'
-name_tmpt = r'fr\d+_KV.+PSS4_.*REF\d?$'#r'RP.+[LNB0-9]$'
-cover_vector_path = r'D:\digital_earth\NN.shp'#D:/digital_earth/RSP_Tatarstan/Tatarstan_objects.shp
-pout = r'D:/digital_earth/KV_Nizhniy'
+id_list_txt = r'd:\rks\KV_krasnoyarsk_TBO\scene_ids.txt'
+name_tmpt = r'KV.+_P?S?S\d?_.*[LNB0-9]$'#r'RP.+[LNB0-9]$'
+cover_vector_path = None# r'\\172.21.195.2/FTP-Share/ftp/!FINAL_PRODUCTS/1.Эко-мониторинг/Э1Б.Исходная ситуация - официальные полигоны складирования отходов/Э1Б.Свердловская/tbo_sverdlovskay_poligon.shp'#D:/digital_earth/RSP_Tatarstan/Tatarstan_objects.shp
+pout = r'd:\rks\KV_krasnoyarsk_TBO'
 target = 'LIST COPY PATHS'
 target = 'COPY RASTER'
-file_paths = r'd:\digital_earth\tif_list.txt'
-search_for_vector_cover = False
+file_paths = r'\\172.21.195.215\thematic\14T_all\S3\tif.txt'
+search_for_vector_cover = True
 
 def raster_geom(ds, reference=None):
     if ds is None:
@@ -82,7 +83,9 @@ else:
     pin = obj2list(pin)
     files = []
     for dir_in in pin:
-        files.extend(folder_paths(dir_in,1,'tif'))
+        new_files = folder_paths(dir_in,1,'tif')
+        if new_files:
+            files.extend(new_files)
     if id_list_txt:
         id_list = open(id_list_txt).read().split('\n')
     with open(file_paths, 'w') as txt:

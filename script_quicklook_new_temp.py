@@ -1,49 +1,69 @@
 # -*- coding: utf-8 -*-
 
 from geodata import *
+from image_processor import process
+import argparse
 
-dir_in = r'd:\digital_earth\KV_Nizhniy'
-txt_ids = None#r'd:\digital_earth\KV_Tatarstan\kv_ids.txt'\\172.21.195.2\FTP-Share\ftp\s3\sentinel_krasnoyarsk\
-dir_out = r'd:\digital_earth\KV_Nizhniy'
-preserve_original = False
-make_rgb = False
+parser = argparse.ArgumentParser(description='Path to vector file')
+parser.add_argument('-i', default=None, dest='txt_ids', help='Files id list, if necessary')
+parser.add_argument('-d', default=None, dest='dir_out', help='Output directory if different from dir_in')
+parser.add_argument('-o', default=True, dest='preserve_original', help='Preserve original files')
+parser.add_argument('-r', default=False, dest='make_rgb', help='Create RGB files')
+parser.add_argument('-v', default=None, dest='json_cover', help='Vector cover path')
+parser.add_argument('-g', default=None, dest='vector_granule_path', help='Path to vector granule files')
+parser.add_argument('-m', default=False, dest='ms2pms', help='Convert MS files to PMS')
+parser.add_argument('-b', default=False, dest='invert_red_blue', help='Change bands order from 1.2.3 to 3.2.1')
+parser.add_argument('dir_in', help='Path to vector file')
+args = parser.parse_args()
+dir_in = args.dir_in
+dir_out = args.dir_out
+txt_ids = args.txt_ids
+preserve_original = args.preserve_original
+make_rgb = args.make_rgb
+json_cover = args.json_cover
+vector_granule_path = args.vector_granule_path
+ms2pms = args.ms2pms
+invert_red_blue = args.invert_red_blue
+
+if dir_out is None:
+    dir_out = dir_in
+
+# dir_in = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\LES\archive\Ostashkovskoe_lesnichestvo\Case1\ostashkovskoe_2020may_cut1_PSScene4band_b21bb6c5-2af9-439c-912b-cc9a8492c0b2'
+# txt_ids = None#r'd:\digital_earth\KV_Tatarstan\kv_ids.txt'
+# dir_out = r'd:\rks\PL_new_201023\ostashkovskoe_2020may_cut1'
+preserve_original = True
+make_rgb = True
+
+json_cover = r'\\172.21.195.2/FTP-Share/ftp/images/region82/vector_cover.json'
+vector_granule_path = r'\\172.21.195.2\FTP-Share\ftp\images\granules_grid.shp'
+ms2pms = True
+invert_red_blue = True
+
+if json_cover is None:
+    json_cover = tempname('json')
+    # print(json_cover)
+    process().input(dir_in, skip_duplicates=False).GetCoverJSON(json_cover)
+    pass
 
 names_tmpt = {
-    'sentinel': '^S2[AB]_MSI.+\d$',
-    'planet': '.*AnalyticMS(_SR)?$',
-    'planet_neuro': 'IM4-PLN.*',
-    'kanopus': 'KV.+L2$',
-    #'resursp': 'RP.+L2$',
-    'resursp-grn': 'RP.+PMS\.L2\.GRN\d+$',
-    'kanopus_new_ref': '^fr.+KV.+$'
+    'sentinel': ('^S2[AB]_MSI.+\d$', [3,2,1]),
+    'planet': ('.*AnalyticMS(_SR)?$', [3,2,1]),
+    'planet_neuro': ('IM4-PLN.*', [1,2,3]),
+    'kanopus': ('KV.+L2$', [1,2,3]),
+    'resursp': ('RP.+L2$', [1,2,3]),
+    'resursp-grn': ('RP.+PMS\.L2\.GRN\d+$', [1,2,3]),
+    'resursp-grn_new': ('\d_+RP.+PMS\.L2$', [1,2,3]),
+    'kanopus_new_ref': ('^fr.+KV.+$', [1,2,3]),
+    'digital-globe': (r'\d+[A-Z]+\d+-.*P\d+$', [3,2,1]),
 }
 
-bands_dict = {
-    'sentinel': [3,2,1],
-    'planet': [3,2,1],
-    'planet_neuro': [1,2,3],
-    'kanopus': [1,2,3],
-    #'resursp': 'RP.+L2$',
-    'resursp-grn': [1,2,3],
-    'kanopus_new_ref': [1,2,3]
-}
-
-
-def valid_str(str_, tmpt_list):
+def valid_str(str_, tmpt_dict):
     # tmpt_list = obj2list(tmpt_list)
-    if isinstance(tmpt_list, dict):
-        tmpt_list = tmpt_list.values()
-    for tmpt in tmpt_list:
+    for key in tmpt_dict:
+        tmpt, band_list = tmpt_dict[key]
         if re.search(tmpt, str_):
-            return True
+            return band_list
     return False
-
-def get_band_order(n):
-    names_tmpt = globals()['names_tmpt']
-    for key in names_tmpt:
-        tmpt = names_tmpt[key]
-        if re.search(tmpt, n):
-            return globals()['bands_dict'][key]
 
 def copymove(file_in, file_out, preserve_original):
     if file_in==file_out:
@@ -60,10 +80,8 @@ def copymove(file_in, file_out, preserve_original):
 def get_pms_json(path_cover, path_out, pms_id, pms_raster_path=''):
 
     if os.path.exists(path_out):
-        filter_dataset_by_col(path_dict['json'], 'id', pms_id, path_out=path_out)
-        old_ds, old_lyr = get_lyr_by_path(path_out)
-        if len(old_lyr) > 0:
-            return 0
+        print('FILE EXISTS: %s' % path_out)
+        return 1
 
     # print('Original PMS data not found for %s, collecting data from MS' % pms_id)
 
@@ -75,6 +93,14 @@ def get_pms_json(path_cover, path_out, pms_id, pms_raster_path=''):
     filter_dataset_by_col(path_cover, 'id', ms_id, path_out=path_out)
 
     pms_ds, pms_lyr = get_lyr_by_path(path_out, 1)
+
+    if pms_lyr is None:
+        print('FILE NOT FOUND: %s' % path_out)
+        return 1
+    elif len(pms_lyr)==0:
+        print('EMPTY LAYER: %s' % path_out)
+        os.remove(path_out)
+        return 1
 
     feat = pms_lyr.GetNextFeature()
     feat.SetField('id', pms_id)
@@ -88,8 +114,13 @@ def get_pms_json(path_cover, path_out, pms_id, pms_raster_path=''):
     if pms_data is not None:
         feat.SetField('rows', int(pms_data.RasterYSize))
         feat.SetField('cols', int(pms_data.RasterXSize))
-        feat.SetField('x_size', float(pms_data.GetGeoTransform[0]))
-        feat.SetField('y_size', -float(pms_data.GetGeoTransform[5]))
+        trans = pms_data.GetGeoTransform()
+        if trans:
+            feat.SetField('x_size', float(trans[0]))
+            feat.SetField('y_size', -float(trans[-1]))
+        else:
+            feat.SetField('x_size', None)
+            feat.SetField('y_size', None)
     else:
         pan_id = pms_id.replace('.PMS', '.PAN')
         tpan_path = filter_dataset_by_col(path_cover, 'id', pan_id)
@@ -109,18 +140,118 @@ def get_pms_json(path_cover, path_out, pms_id, pms_raster_path=''):
 
     return 0
 
-def NullCheck(file):
-    if os.path.exists(file):
-        vals = np.unique(gdal.Open(file).ReadAsArray())
-        if len(vals)==1 and vals[0]==0:
-            return True
-        else:
-            return False
-    else:
-        print('File not found: %s' % file)
-        return True
+def resurs_granule_index(filename):
+    satid, loc1, sentnum, resurs, date, num1, ending = undersplit = filename.split('_')
+    dotsplit = ending.split('.')
+    scn = dotsplit[1]
+    lvl = dotsplit[3]
+    if 'PMS' in dotsplit:
+        lvl += 'PMS'
+    granule = dotsplit[-1]
+    scn_num = scn.replace('SCN', '')
+    if not granule.startswith('GRN'):
+        granule = ('GRN' + granule)
+    indexname = '{}-{}-{}{}{}-{}'.format(satid, date, loc1, scn_num, granule, lvl)
+    return indexname
 
-path_in_list = folder_paths(dir_in, files=True, extension='tif')
+def granule_metadata_json(path_granule, path_cover_meta, path_out, raster_path, ms2pms = False):
+    # Get input data
+    shutil.copyfile(path_cover_meta, path_out)
+    dout, lout = get_lyr_by_path(path_out, 1)
+    dgr, lgr = get_lyr_by_path(path_granule)
+    fout = lout.GetNextFeature()
+    fgr = lgr.GetNextFeature()
+    # Set new geometry as intersection of tile and scene vector cover
+    geom = fout.GetGeometryRef().Intersection(fgr.GetGeometryRef())
+    fout.SetGeometry(geom)
+    # Set new metadata
+    granule_id = str(int(fgr.GetField('granule')))
+    tile_id = '%s.GRN%s' % (fout.GetField('id'), granule_id)
+    if ms2pms:
+        tile_id = tile_id.replace('.MS', '.PMS')
+        fout.SetField('type', 'PMS')
+        rgr = gdal.Open(raster_path)
+        if rgr:
+            fout.SetField('rows', rgr.RasterYSize)
+            fout.SetField('cols', rgr.RasterXSize)
+            transform = rgr.GetGeoTransform()
+            fout.SetField('x_size', float(transform[1]))
+            fout.SetField('y_size', float(-transform[-1]))
+    # print(tile_id)
+    fout.SetField('id', tile_id)
+    fout.SetField('id_neuro', resurs_granule_index(tile_id))
+    fout.SetField('id_s', fout.GetField('id_neuro').split('-')[2])
+    lout.SetFeature(fout)
+    dout = None
+
+def RenameGrn(n):
+    split_ = n.split('_')
+    return '%s.GRN%s' % ('_'.join(split_[1:]), split_[0])
+
+def RasterGeometry(ds_, reference=None):
+    width = ds_.RasterXSize
+    height = ds_.RasterYSize
+    gt = ds_.GetGeoTransform()
+    srs = osr.SpatialReference()
+    srs.ImportFromWkt(ds_.GetProjection())
+    minx = gt[0]
+    miny = gt[3] + width * gt[4] + height * gt[5]
+    maxx = gt[0] + width * gt[1] + height * gt[2]
+    maxy = gt[3]
+    template = 'POLYGON ((%(minx)f %(miny)f, %(minx)f %(maxy)f, %(maxx)f %(maxy)f, %(maxx)f %(miny)f, %(minx)f %(miny)f))'
+    r1 = {'minx': minx, 'miny': miny, 'maxx': maxx, 'maxy': maxy}
+    wkt = template % r1
+    if sys.version.startswith('2'):
+        geom = ogr.Geometry(wkt=wkt)
+    else:
+        geom = ogr.CreateGeometryFromWkt(wkt, reference)
+    if srs!=reference:
+        trans = osr.CoordinateTransformation(srs, reference)
+        geom.Transform(trans)
+        if sys.version.startswith('3'):
+            geom = changeXY(geom)
+    return geom
+
+def TotalCover(pout, files, srs = None):
+    driver = ogr.GetDriverByName('GeoJSON')
+    ds_out = driver.CreateDataSource(pout)
+    if srs is None:
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+    lyr_out = ds_out.CreateLayer('', srs, ogr.wkbMultiPolygon)
+    lyr_out.CreateField(ogr.FieldDefn('id', 4))
+    feat_defn = lyr_out.GetLayerDefn()
+    for file in files:
+        ds_ = gdal.Open(file)
+        if ds_:
+            f,id,e = split3(file)
+            feat = ogr.Feature(feat_defn)
+            feat.SetField('id', id)
+            geom = RasterGeometry(ds_, reference=srs)
+            # print(geom.ExportToWkt())
+            feat.SetGeometry(geom)
+            lyr_out.CreateFeature(feat)
+    ds_out = None
+
+def InvertRedBlueBands(file):
+    f,n,e = split3(file)
+    temp_file = fullpath(f,n+'__',e)
+    ds_ = gdal.Open(file)
+    if ds_:
+        band_count = ds_.RasterCount
+        if band_count>=3:
+            band_order = list(range(1,band_count+1))
+            band_order[0] = 3
+            band_order[2] = 1
+        res = SaveRasterBands(file, band_order, temp_file)
+        if res==0:
+            ds_ = None
+            os.remove(file)
+            copydeflate(temp_file, file)
+            # shutil.rename(temp_file, file)
+            os.remove(temp_file)
+
+path_in_list = folder_paths(dir_in, files=True, extension='tif', filter_folder=['brak'])
 names_in_list = flist(path_in_list, lambda x: split3(x)[1])
 
 if txt_ids not in (None, ''):
@@ -129,25 +260,27 @@ else:
     ids = False
 
 report = []
+export_data = []
 
 for i, path_in in enumerate(path_in_list):
 
     f, n, e = split3(path_in)
 
-    if valid_str(n, names_tmpt.values()):
+    band_order = valid_str(n, names_tmpt)
+
+    if band_order:
         if ids:
             if n not in ids:
                 print('%i -- file skipped: not in filter -- %s' % (i, n))
                 continue
-        if NullCheck(path_in):
-            print('%i -- file skipped: file is empty -- %s' % (i, n))
-            continue
-        band_order = get_band_order(n)
+        if re.search(names_tmpt['resursp-grn_new'][0], n):
+            n = RenameGrn(n)
         id_dir_out = fullpath(dir_out, n)
         suredir(id_dir_out)
         raster_out = fullpath(id_dir_out, n, e)
         copymove(path_in, raster_out, preserve_original)
         report.append(n)
+        export_data.append(raster_out)
 
         # if make_rgb:
         if make_rgb:
@@ -168,8 +301,8 @@ for i, path_in in enumerate(path_in_list):
                                              enforce_nodata=0,
                                              band_order=band_order,
                                              GaussianBlur=False,
-                                             reprojectEPSG=3857,
-                                             reproject_method=gdal.GRA_Lanczos,
+                                             # reprojectEPSG=3857,
+                                             reproject_method=gdal.GRA_Bilinear,
                                              compress='DEFLATE',
                                              overwrite=False,
                                              alpha=True)
@@ -201,45 +334,91 @@ for i, path_in in enumerate(path_in_list):
                         if check_exist(fullpath(id_dir_out, n + '.QL', e), False):
                             print('%i -- file exists -- %s.QL.tif' % (i, n))
                         else:
-                            MakeQuicklook(raster_out, temp_ql, 3857, pixelsize=30, overwrite=False)
+                            MakeQuicklook(raster_out, temp_ql, 3857, pixelsize=30, overwrite=False, method=gdal.GRA_NearestNeighbour)
                             RasterToImage3(temp_ql,
                                            fullpath(id_dir_out, n + '.QL', e),
                                            method=2,
                                            band_limits=[(0.01, 0.998), (0.01, 0.998), (0.01, 0.998)],
-                                           gamma=0.85,
+                                           gamma=0.80,
                                            exclude_nodata=True,
                                            enforce_nodata=0,
                                            band_order=band_order,
                                            GaussianBlur=False,
-                                           reprojectEPSG=3857,
-                                           reproject_method=gdal.GRA_Lanczos,
+                                           # reprojectEPSG=3857,
+                                           reproject_method=gdal.GRA_Bilinear,
                                            compress='DEFLATE',
                                            overwrite=False,
                                            alpha=True)
                             os.remove(temp_ql)
+                            '''
+                            for method in [gdal.GRA_NearestNeighbour, gdal.GRA_Average]:
+                                MakeQuicklook(raster_out, temp_ql, 3857, pixelsize=30, overwrite=False, method=method)
+                                RasterToImage3(temp_ql,
+                                           fullpath(id_dir_out, n + '.QL.{}'.format(method), e),
+                                           method=2,
+                                           band_limits=[(0.01, 0.998), (0.01, 0.998), (0.01, 0.998)],
+                                           gamma=0.80,
+                                           exclude_nodata=True,
+                                           enforce_nodata=0,
+                                           band_order=band_order,
+                                           GaussianBlur=False,
+                                           # reprojectEPSG=3857,
+                                           reproject_method=gdal.GRA_Bilinear,
+                                           compress='DEFLATE',
+                                           overwrite=False,
+                                           alpha=True)
+                                os.remove(temp_ql)
+                            '''
                     except:
                         print('Error making QL: %s.QL.tif' % n)
 
         # Add image
-        try:
-            n_img = n + '.IMG'
-            path_img = fullpath(id_dir_out, n_img, e)
-            QuicklookImage(path_ql, path_img)
-            print('IMG written: %s' % n_img)
-        except:
-            print('Error making IMG: %s' % n_img)
+        # try:
+            # n_img = n + '.IMG'
+            # path_img = +fullpath(id_dir_out, n_img, e)
+            # QuicklookImage(path_ql, path_img)
+            # print('IMG written: %s' % n_img)
+        # except:
+            # print('Error making IMG: %s' % n_img)
+
+        if invert_red_blue:
+            if band_order==[3,2,1]:
+                InvertRedBlueBands(raster_out)
+                print('Inverted RED/BLUE: %s' % n)
 
         # Copy json
-        json_in = fullpath(f,n,'json')
+
+        json_in = path_in.replace('.tif', '.json').replace('.TIF', '.json')
+        json_out = fullpath(id_dir_out, n, 'json')
         if os.path.exists(json_in):
-            json_out = fullpath(id_dir_out, n, 'json')
-            if json_in!=json_out:
-                shutil.copyfile(json_in, json_out)
+            if json_in.lower()!=json_out.lower():
+                shutil.move(json_in, json_out)
                 print('%i JSON written %s' % (i, n))
-        elif os.path.exists(fullpath(f,n.replace('.PMS.','.MS.'),'json')):
-            json_out = fullpath(id_dir_out, n, 'json')
-            get_pms_json(fullpath(f,n.replace('.PMS.','.MS.'),'json'), json_out, n, pms_raster_path=path_in)
+        elif os.path.exists(json_in.replace('.PMS.','.MS.')):
+            get_pms_json(json_in.replace('.PMS.','.MS.'), json_out, n, pms_raster_path=path_in)
+        elif json_cover:
+            if not os.path.exists(json_out):
+                if re.search(r'\.GRN\d+$', n) and vector_granule_path:
+                    filter_id, granule_id = n.split('.GRN')
+                    tpath = filter_dataset_by_col(vector_granule_path, 'granule', granule_id, path_out=tempname('json'))
+                    tpath_meta = filter_dataset_by_col(json_cover, 'id', filter_id, path_out=tempname('json'))
+                    ds_, lyr_ = get_lyr_by_path(tpath_meta)
+                    if lyr_.GetFeatureCount()==1:
+                        granule_metadata_json(tpath, tpath_meta, json_out, path_in, ms2pms=ms2pms)
+                elif ms2pms:
+                    print('ere')
+                    get_pms_json(json_cover, json_out, n, pms_raster_path=path_in)
+                else:
+                    filter_dataset_by_col(json_cover, 'id', n, path_out=json_out)
+                ds_out, lyr_out = get_lyr_by_path(json_out)
+                if len(lyr_out)==0:
+                    ds_out = None
+                    os.remove(json_out)
+            else:
+                print('%i -- file exists -- %s.json' % (i, n))
+
 
 if report:
+    TotalCover(fullpath(dir_out, 'scene_cover.json'), export_data)
     with open(fullpath(dir_out, 'scene_list.txt'), 'w') as txt:
         txt.write('\n'.join(report))

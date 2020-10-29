@@ -1,8 +1,8 @@
 from geodata import *
 from image_processor import process
 
-pin = r'd:\digital_earth\KV_Nizhniy'
-sour = r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus'
+pin = r'd:\rks\KV_sverdlovsk'
+sour = r'e:\20200713_kanopus'
 name_tmpt = r'KV.*_S_'
 
 _file_types = {

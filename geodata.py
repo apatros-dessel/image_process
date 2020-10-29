@@ -337,7 +337,7 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
     dt = 0
     prj = ''
     geotrans = (0,1,0,0,0,1)
-    nodata = 0
+    nodata = None
 
     if copypath is not None:
         copy_ds = gdal.Open(copypath)
@@ -1612,6 +1612,8 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
     if ds_in is None:
         print('Input raster not found: {}'.format(path2raster))
         return 1
+    elif ds_in.RasterCount==1:
+        band_order = [1,1,1]
 
     path2rgb = path2export
     reproject = False
@@ -1637,7 +1639,7 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
         t_ds.GetRasterBand(4).WriteArray(np.full((source.ds.RasterYSize, source.ds.RasterXSize), 255))
 
     i = -1
-    for band_id, raster_array, nodata in source.getting((0,2,3), band_order = band_order):
+    for band_id, raster_array, nodata in source.getting((0,2,4), band_order = band_order):
         i +=1
 
         if GaussianBlur:
@@ -1649,7 +1651,9 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
 
         if exclude_nodata and (nodata is not None):
             if enforce_nodata is not None:
+                print(nodata, enforce_nodata)
                 mask = (raster_array!=nodata) * (raster_array!=enforce_nodata)
+                print(np.unique(mask, return_counts=True))
             else:
                 mask = raster_array!=nodata
         else:
@@ -1698,6 +1702,11 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
             t_ds.GetRasterBand(4).WriteArray(oldmask)
 
         del mask
+
+        if band_order==[1, 1, 1]:
+            t_ds.GetRasterBand(2).WriteArray(image_array)
+            t_ds.GetRasterBand(3).WriteArray(image_array)
+            continue
 
     if error_count == t_ds.RasterCount:
         res = 1

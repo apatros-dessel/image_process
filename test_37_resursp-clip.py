@@ -3,11 +3,11 @@
 from geodata import *
 from shutil import copyfile
 
-path_in = r'\\172.21.195.2\FTP-Share\ftp\images\region16' # Путь к исходным сценам Ресурс-П
-raster_fullcover = r'\\172.21.195.2\FTP-Share\ftp\images\region16\RSP_reg16_cover_MS.json'      # Путь к файлу покрытия Ресурс-П
+path_in = r'\\172.21.195.2\FTP-Share\ftp\images\region69' # Путь к исходным сценам Ресурс-П
+raster_fullcover = r'\\172.21.195.2\FTP-Share\ftp\images\region69\RP_Tver_cover.json'      # Путь к файлу покрытия Ресурс-П
 aoi_path =  None#r'\\172.21.195.2\FTP-Share\ftp\!region_shows\krym\Эко\Свалки\KRYM_SIMFEROPOLSKIY_border.shp'
 vector_path = r'\\172.21.195.2\FTP-Share\ftp\images\granules_grid.shp'                                         # Путь к файлу сетки гранул
-out_dir = r'\\172.21.195.2\FTP-Share\ftp\images\region16\grn'                                                             # Путь к готовым гранулам
+out_dir = r'\\172.21.195.2\FTP-Share\ftp\images\region69'                                                             # Путь к готовым гранулам
 ms2pms = True
 
 def crop_bigraster_gdal(path_in, path_vec, path_out):
@@ -31,7 +31,7 @@ def resurs_granule_index(filename):
 
 def granule_metadata_json(path_granule, path_cover_meta, path_out, raster_path, ms2pms = False):
     # Get input data
-    copyfile(path_cover_meta, path_out)
+    shutil.copyfile(path_cover_meta, path_out)
     dout, lout = get_lyr_by_path(path_out, 1)
     dgr, lgr = get_lyr_by_path(path_granule)
     fout = lout.GetNextFeature()

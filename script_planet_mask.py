@@ -3,9 +3,12 @@
 from image_processor import *
 
 # input_path = r'c:\sadkov\toropez\planet\20190516'
-input_path_list = [r'c:\sadkov\toropez\planet',
-                   r'd:\rks\toropez\planet']
-output_path = r'c:\sadkov\toropez\image_test\full'
+input_path_list = [
+                    # r'F:\rks\toropez\planet',
+                    # r'F:\rks\tver',
+                    r'f:\rks\forest',
+                  ]
+output_path = r'f:\rks\digital_earth\planet'
 
 path2composite = r'{}\composite'.format(output_path)
 path2rgb = r'{}\rgb'.format(output_path)
@@ -15,8 +18,8 @@ proc = process(output_path=output_path)
 for in_path in input_path_list:
     proc.input(in_path, imsys_list=['PLN'])
 
-shp_name = r'planet_cover.shp'
-report_name = r'planet_cover.xls'
+shp_name = r'planet_cover_forest.json'
+report_name = r'planet_cover_forest.xls'
 
 '''
 def date_covers(proc):
@@ -66,4 +69,6 @@ except:
 
 scroll(path2vector_list)
 
-geodata.unite_vector(path2vector_list, fullpath(proc.output_path, shp_name))
+# geodata.unite_vector(path2vector_list, fullpath(proc.output_path, shp_name))
+
+geodata.JoinShapesByAttributes(path2vector_list, fullpath(proc.output_path, shp_name), ['id'], geom_rule=1, attr_rule=0)

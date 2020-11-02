@@ -5,19 +5,24 @@ from image_processor import *
 from shutil import copyfile
 
 path_in = [
-    r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\Ostashkovskoe\Case1\May\cut1',
-    r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\Ostashkovskoe\Case1\May\cut2',
-    r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\Ostashkovskoe\Case1\May\cut3',
-    r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\Ostashkovskoe\Case1\Jun\cut1',
-    r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\Ostashkovskoe\Case1\Jun\cut2',
-    r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\Ostashkovskoe\Case1\Jun\cut3',
-    r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\Ostashkovskoe\Case1\Jul\cut1',
+    r'\\TT-PC-10-Quadro\FTP_Share14TB\Рослесинфорг\AIRBUS',
 ]
-path_cover = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\Ostashkovskoe\Case1\planet_case1_сover_.json'
+path_cover = r'\\TT-PC-10-Quadro\FTP_Share14TB\Рослесинфорг\AIRBUS\RSP_сover2.json'
+
+proc = process().input(path_in, imsys_list=['PLD'])
+
+scroll(proc.get_ids())
+# for ascene in proc.scenes:
+    # meta = ascene.meta
+    # print('id: %s\ndatamask:%s' % (meta.id, meta.datamask))
+
+proc.GetCoverJSON(path_cover, add_path=True, cartezian_area=False, data_mask=False)
+
+sys.exit()
 
 path_in_list = obj2list(path_in)
 for i, path_in in enumerate(path_in_list):
-    proc = process().input(path_in)
+
     path_cover_fin = path_cover.replace('.json','%s.json' % path_in[-8:].replace('\\','_'))
     #print(path_cover_fin)
-    proc.GetCoverJSON(path_cover_fin, add_path=True, cartezian_area=False, data_mask=False)
+

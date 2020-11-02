@@ -2,11 +2,11 @@
 
 from image_processor import *
 
-pin = r'f:\DG'
+pin = r'\\172.21.195.2\FTP-Share\ftp\images_order\images\DG'
 # xmlpath = r'\\172.21.195.2\FTP-Share\ftp\images_order\DG_moved\012751643030_01\012751643030_01_P001_PSH\18NOV15075722-S2AS-012751643030_01_P001.XML'
 pout = r'\\172.21.195.2\FTP-Share\ftp\images_order\DG_moved\move'
-xls_path = r'd:\digital_earth\DG_cover_remove.xls'
-json_path = r'd:\digital_earth\DG_no_doubles_del_filtered.json'
+# xls_path = r'd:\digital_earth\DG_cover_remove.xls'
+json_path = r'd:\digital_earth\DG_deleted_cover.json'
 
 def cutoff(str1, str2):
     if str1.startswith(str2):
@@ -24,10 +24,14 @@ def copy_dir(din, pout, delete=False):
     for file in files:
         short = cutoff(file, corner)
         fileout = fullpath(pout, short)
-        if delete:
-            shutil.move(file, fileout)
+        if os.path.exists(fileout):
+            if delete:
+                os.remove(file)
         else:
-            shutil.copyfile(file, fileout)
+            if delete:
+                shutil.move(file, fileout)
+            else:
+                shutil.copyfile(file, fileout)
     if delete:
         destroydir(din)
 
@@ -48,7 +52,8 @@ def MoveDGData(xmlpath, pout, delete=False):
         copy_dir(fullpath(corner2, 'GIS_FILES'), tpout)
         for f in os.listdir(corner2):
             if os.path.isfile(fullpath(corner2, f)):
-                shutil.copyfile(fullpath(corner2, f), fullpath(tpout, f))
+                if not os.path.exists(fullpath(tpout, f)):
+                    shutil.copyfile(fullpath(corner2, f), fullpath(tpout, f))
 
 
 # move_dir(r'\\172.21.195.2\FTP-Share\ftp\images_order\DG_moved\012751772180_01',
@@ -59,15 +64,15 @@ def MoveDGData(xmlpath, pout, delete=False):
 
 exclude_paths = []
 
-xls_keys = xls_to_dict(xls_path)
+# xls_keys = xls_to_dict(xls_path)
 # scroll(xls_keys)
-for path in xls_keys:
-    if xls_keys[path]['remove'] in [1,True, u'ИСТИНА']:
-        exclude_paths.append(path)
+# for path in xls_keys:
+    # if xls_keys[path]['remove'] in [1,True, u'ИСТИНА']:
+        # exclude_paths.append(path)
 
 din, lin = geodata.get_lyr_by_path(json_path)
 for feat in lin:
-    if feat.GetField('del') in [1,'1']:
+    # if feat.GetField('del') in [1,'1']:
         exclude_paths.append(feat.GetField('path'))
 
 exclude_names = flist(exclude_paths, os.path.basename)
@@ -82,9 +87,14 @@ for file in folder_paths(pin,1):
 scroll(final_paths)
 with open(r'd:\digital_earth\destroy.txt','w') as txt:
     txt.write('\n'.join(final_paths))
+print(len(final_paths))
 
 print('Just do it?')
 doit = input('')
 
-for xmlpath in final_paths:
-    MoveDGData(xmlpath, pout, delete=False)
+if doit:
+    for i, xmlpath in enumerate(final_paths):
+        try:
+            MoveDGData(xmlpath, pout, delete=True)
+        except:
+            print(r'%i %s' % (i, xmlpath))

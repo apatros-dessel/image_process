@@ -2,7 +2,7 @@
 
 # Auxilliary functions for image processor
 
-import os, re, shutil, xlrd, xlwt
+import sys, os, re, shutil, xlrd, xlwt
 import numpy as np
 import xml.etree.ElementTree as et
 from collections import OrderedDict
@@ -11,9 +11,14 @@ from copy import copy, deepcopy
 from PIL import Image
 
 default_temp = '{}\image_processor'.format(os.environ['TMP'])
+silent = False
 
 if not os.path.exists(default_temp):
     os.makedirs(default_temp)
+
+def sprint(s):
+    if not (globals().get('silent')):
+        print(s)
 
 # Function always returning None
 def returnnone(*args):
@@ -29,9 +34,8 @@ class counter:
     def __init__(self, startfrom = 0, step = 1):
         self.count = startfrom - 1
         self.step = step
-    def __iter__(self, startfrom = None, step = 1):
-        if startfrom is not None:
-            self.count = startfrom - 1
+    def __iter__(self, startfrom = 0, step = 1):
+        # self.restart(startfrom)
         self.step = step
         return self
     def __next__(self):
@@ -39,6 +43,9 @@ class counter:
         return self.count
     def next(self):
         return self.__next__()
+    def restart(self, startfrom = 0):
+        self.count = startfrom - 1
+        return self
 
 # An iterator endlessly returning None
 class iternone:
@@ -546,25 +553,29 @@ def check_name(name, pattern):
 
 # Returns a list of two lists: 0) all folders in the 'path' directory, 1) all files in it
 def fold_finder(path, filter_folder=[]):
-    if len(path) >= 255:
-        return [[], []]
-    dir_ = os.listdir(path)
     fold_ = []
     file_ = []
-    for name in dir_:
-        if name in filter_folder:
-            continue
-        full = path + '\\' + name
-        if os.path.isfile(full):
-            file_.append(full)
-        else:
-            fold_.append(full)
+    # if len(path) >= 255:
+        # return [[], []]
+    try:
+        dir_ = os.listdir(path)
+        for name in dir_:
+            if name in filter_folder:
+                continue
+            full = path + '\\' + name
+            if os.path.isfile(full):
+                file_.append(full)
+            else:
+                fold_.append(full)
+    except:
+        print('Error fold_finder')
     return [fold_, file_]
 
 # Searches filenames according to template and returns a list of full paths to them
 # Doesn't use os.walk to avoid using generators
 def walk_find(path, ids_list, templates_list, id_max=100000):
     #templates_list = listoftype(templates_list, str, export_tuple=True)
+    ids_list = list(ids_list)
     if os.path.exists(path):
         if not os.path.isdir(path):
             path = os.path.split(path)[0]
@@ -658,13 +669,13 @@ class tdir():
         return fin
 
     # Deletes all data when the interpreter is closed
-    def __del__(self):
-        try:
-            destroydir(self.corner)
+    # def __del__(self):
+        # try:
+            # destroydir(self.corner)
             # if self.empty() and cleardir(self.corner):
                 # os.rmdir(self.corner)
-        except:
-            pass
+        # except:
+            # pass
 
     # Create path to a new file
 
@@ -678,22 +689,29 @@ def winprint(obj, decoding = None):
     print(obj)
     return None
 
-def scroll(obj, print_type=True, decoding=None, header=None):
+def scroll(obj, print_type=True, decoding=None, header=None, lower=None, depth=0):
+    tab = '  '*depth
     if header is not None:
         print(header)
     elif print_type:
-        print('Object of {}:'.format(type(obj)))
+        print('{}Object of {}:'.format(tab, type(obj)))
     if hasattr(obj, '__iter__'):
-        if len(obj) == 0:
-            print('  <empty>')
+        try:
+            len_ = len(obj)
+        except:
+            len_ = 0
+        if len_==0:
+            print('{}<empty>'.format(tab+'  '))
         elif isinstance(obj, (dict, OrderedDict)):
             for val in obj:
-                winprint('  {}: {}'.format(val, obj[val]), decoding=decoding)
+                winprint('{}{}: {}'.format(tab+'  ', val, obj[val]), decoding=decoding)
         else:
             for val in obj:
-                winprint('  {}'.format(val), decoding=decoding)
+                winprint('{}{}'.format(tab+'  ',val), decoding=decoding)
     else:
-        winprint('  {}'.format(obj), decoding=decoding)
+        winprint('{}{}'.format(tab+'  ',obj), decoding=decoding)
+    if lower is not None:
+        print(lower)
 
 # Get datetime from string
 def get_date_from_string(date_str):
@@ -705,6 +723,15 @@ def get_date_from_string(date_str):
     minute = int(date_str[14:16])
     second = float(re.search(r'\d+\.\d+', date_str[17:-1]).group())
     return datetime(year, month, day)
+
+# Datetime object from string datetime as YYYY-MM-DDThh:mm:ss
+def isodatetime(isodatestr):
+    get = re.search('\d+-\d+-\d+T\d+:\d+:\d{2}', isodatestr)
+    if get:
+        date, time = get.group()[:-1].split('T')
+        year, month, day = flist(date.split('-'), int)
+        hour, minute, second = flist(time.split(':'), int)
+        return datetime(year, month, day, hour, minute, second)
 
 # Reads .xml file and returns metadata as element tree
 def xml2tree(path):
@@ -1011,7 +1038,7 @@ def folder_paths(path, files = False, extension = None, id_max=100000, filter_fo
                 export_files.extend(file_)
             else:
                 for f in file_:
-                    if f.endswith('.{}'.format(extension)):
+                    if f.lower().endswith('.{}'.format(extension.lower())):
                         export_files.append(f)
         id += 1
     if len(path_list) > id_max:
@@ -1062,15 +1089,6 @@ temp_dir_list = tdir()
 def tempname(ext = None):
     return globals()['temp_dir_list'].create(ext)
 
-def QuicklookImage(path_in, path_out, image_size = (100, 100)):
-
-    orig_img = Image.open(path_in)
-    new_img = orig_img.resize(image_size)
-    new_img.show()
-    new_img.save(path_out)
-
-    return None
-
 def colfromdict(dict_, key, listed=False):
     col_dict = OrderedDict()
     for linekey in dict_:
@@ -1111,3 +1129,28 @@ def get_corner_dir(path, rank=1):
                 break
             rank -= 1
         return path_
+
+def find_parts(list_, start, fin):
+    results = []
+    passingby = True
+    for i, line in enumerate(list_):
+        if passingby:
+            if re.search(start, line):
+                i_start = i + 1
+                passingby = False
+        elif re.search(fin, line):
+            results.append(list_[i_start:i])
+            passingby = True
+    return results
+
+def DictTuples(dict_):
+    export = []
+    for key in dict_:
+        export.append((key, dict_[key]))
+    return export
+
+def TuplesDict(list_):
+    export = {}
+    for key, value in list_:
+        export[key] = value
+    return export

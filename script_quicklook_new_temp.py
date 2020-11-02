@@ -31,12 +31,12 @@ if dir_out is None:
 # dir_in = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\LES\archive\Ostashkovskoe_lesnichestvo\Case1\ostashkovskoe_2020may_cut1_PSScene4band_b21bb6c5-2af9-439c-912b-cc9a8492c0b2'
 # txt_ids = None#r'd:\digital_earth\KV_Tatarstan\kv_ids.txt'
 # dir_out = r'd:\rks\PL_new_201023\ostashkovskoe_2020may_cut1'
-preserve_original = True
+preserve_original = False
 make_rgb = True
 
-json_cover = r'\\172.21.195.2/FTP-Share/ftp/images/region82/vector_cover.json'
+json_cover = ''#r'\\172.21.195.2/FTP-Share/ftp/images/region82/vector_cover.json'
 vector_granule_path = r'\\172.21.195.2\FTP-Share\ftp\images\granules_grid.shp'
-ms2pms = True
+ms2pms = False
 invert_red_blue = True
 
 if json_cover is None:
@@ -278,7 +278,13 @@ for i, path_in in enumerate(path_in_list):
         id_dir_out = fullpath(dir_out, n)
         suredir(id_dir_out)
         raster_out = fullpath(id_dir_out, n, e)
-        copymove(path_in, raster_out, preserve_original)
+        if not os.path.exists(raster_out):
+            copymove(path_in, raster_out, preserve_original)
+            if invert_red_blue:
+                if band_order==[3,2,1]:
+                    InvertRedBlueBands(raster_out)
+                    band_order=[1,2,3]
+                    print('Inverted RED/BLUE: %s' % n)
         report.append(n)
         export_data.append(raster_out)
 
@@ -380,11 +386,6 @@ for i, path_in in enumerate(path_in_list):
             # print('IMG written: %s' % n_img)
         # except:
             # print('Error making IMG: %s' % n_img)
-
-        if invert_red_blue:
-            if band_order==[3,2,1]:
-                InvertRedBlueBands(raster_out)
-                print('Inverted RED/BLUE: %s' % n)
 
         # Copy json
 

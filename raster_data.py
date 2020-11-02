@@ -4,6 +4,17 @@
 
 import gdal
 
+'''
+DATA INDICES:
+
+0   Raster band number
+1   Raster band itself
+2   Raster band array
+3   Raster band DataType
+4   Raster band NoDataValue 
+
+'''
+
 class RasterData:
 
     def __init__(self, path2raster, data=0):
@@ -50,13 +61,29 @@ class RasterData:
         if data == 0:
             return band_id
         elif data == 1:
-            return self.ds.GetRasterBand(band_id)
+            try:
+                return self.ds.GetRasterBand(band_id)
+            except:
+                print('Raster band {} not found for {}'.format(band_id, self.path))
+                return None
         elif data == 2:
-            return self.ds.GetRasterBand(band_id).ReadAsArray()
+            try:
+                return self.ds.GetRasterBand(band_id).ReadAsArray()
+            except:
+                print('Cannot read array from band {} for {}'.format(band_id, self.path))
+                return None
         elif data == 3:
-            return self.ds.GetRasterBand(band_id).DataType
+            try:
+                return self.ds.GetRasterBand(band_id).DataType
+            except:
+                print('Cannot read datatype from band {} for {}'.format(band_id, self.path))
+                return None
         elif data == 4:
-            return self.ds.GetRasterBand(band_id).GetNoDataValue()
+            try:
+                return self.ds.GetRasterBand(band_id).GetNoDataValue()
+            except:
+                print('Cannot read no data value from band {} for {}'.format(band_id, self.path))
+                return None
         else:
             print('Incorrect data: {}'.format(data))
             return None

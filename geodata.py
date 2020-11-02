@@ -91,7 +91,7 @@ def gdal_options(compress = None):
 
     if compress is not None:
         if compress == 'DEFLATE':
-            options.extend(['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9'])
+            options.extend(['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9', 'NUM_THREADS=ALL_CPUS'])
         elif compress in globals()['tiff_compress_list']:
             options.append('COMPRESS={}'.format(compress))
         else:
@@ -173,6 +173,17 @@ def vec_to_crs(ogr_dataset, t_crs, export_path):
     else:
         outDataSet = ogr_dataset
     return outDataSet
+
+def changeXY(geom):
+    coords = geom.ExportToWkt().split(',')
+    for i, coord in enumerate(coords):
+        vals = re.search('\d+\.?\d+ \d+\.?\d+', coord).group()
+        xy = vals.split(' ')
+        xy.reverse()
+        new_vals = ' '.join(xy)
+        coords[i] = coord.replace(vals, new_vals)
+    new_geom = ogr.Geometry(wkt = ','.join(coords))
+    return new_geom
 
 # Adapts the vector mask to the specified raster extent (the projections must be the same)
 def extent_mask(array_shape, geotrans_0, extent):
@@ -326,7 +337,7 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
     dt = 0
     prj = ''
     geotrans = (0,1,0,0,0,1)
-    nodata = 0
+    nodata = None
 
     if copypath is not None:
         copy_ds = gdal.Open(copypath)
@@ -355,8 +366,8 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
             options = []
     else:
         options = []
-    # options.extend(['BIGTIFF=YES', 'NUM_THREADS=ALL_CPUS'])
-    options.extend(['BIGTIFF=YES'])
+    options.extend(['BIGTIFF=YES', 'NUM_THREADS=ALL_CPUS'])
+    # options.extend(['BIGTIFF=YES'])
 
     driver = gdal.GetDriverByName(driver_name)
     raster_ds = driver.Create(path, xsize, ysize, bandnum, dt, options = options)
@@ -430,7 +441,7 @@ def json(path2json, editable = False, srs = None):
         drv.DeleteDataSource(path2json)
 
     dst_ds = drv.CreateDataSource(path2json)
-    dst_layer = dst_ds.CreateLayer('', srs=srs, options=['OGR_GEOJSON_DATE_AS_STRING=YES'])
+    dst_layer = dst_ds.CreateLayer('', srs=srs)
 
     if not editable:
         dst_ds = None
@@ -1292,6 +1303,43 @@ def GetRasterPercentiles(raster_path_list, min_percent = 0.02, max_percent = 0.9
 
         band_num_dict = band_hist_dict[band]
 
+        if len(band_num_dict) == 1:
+            raise Exception
+
+        if nodata in band_num_dict:
+            band_num_dict.pop(nodata)
+
+        band_vals = np.array(band_num_dict.keys())
+        # band_vals.sort()
+        band_order = band_vals.argsort()
+        band_vals = band_vals[band_order]
+        band_nums = np.array(band_num_dict.values())[band_order]
+        pixel_sum = np.sum(band_nums)
+
+        num_min = pixel_sum * min_percent
+        num_max = pixel_sum * max_percent
+        num_max_inv = pixel_sum - num_max
+
+        min_mask = band_vals
+
+        sum = 0
+        i = 0
+        while sum < num_min:
+            i += 1
+            sum += band_nums[i]
+        min_val = band_vals[i]
+
+        band_vals = band_vals[::-1]
+        band_nums = band_nums[::-1]
+
+        sum = 0
+        i = 0
+        while sum < num_max_inv:
+            i += 1
+            sum += band_nums[i]
+        max_val = band_vals[i]
+        continue
+
         try:
 
             if len(band_num_dict) == 1:
@@ -1340,6 +1388,47 @@ def GetRasterPercentiles(raster_path_list, min_percent = 0.02, max_percent = 0.9
 
     return borders_list
 
+def GetRasterPercentileUInteger(files, min_p = 0.02, max_p = 0.98, bands = [1,2,3], nodata = 0, max = 65536):
+    max = int(max)
+    count = np.zeros((len(bands), max), np.uint64)
+    sums = np.zeros((len(bands)),int)
+    for file in files:
+        raster = gdal.Open(file)
+        if raster:
+            for i, band in enumerate(bands):
+                values, numbers = np.unique(raster.GetRasterBand(band).ReadAsArray(), return_counts=True)
+                nodatamatch = np.where(values==nodata)
+                if len(nodatamatch)>0:
+                    for val in nodatamatch:
+                        numbers[val] = 0
+                for val, num in zip(values, numbers):
+                    count[i, val] += num
+                    sums[i] += num
+                del values
+                del numbers
+    result = []
+    for sum, hystogram in zip(sums, count):
+        min_num = sum*min_p
+        max_num = sum*max_p
+        cur_min_sum = 0
+        for i, num in enumerate(hystogram):
+            cur_min_sum += num
+            if cur_min_sum < min_num:
+                continue
+            else:
+                min_val = i
+                break
+        cur_max_sum = sum
+        for i, num in enumerate(hystogram[::-1]):
+            cur_max_sum -= num
+            if cur_max_sum > max_num:
+                continue
+            else:
+                max_val = max - i
+                break
+        result.append((min_val, max_val))
+    return result
+
 def RasterToImage(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True, enforce_nodata = None, band_order = [1,2,3], compress = None, overwrite = True, alpha=False):
 
     if check_exist(path2export, ignore=overwrite):
@@ -1362,6 +1451,7 @@ def RasterToImage(path2raster, path2export, method=0, band_limits=None, gamma=1,
     if alpha:
         t_ds.GetRasterBand(4).WriteArray(np.full((source.ds.RasterYSize, source.ds.RasterXSize), 255))
 
+    i = 0
     for band_id, raster_array, nodata in source.getting((0,2,3), band_order = band_order):
 
         res = 0
@@ -1386,6 +1476,11 @@ def RasterToImage(path2raster, path2export, method=0, band_limits=None, gamma=1,
             data = raster_array[mask]
         else:
             data = raster_array
+
+        if isinstance(gamma, (list, tuple)):
+            gamma_band = gamma[i]
+        else:
+            gamma_band = gamma
 
         data = data_to_image(data, method=method, band_limits=band_limits, gamma=gamma)
 
@@ -1517,6 +1612,8 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
     if ds_in is None:
         print('Input raster not found: {}'.format(path2raster))
         return 1
+    elif ds_in.RasterCount==1:
+        band_order = [1,1,1]
 
     path2rgb = path2export
     reproject = False
@@ -1541,7 +1638,9 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
     if alpha:
         t_ds.GetRasterBand(4).WriteArray(np.full((source.ds.RasterYSize, source.ds.RasterXSize), 255))
 
-    for band_id, raster_array, nodata in source.getting((0,2,3), band_order = band_order):
+    i = -1
+    for band_id, raster_array, nodata in source.getting((0,2,4), band_order = band_order):
+        i +=1
 
         if GaussianBlur:
             raster_array = cv2.GaussianBlur(raster_array, (5,5), 0)
@@ -1552,7 +1651,9 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
 
         if exclude_nodata and (nodata is not None):
             if enforce_nodata is not None:
+                print(nodata, enforce_nodata)
                 mask = (raster_array!=nodata) * (raster_array!=enforce_nodata)
+                print(np.unique(mask, return_counts=True))
             else:
                 mask = raster_array!=nodata
         else:
@@ -1571,7 +1672,12 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
 
         del raster_array
 
-        image = data_to_image(data, method=method, band_limits=band_limits[band_id-1], gamma=gamma)
+        if isinstance(gamma, (list, tuple)):
+            gamma_band = gamma[i]
+        else:
+            gamma_band = gamma
+
+        image = data_to_image(data, method=method, band_limits=band_limits[band_id-1], gamma=gamma_band)
 
         del data
 
@@ -1596,6 +1702,11 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
             t_ds.GetRasterBand(4).WriteArray(oldmask)
 
         del mask
+
+        if band_order==[1, 1, 1]:
+            t_ds.GetRasterBand(2).WriteArray(image_array)
+            t_ds.GetRasterBand(3).WriteArray(image_array)
+            continue
 
     if error_count == t_ds.RasterCount:
         res = 1
@@ -1622,8 +1733,8 @@ def Composite(export_path, bandpath = None, rasterpath = None, band_order = None
 
             if band_order is None:
                 if os.path.exists(rasterpath):
-                    with gdal.Open(rasterpath) as ds:
-                        band_order = list(range(1, ds.RasterCount + 1))
+                    with gdal.Open(rasterpath) as ds_:
+                        band_order = list(range(1, ds_.RasterCount + 1))
                 else:
                     print('No band_order found')
                     return 1
@@ -1635,17 +1746,12 @@ def Composite(export_path, bandpath = None, rasterpath = None, band_order = None
     if raster_data is None:
         return 1
 
-    reproject = False
-    if epsg is not None:
-        with gdal.Open(bandpath[:-1].path) as ds_in:
-            if ds_match(epsg, ds_in):
-                ds_out = create_reprojected_raster(bandpath[:-1].path, export_path, srs_out.ExportToWkt(),
-                                                   band_num=len(bandpath), compress=compress, editable=True)
-                reproject = True
+    raster = ds(export_path, copypath=bandpath[0][0], options = {'compress': compress, 'bandnum': len(bandpath)}, editable = True)
 
-    if reproject:
-        for band in MultiRasterData:
-            pass
+    for i, arr in enumerate(raster_data.getting(2)):
+        raster.GetRasterBand(i+1).WriteArray(arr)
+
+    raster = None
 
 def ds_match(ds1, ds2):
     srs1 = get_srs(ds1)
@@ -1653,6 +1759,7 @@ def ds_match(ds1, ds2):
     return srs1 == srs2
 
 def get_srs(ds):
+    # scroll(ds)
     if isinstance(ds, gdal.Dataset):
         srs = osr.SpatialReference()
         srs.ImportFromWkt(ds.GetProjection())
@@ -1666,8 +1773,8 @@ def get_srs(ds):
     elif isinstance(ds, osr.SpatialReference):
         srs = ds
     else:
-        print('Unknown srs input data')
-        scroll(ds)
+        print('Unknown srs input data: {}'.format(ds))
+        # scroll(ds)
         srs = None
     return srs
 
@@ -1684,7 +1791,7 @@ def create_reprojected_raster(path_in, path_out, proj, band_num = None, compress
     newYcount = int(math.ceil(t_raster_base.RasterYSize * (y / y_res)))
     if band_num is None:
         band_num = ds_in.RasterCount
-    options = {
+    optionsMosaic = {
         'dt': ds_in.GetRasterBand(1).DataType,
         'prj': t_raster_base.GetProjection(),
         'geotrans': (x_0, x_res, x_ang, y_0, y_ang, y_res),
@@ -3394,6 +3501,8 @@ def json_fix_datetime(file, datetimecol='datetime'):
             json = open(file, 'w')
             json.write(new_data)
             json = None
+    else:
+        print('dtime not found for: %s' % file)
 
 def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None, unique_vals = False):
 
@@ -3984,3 +4093,29 @@ def SetNoData(pin, nodataval):
         band = raster.GetRasterBand(bandnum)
         band.SetNoDataValue(nodataval)
     raster = None
+
+# Заменить значения в конечном растре, в соответствии со словарём
+def ReplaceRasterValues(f, replace):
+    raster = gdal.Open(f, 1)
+    band = raster.GetRasterBand(1)
+    arr_ = band.ReadAsArray()
+    for key in replace:
+        if key in arr_:
+            arr_[arr_ == key] = replace[key]
+    band.WriteArray(arr_)
+    raster = None
+    print(split3(f)[1], list(np.unique(gdal.Open(f).ReadAsArray())))
+
+# Find vertices in metadata and
+def MultipolygonFromMeta(metapath, srs = None, coord_start = '<Dataset_Extent>', coord_fin = '</Dataset_Extent>', vertex_start = '<Vertex>', vertex_fin = '</Vertex>'):
+    lines_ = flist(open(metapath).read().split('\n'), lambda x: x.strip())
+    coord_data = find_parts(lines_, coord_start, coord_fin)[0]
+    vertices = find_parts(coord_data, vertex_start, vertex_fin)
+    wkt = 'MULTIPOLYGON ((('
+    for point in vertices:
+        x = re.search('\d+\.\d+', point[0]).group()
+        y = re.search('\d+\.\d+', point[1]).group()
+        wkt += '%s %s,' % (x, y)
+    wkt += '%s %s)))' % (re.search('\d+\.\d+', vertices[0][0]).group(), re.search('\d+\.\d+', vertices[0][1]).group())
+    geom = ogr.CreateGeometryFromWkt(wkt, srs)
+    return geom

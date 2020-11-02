@@ -7,12 +7,7 @@ from tools import *
 import geodata
 
 # import mylandsat
-import myplanet
-import mykanopus
-import mysentinel
-import myresursp
-import mydg
-import myskysat
+import myplanet, mykanopus, mysentinel, myresursp, mydg, myskysat, myrapideye, mypleiades
 
 # Constants
 
@@ -26,6 +21,8 @@ metalib = {
     'RSP': myresursp,
     'DG': mydg,
     'SS': myskysat,
+    'RYE': myrapideye,
+    'PLD': mypleiades,
 }
 
 # A dictionary of metadata filenames templates
@@ -169,8 +166,7 @@ class process(object):
                  tdir = globals()['default_temp']):
 
         self.output_path = output_path  # must be dir
-        #self.work_method = work_method
-        #self.input = []
+        self.ids = []
         self.scenes = []  # contains available scenes
         self.options = {}
         self.tdir = tdir
@@ -187,7 +183,7 @@ class process(object):
         return bool(self.scenes)
 
     # Adds new path to self.input_list
-    def add_scene(self, newpath, imsys):
+    def add_scene(self, newpath, imsys, skip_duplicates = True):
         newscene = scene(newpath, imsys)
         # print(newpath)
         try:
@@ -197,10 +193,15 @@ class process(object):
             print('Cannot open {} scene by path: {}'.format(imsys, newpath))
             newscene = None
         if newscene is not None:
+            if newscene.meta.id in self.ids:
+                if skip_duplicates:
+                    print('ID duplicate: {}'.format(newscene.meta.id))
+                    return self
             self.scenes.append(newscene)
+            self.ids.append(newscene.meta.id)
         return self
 
-    def input(self, path, imsys_list = None):
+    def input(self, path, imsys_list = None, skip_duplicates = True):
         path = listoftype(path, str)
         # print('Path: {}'.format(path))
         if path is None:
@@ -222,9 +223,10 @@ class process(object):
                         if templates is not None:
                             for template in templates:
                                 # print(template)
-                                if re.search(template, path2scene) is not None:
+                                file = os.path.basename(path2scene)
+                                if re.search(template, file):
                                     # print(re.search(template, path2scene).group())
-                                    self.add_scene(path2scene, imsys)
+                                    self.add_scene(path2scene, imsys, skip_duplicates=skip_duplicates)
                                     fin = True
                                     break
                 except:
@@ -236,18 +238,22 @@ class process(object):
                 if (input_list is not None) and len(input_list)>0:
 
                     for newpath2scene in input_list:
+
                         # print(newpath2scene)
                         newpath, imsys = newpath2scene
+
+                        if 'new_KV' in newpath:
+                            continue
 
                         # Filter scenes by imsys
                         if imsys not in imsys_list:
                             continue
 
                         try:
-                            self.add_scene(newpath, imsys)
+                            self.add_scene(newpath, imsys, skip_duplicates=skip_duplicates)
                         except:
-                            # self.add_scene(newpath, imsys)
-                            print('Error making scene: %s' % newpath)
+                            print('Error making scene from list: %s' % newpath)
+                            # self.add_scene(newpath, imsys, skip_duplicates=skip_duplicates)
                             errors.append(newpath)
 
         if len(errors) > 0:
@@ -470,8 +476,8 @@ class process(object):
                     lyr_out.CreateFeature(feat)
                     # print('Metadata written: {}'.format(ascene.meta.id))
                 except:
-                    # feat = ascene.json_feat(lyr_defn, add_path=add_path, cartesian_area=cartezian_area, data_mask=data_mask)
-                    # lyr_out.CreateFeature(feat)
+                    feat = ascene.json_feat(lyr_defn, add_path=add_path, cartesian_area=cartezian_area, data_mask=data_mask)
+                    lyr_out.CreateFeature(feat)
                     print('Error writing metadata: %s' % ascene.path)
                     errors.append(ascene.path)
             if len(errors) > 0:
@@ -672,10 +678,25 @@ class scene:
     # Returns a scene cover as a feature with standard set of attributes
     def json_feat(self, lyr_defn, add_path=True, cartesian_area = False, data_mask=False, srs=4326):
         feat = geodata.ogr.Feature(lyr_defn)
+        print(self.datamask())
         ds_mask, lyr_mask = geodata.get_lyr_by_path(self.datamask())
+        t_crs = geodata.get_srs(srs)
         if lyr_mask is not None:
             geom_feat = lyr_mask.GetNextFeature()
             geom = geom_feat.GetGeometryRef()
+            # print(geom.ExportToWkt())
+            v_crs = lyr_mask.GetSpatialRef()
+            if (v_crs is None) and self.imsys=='PLD':
+                v_crs = geodata.osr.SpatialReference()
+                v_crs.ImportFromEPSG(4326)
+                geom = geodata.MultipolygonFromMeta(self.fullpath, v_crs)
+            else:
+                if not geodata.ds_match(v_crs, t_crs):
+                    coordTrans = geodata.osr.CoordinateTransformation(v_crs, t_crs)
+                    scroll(coordTrans)
+                    geom.Transform(coordTrans)
+                if sys.version.startswith('3'):
+                    geom = geodata.changeXY(geom)
             feat.SetGeometry(geom)
         feat = globals()['metalib'].get(self.imsys).set_cover_meta(feat, self.meta)
         if self.imsys=='KAN' and 'NP' in self.meta.id:

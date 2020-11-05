@@ -3,6 +3,7 @@
 # Calculates differenses between two radar elevation values to get forest height
 
 from min_dist import *
+from tools import *
 import datetime as dtime
 '''
 path = 'c:\\sadkov\\forest\\dem'
@@ -80,6 +81,6 @@ fields2export = {
     'height': ogr.OFTReal,
     'file_name': ogr.OFTString,
 }
-dict2shp(r'icesat_points_aoi_height.shp', result, fields2export, epsg=4326, x_coord='longitude', y_coord='latitude')
+dict2shp(fullpath(path,r'icesat_points_aoi_height.shp'), result, fields2export, epsg=4326, x_coord='longitude', y_coord='latitude')
 
 print(dtime.datetime.now()-t)

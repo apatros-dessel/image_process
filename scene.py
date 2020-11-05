@@ -1,4 +1,4 @@
-pyth# Describes class "scene"
+# Describes class "scene"
 
 from service import *
 

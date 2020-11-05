@@ -5,7 +5,6 @@ import gdal
 import numpy as np
 from copy import deepcopy
 import csv
-from C01W03_model import *
 import sing_layer
 
 def adapt2slope(dH, slope, aspect, dem, c=np.zeros(6).astype(float), order0=1, order_fin=5, iternum=1000, print_coefs=False):

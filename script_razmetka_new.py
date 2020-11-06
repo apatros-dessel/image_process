@@ -3,18 +3,18 @@
 
 from geodata import *
 
-pin = [r'\\172.21.195.2\FTP-Share\ftp\Porodnyi sostav\Nizhegorodskiy region'
+pin = [r'\\172.21.195.2\FTP-Share\ftp\Forests_for masks'
        ]                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
 vin = None     # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
-pout = r'e:\rks\razmetka\set034__20200901__forests_sentinel_nizhniy'                  # Путь для сохранения конечных файлов
+pout = r'\\172.21.195.215\thematic\products\razmetka\set038'                  # Путь для сохранения конечных файлов
 imgid = 'IM10'                   # Индекс изображений (управляет числом каналов в конечном растре)
-maskid = u'карьеры'                # Индекс масок (MWT, MFS и т.д.)
+maskid = u'лес'                # Индекс масок ('лес', 'вода' и т.д.)
 split_vector = False        # Если True, то исходный вектор разбивается по колонке image_col, в противном случае будут использованы маски для всех векторных объектов
 image_col = 'path'              # Название колонки идентификатора растровой сцены (если vin != 0)
 code_col = 'gridcode'               # Название колонки с кодовыми значениями
 compress = 'DEFLATE'        # Алгоритм сжатия растровых данных
 overwrite =  False          # Заменять существующие файлы
-pms = True                  # Использовать паншарпы
+pms = False                  # Использовать паншарпы
 replace_vals = None         # Изменить значения в конечной маске в соответствии со словарём, если None, то замены не производится
 
 input_from_report = None # Путь к таблице xls с путями к источникам данных, если None, то пары снимок-вектор строятся заново
@@ -296,37 +296,46 @@ def get_paths(pout, id, maskid, imgid):
 
 # Check if the image needs repair
 def check_image(img_in, neuro):
+    repair = False
+    band_order = None
     raster = gdal.Open(img_in)
     realBandNum = raster.RasterCount
     img_type = neuro.split('-')[0]
     if re.search(r'^IM\d+$', img_type):
         metaBandNum = int(img_type[2:])
-    elif re.search(r'IMCH\d+$', id):
+        if metaBandNum==10 and neuro.split('-')[1][:2]=='S2':
+            repair = True
+            band_order = [3,2,1,7,4,5,6,8,9,10]
+            print('Set band order for: %s' % neuro)
+    elif re.search(r'IMCH\d+$', img_type): # !!! Нужно проконтроллировать корректность работы алгоритма для разновременных композитов
         metaBandNum = int(img_type[4:])
-    counter = min((metaBandNum, realBandNum))
+    else:
+        print('Unreckognized neuro type: %s' % neuro)
+        raise Exception
     if metaBandNum > realBandNum:
         print('Not enough bands for: %s - got %i, need %i' % (img_in, realBandNum, metaBandNum))
         raise Exception
     elif metaBandNum < realBandNum:
         print('Band count mismatch for: %s - got %i, need %i' % (img_in, realBandNum, metaBandNum))
-        return True, counter
+        repair = True
     counter = min((metaBandNum, realBandNum))
-    for i in range(1, counter + 1):
-        band = raster.GetRasterBand(i)
-        if band.DataType != 3 or band.GetNoDataValue() != 0:
-            return True, counter
-    # print(counter)
-    return False, counter
+    if not repair:
+        for i in range(1, counter + 1):
+            band = raster.GetRasterBand(i)
+            if band.DataType != 3 or band.GetNoDataValue() != 0:
+                repair = True
+                break
+    return repair, counter, band_order
 
 # Записать изображение, проверяя корректность его формата
 # Если overwrite==False, то изображения в корректном формате пропускаются
 def set_image(img_in, img_out, overwrite = False, band_reposition = None):
     if os.path.exists(img_out):
-        repair, counter = check_image(img_out, split3(img_out)[1])
+        repair, counter, band_reposition = check_image(img_out, split3(img_out)[1])
         if not (repair or overwrite):
             return img_out
     if os.path.exists(img_in):
-        repair, counter = check_image(img_in, split3(img_out)[1])
+        repair, counter, band_reposition = check_image(img_in, split3(img_out)[1])
     else:
         print('Path not found: %s' % img_in)
         return 'ERROR: Source file not found'

@@ -4167,14 +4167,14 @@ def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
                     down_list.append(down)
                     break
             while True:
-                left_arr = mask[up:-down,left]
+                left_arr = mask[:,left]
                 if not False in left_arr:
                     left += 1
                 else:
                     left_list.append(left)
                     break
             while True:
-                right_arr = mask[up:-down,-right-1]
+                right_arr = mask[:,-right-1]
                 if not False in right_arr:
                     right += 1
                 else:
@@ -4191,21 +4191,21 @@ def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
     if sum((up,down,left,right))>0:
         x0, x, a, y0, b, y = trans
         if up>0 or down>0:
-            new_y_size = y_size - (up + down)
+            y_size = y_size - (up + down)
             if up>0:
-                new_y0 = y0 + (up * y)
+                y0 = y0 + (up * y)
         if left>0 or right>0:
-            new_x_size = x_size - (left + right)
+            x_size = x_size - (left + right)
             if left>0:
-                new_x0 = x0 + (left * x)
-        new_trans = (new_x0,x,a,new_y0,b,y) #!!! Works correctly only if a==0 and b==0
+                x0 = x0 + (left * x)
+        new_trans = (x0,x,a,y0,b,y) #!!! Works correctly only if a==0 and b==0
         if new_file is None:
             _new_file = tempname('tif')
         else:
             _new_file = new_file
         new_raster = ds(_new_file, copypath=file, editable=True,  options={'geotrans': new_trans,
-                                                                           'xsize': new_x_size,
-                                                                           'ysize': new_y_size,
+                                                                           'xsize': x_size,
+                                                                           'ysize': y_size,
                                                                            'nodata': _nodata,
                                                                            'compress': compress,})
         for i in range(1, band_num+1):

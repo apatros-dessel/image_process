@@ -4119,3 +4119,105 @@ def MultipolygonFromMeta(metapath, srs = None, coord_start = '<Dataset_Extent>',
     wkt += '%s %s)))' % (re.search('\d+\.\d+', vertices[0][0]).group(), re.search('\d+\.\d+', vertices[0][1]).group())
     geom = ogr.CreateGeometryFromWkt(wkt, srs)
     return geom
+
+def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
+    raster = gdal.Open(file,1)
+    if raster is None:
+        print('Cannot open file: %s' % file)
+        return 1
+    proj = raster.GetProjection()
+    trans = raster.GetGeoTransform()
+    if (proj is None) or (trans is None):
+        print('Projection data not found for: %s' % file)
+        return 1
+    x_size = raster.RasterXSize
+    y_size = raster.RasterYSize
+    band_num = raster.RasterCount
+    up_list = []
+    down_list = []
+    left_list = []
+    right_list = []
+    for i in range(1, band_num + 1):
+        up = 0
+        down = 0
+        left = 0
+        right = 0
+        band = raster.GetRasterBand(i)
+        if nodata is None:
+            _nodata = band.GetNoDataValue()
+        else:
+            _nodata = nodata
+        if _nodata is not None:
+            mask = band.ReadAsArray()==_nodata
+            if not False in mask:
+                print('No data found in %s' % file)
+                return 1
+            while True:
+                up_arr = mask[up,:]
+                if not False in up_arr:
+                    up += 1
+                else:
+                    up_list.append(up)
+                    break
+            while True:
+                down_arr = mask[-down-1,:]
+                if not False in down_arr:
+                    down += 1
+                else:
+                    down_list.append(down)
+                    break
+            while True:
+                left_arr = mask[up:-down,left]
+                if not False in left_arr:
+                    left += 1
+                else:
+                    left_list.append(left)
+                    break
+            while True:
+                right_arr = mask[up:-down,-right-1]
+                if not False in right_arr:
+                    right += 1
+                else:
+                    right_list.append(right)
+                    break
+            del(mask)
+    if min(flist([up_list, down_list, left_list, right_list], len))==0:
+        print('Cannot find any limits for: %s' % file)
+        return 1
+    up = min(up_list)
+    down = min(down_list)
+    left = min(left_list)
+    right = min(right_list)
+    if sum((up,down,left,right))>0:
+        x0, x, a, y0, b, y = trans
+        if up>0 or down>0:
+            new_y_size = y_size - (up + down)
+            if up>0:
+                new_y0 = y0 + (up * y)
+        if left>0 or right>0:
+            new_x_size = x_size - (left + right)
+            if left>0:
+                new_x0 = x0 + (left * x)
+        new_trans = (new_x0,x,a,new_y0,b,y) #!!! Works correctly only if a==0 and b==0
+        if new_file is None:
+            _new_file = tempname('tif')
+        else:
+            _new_file = new_file
+        new_raster = ds(_new_file, copypath=file, editable=True,  options={'geotrans': new_trans,
+                                                                           'xsize': new_x_size,
+                                                                           'ysize': new_y_size,
+                                                                           'nodata': _nodata,
+                                                                           'compress': compress,})
+        for i in range(1, band_num+1):
+            arr_ = raster.GetRasterBand(i).ReadAsArray()
+            arr_ = arr_[up:-down,left:-right]
+            new_raster.GetRasterBand(i).WriteArray(arr_)
+            del(arr_)
+        raster = None
+        new_raster = None
+        if new_file is None:
+            os.remove(file)
+            shutil.copyfile(_new_file, file)
+            os.remove(_new_file)
+        return 0
+    return 1

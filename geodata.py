@@ -4149,6 +4149,9 @@ def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
             _nodata = nodata
         if _nodata is not None:
             mask = band.ReadAsArray()==_nodata
+            if not hasattr(mask,'__iter__'):
+                print('Mask error for: %s' % file)
+                return 1
             if not False in mask:
                 print('No data found in %s' % file)
                 return 1

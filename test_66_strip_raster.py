@@ -13,6 +13,6 @@ for file in files:
         print('File stripped: %s' % name)
         checklist.append(name)
 
-if check_list:
+if checklist:
     with open(fullpath(folder,'stripped.txt'),'w') as txt:
         txt.write('\n'.join(checklist))

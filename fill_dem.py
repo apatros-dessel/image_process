@@ -1,3 +1,5 @@
+# Fill array or erode/grow a mask
+
 import numpy as np
 
 def fill_by_mask(dem_array, mask_array):

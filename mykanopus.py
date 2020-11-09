@@ -30,7 +30,6 @@ kanopus_files = [
 kanopus_bandpaths = {
 
     'mul':  {
-
                 'green':    ('mul',     2),
                 'blue':     ('mul',     3),
                 'red':      ('mul',     1),
@@ -47,6 +46,12 @@ kanopus_bandpaths = {
                 'blue':     ('mul',     3),
                 'red':      ('mul',     1),
             },
+    'red':  {
+                'red':      ('red',     1),
+                'green':    ('green',   1),
+                'blue':     ('blue',    1),
+                'nir':      ('nir',     1),
+        }
 }
 
 # Indices for Kanopus filenames
@@ -134,24 +139,39 @@ def metadata(path):
     meta = scene_metadata('KAN')
     meta.id = n.replace('.MD', '')
     meta.location = get_kanopus_location(meta.id)
+    meta.sat =          meta.id[:3]
+    meta.fullsat =      meta.id[:3]
     if re.search(r'fr_.+ORT_K.+.xml', path):
         meta.container['metadata3'] = cur_meta = open(path).read()
         meta.files = ['rgb']
         meta.filepaths = re.search(r'DataFileName = "[^"]+"', cur_meta).group()
     if re.search(r'fr_.+.xml', path):
         meta.container['metadata2'] = cur_meta = xml2tree(path)
-        meta.files = ['rgb']
-        meta.filepaths = {'rgb': get_from_tree(cur_meta, 'DataFileName')}
-        date = get_from_tree(cur_meta, 'SceneDate')
-        date = '%s-%s-%s' % (date[-4:], date[3:5], date[:2])
-        time = get_from_tree(cur_meta, 'SceneTime')
-        datetime = '{}T{}Z'.format(date, time).replace('/','-')
-        print(datetime)
+        meta.files = ['red','green','blue','nir']
+        meta.filepaths = {'red': n + '_1.tif',
+                          'green': n + '_2.tif',
+                          'blue': n + '_3.tif',
+                          'nir': n + '_4.tif'}
+        txt = open(path).read()
+        date = re.search(r'dSessionDateUTC = .*', txt).group()[18:].split('/')
+        date.reverse()
+        if len(date[1])==1:
+            date[1] = '0'+date[1]
+        if len(date[2])==1:
+            date[2] = '0'+date[2]
+        date = '-'.join(date)
+        time = re.search(r'tSessionTimeUTC = .*', txt).group()[18:].split(':')
+        if len(time[0])==1:
+            time[0] = '0'+time[0]
+        if len(time[1])==1:
+            time[1] = '0'+time[1]
+        time = ':'.join(time)
+        datetime = '{}T{}Z'.format(date, time)
         meta.datetime = get_date_from_string(datetime)
-        lvl = get_from_tree(cur_meta, 'Level')
-        if 'ORT' in meta.id:
-            lvl += 'ORT'
-        meta.lvl = lvl
+        meta.sat = n.split('_')[1]
+        meta.fullsat = n.split('_')[1]
+        meta.lvl = re.search(r'cProcLevel = ".*"', txt).group()[14:-1]
+        meta.location = ''.join(n.split('_')[2:5])
         try:
             meta.quicklook = get_kanopus_filename(meta.id, 'FileName_quicklook')
         except:
@@ -193,8 +213,6 @@ def metadata(path):
             meta.datamask = os.path.basename(paths[0])
 
     # print(meta.files, meta.filepaths)
-    meta.sat =          meta.id[:3]
-    meta.fullsat =      meta.id[:3]
     meta.bandpaths =    globals()['kanopus_bandpaths'].get(meta.files[0], {})
     meta.namecodes.update(
         {
@@ -206,6 +224,8 @@ def metadata(path):
         }
     )
     meta.write_time_codes(meta.datetime)
+
+    scroll(meta.namecodes)
 
     return meta
 

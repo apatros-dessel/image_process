@@ -163,6 +163,7 @@ def vec_to_crs(ogr_dataset, t_crs, export_path):
         while feat:
             geom = feat.GetGeometryRef()
             geom.Transform(coordTrans)
+            geom = changeXY(geom)
             out_feat = ogr.Feature(outLayerDefn)
             out_feat.SetGeometry(geom)
             for i in range(0, outLayerDefn.GetFieldCount()):
@@ -2217,7 +2218,6 @@ def Unite(path2shp_list, path2export, proj=None, deafault_srs=4326, overwrite=Tr
                 t_geom = s_geom
             else:
                 t_geom = t_geom.Union(s_geom)
-        print(proj)
         if ds_match(s_srs, t_srs):
             return Geom2Shape(path2export, t_geom, proj=proj)
         else:
@@ -2373,7 +2373,6 @@ def IntersectCovers(path2shp1, path2shp2, path2export, proj=None, overwrite=True
 
 # Writes a single geometry object to a single shapefile without attributes
 def Geom2Shape(path2export, geom, proj=None):
-    print('boo')
     t_feat = ogr.Feature(ogr.FeatureDefn())
     t_feat.SetGeometry(geom)
     shp_ds = shp(path2export, editable=True)
@@ -3855,13 +3854,14 @@ def ReprojectVector(path_in, path_out, epsg, overwrite = True):
 
     if check_exist(path_in, overwrite):
         return 1
-    path_in = path_in.decode('cp1251')
+    path_in = path_in
     # print(path_in)
     ds_in = ogr.Open(path_in)
     # print(ds_in)
 
-    t_crs = osr.SpatialReference()
-    t_crs.ImportFromEPSG(epsg)
+    # t_crs = osr.SpatialReference()
+    # t_crs.ImportFromEPSG(epsg)
+    t_crs = get_srs(epsg)
 
     ds_out = vec_to_crs(ds_in, t_crs, path_out)
 

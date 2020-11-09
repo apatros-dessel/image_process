@@ -253,7 +253,7 @@ class process(object):
                             self.add_scene(newpath, imsys, skip_duplicates=skip_duplicates)
                         except:
                             print('Error making scene from list: %s' % newpath)
-                            # self.add_scene(newpath, imsys, skip_duplicates=skip_duplicates)
+                            self.add_scene(newpath, imsys, skip_duplicates=skip_duplicates)
                             errors.append(newpath)
 
         if len(errors) > 0:

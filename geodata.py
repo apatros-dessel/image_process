@@ -163,7 +163,8 @@ def vec_to_crs(ogr_dataset, t_crs, export_path):
         while feat:
             geom = feat.GetGeometryRef()
             geom.Transform(coordTrans)
-            geom = changeXY(geom)
+            if int(gdal.VersionInfo()[0])>=3:
+                geom = changeXY(geom)
             out_feat = ogr.Feature(outLayerDefn)
             out_feat.SetGeometry(geom)
             for i in range(0, outLayerDefn.GetFieldCount()):

@@ -4225,3 +4225,34 @@ def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
             os.remove(_new_file)
         return 0
     return 1
+
+def RasterReport(file):
+    report = OrderedDict()
+    if os.path.exists(file):
+        raster = gdal.Open(file)
+        if raster is None:
+            print(r'Cannot open raster: %s' % file)
+        else:
+            shape = [raster.RasterCount, raster.RasterXSize, raster.RasterYSize]
+            report['shape'] = ' '.join(flist(shape, str))
+            report['projection'] = str(raster.GetProjection())
+            report['geotransform'] = ' '.join(flist(raster.GetGeoTransform(), str))
+            empty_list = []
+            pix_count = shape[1] * shape[2]
+            empty = True
+            for i in range(1, shape[0] + 1):
+                band = raster.GetRasterBand(i)
+                nodata = band.GetNoDataValue()
+                if nodata is not None:
+                    no_data_percent = np.sum(band.ReadAsArray() == nodata) / pix_count
+                    empty_list.append(str(no_data_percent))
+                    if not no_data_percent==1.0:
+                        empty = False
+                else:
+                    empty_list.append('0.0')
+            report['nodata'] = str(nodata)
+            report['empty_list'] = ' '.join(empty_list)
+            report['empty'] = str(empty)
+    else:
+        print(r'File not found: %s' % file)
+    return report

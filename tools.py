@@ -293,7 +293,7 @@ def intlist(list_):
 # Change all values in list using the function
 def flist(l, func, copy=True):
     if copy:
-        l = deepcopy(l)
+        l = list(deepcopy(l))
     for i, v in enumerate(l):
         l[i] = func(v)
     return l

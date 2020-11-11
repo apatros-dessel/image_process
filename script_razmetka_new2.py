@@ -3,7 +3,7 @@
 
 from geodata import *
 
-pin = [r'172.21.195.2\FTP-Share\ftp\landcover\change_detection\sbor_change_detection_sentinel']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
+pin = [r'\\172.21.195.2\FTP-Share\ftp\landcover\change_detection\sbor_change_detection_sentinel']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
 vin = None     # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
 pout = r'\\172.21.195.215\thematic\products\razmetka\set004__sentinel_change'                  # Путь для сохранения конечных файлов
 imgid = 'IMCH8'                   # Индекс изображений (управляет числом каналов в конечном растре)
@@ -388,6 +388,7 @@ def set_mask(img_in, vec_in, msk_out, overwrite=False):
     vec_to_crs(ogr.Open(vec_in), crs, vec_reprojected)
     if not os.path.exists(vec_reprojected):
         vec_reprojected = vec_in
+    print(vec_reprojected)
     try:
         RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2,
                     value_colname=code_col, compress=compress, overwrite=overwrite)
@@ -490,8 +491,11 @@ for i, neuroid in enumerate(input):
     paths = get_paths(pout, neuroid, maskid, imgid)
     if paths:
         img_out, msk_out = paths
-        img_in = input[neuroid]['r']
-        vec_in = input[neuroid]['v']
+        img_in = input[neuroid].get('r')
+        vec_in = input[neuroid].get('v')
+        if None in (img_in, vec_in):
+            scroll(input[neuroid], header='ERROR INPUT DATA:')
+            continue
         img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=None)
         input[neuroid]['img_out'] = img_out
         msk_out = set_mask(img_in, vec_in, msk_out, overwrite=overwrite)

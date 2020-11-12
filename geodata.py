@@ -4263,3 +4263,50 @@ def RasterReport(file):
     else:
         print(r'File not found: %s' % file)
     return report
+
+# Return Raster Geometry from image corners
+def RasterGeometry(ds_, reference=None):
+    width = ds_.RasterXSize
+    height = ds_.RasterYSize
+    gt = ds_.GetGeoTransform()
+    srs = osr.SpatialReference()
+    srs.ImportFromWkt(ds_.GetProjection())
+    minx = gt[0]
+    miny = gt[3] + width * gt[4] + height * gt[5]
+    maxx = gt[0] + width * gt[1] + height * gt[2]
+    maxy = gt[3]
+    template = 'POLYGON ((%(minx)f %(miny)f, %(minx)f %(maxy)f, %(maxx)f %(maxy)f, %(maxx)f %(miny)f, %(minx)f %(miny)f))'
+    r1 = {'minx': minx, 'miny': miny, 'maxx': maxx, 'maxy': maxy}
+    wkt = template % r1
+    if sys.version.startswith('2'):
+        geom = ogr.Geometry(wkt=wkt)
+    else:
+        geom = ogr.CreateGeometryFromWkt(wkt, reference)
+    if srs!=reference:
+        trans = osr.CoordinateTransformation(srs, reference)
+        geom.Transform(trans)
+        if sys.version.startswith('3'):
+            geom = changeXY(geom)
+    return geom
+
+# Return total cover for raster geometry from image corners
+def TotalCover(pout, files, srs = None):
+    driver = ogr.GetDriverByName('GeoJSON')
+    ds_out = driver.CreateDataSource(pout)
+    if srs is None:
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+    lyr_out = ds_out.CreateLayer('', srs, ogr.wkbMultiPolygon)
+    lyr_out.CreateField(ogr.FieldDefn('id', 4))
+    feat_defn = lyr_out.GetLayerDefn()
+    for file in files:
+        ds_ = gdal.Open(file)
+        if ds_:
+            f,id,e = split3(file)
+            feat = ogr.Feature(feat_defn)
+            feat.SetField('id', id)
+            geom = RasterGeometry(ds_, reference=srs)
+            # print(geom.ExportToWkt())
+            feat.SetGeometry(geom)
+            lyr_out.CreateFeature(feat)
+    ds_out = None

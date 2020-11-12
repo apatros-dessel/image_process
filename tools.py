@@ -344,6 +344,20 @@ def newname2(name, name_list, update_list=False):
     else:
         return newname
 
+# Creates new path
+def newname(folder, ext = None):
+    # print(os.path.exists(folder), folder)
+    # print(os.path.isdir(folder))
+    if os.path.exists(folder) and os.path.isdir(folder):
+        i = 0
+        path_new = fullpath(folder, i, ext)
+        while os.path.exists(path_new):
+            i += 1
+            path_new = fullpath(folder, i, ext)
+        return path_new
+    else:
+        return None
+
 # Creates new OrderedDict wuth keys from list
 def endict(list_, obj = None, func = None):
 

@@ -1,6 +1,6 @@
 from geodata import *
 
-folder = r'\\172.21.195.215\thematic\products\s3\resursp'
+folder = r'd:\rks\destrip_test\ETRIS.RP1.GTNL1.4949.5.0.2014-05-14.L0.NTSOMZ_MSK.NTSOMZ_MSK'
 
 files = folder_paths(folder,1,'tif')
 

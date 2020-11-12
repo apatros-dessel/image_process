@@ -4185,13 +4185,15 @@ def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
                     right_list.append(right)
                     break
             del(mask)
-    if min(flist([up_list, down_list, left_list, right_list], len))==0:
+    scroll(flist([up_list, down_list, left_list, right_list], len))
+    if max(flist([up_list, down_list, left_list, right_list], len))==0:
         print('Cannot find any limits for: %s' % file)
         return 1
     up = min(up_list)
     down = min(down_list)
     left = min(left_list)
     right = min(right_list)
+    print(up, down, left, right)
     if sum((up,down,left,right))>0:
         x0, x, a, y0, b, y = trans
         if up>0 or down>0:
@@ -4214,7 +4216,10 @@ def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
                                                                            'compress': compress,})
         for i in range(1, band_num+1):
             arr_ = raster.GetRasterBand(i).ReadAsArray()
-            arr_ = arr_[up:-down,left:-right]
+            print(arr_.shape)
+            y, x = arr_.shape
+            arr_ = arr_[up:y-down,left:x-right]
+            print(arr_.shape)
             new_raster.GetRasterBand(i).WriteArray(arr_)
             del(arr_)
         raster = None
@@ -4224,7 +4229,9 @@ def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
             shutil.copyfile(_new_file, file)
             os.remove(_new_file)
         return 0
-    return 1
+    else:
+        print('Raster limits are zero, no stripping performed: %s' % file)
+        return 1
 
 def RasterReport(file):
     report = OrderedDict()

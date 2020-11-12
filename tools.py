@@ -16,18 +16,6 @@ silent = False
 if not os.path.exists(default_temp):
     os.makedirs(default_temp)
 
-def sprint(s):
-    if not (globals().get('silent')):
-        print(s)
-
-# Function always returning None
-def returnnone(*args):
-    # print(tuple(*args))
-    return 1
-
-# Function always returning object
-def returnobj(obj):
-    return obj
 
 # Class to make endless counter
 class counter:
@@ -106,12 +94,6 @@ def list_order(orig_list):
             repeat_num = 0
 
     return order_list
-
-def filter_by_values(arr, col):
-    match = np.ones(arr.shape[1:])
-    for line, value in zip(arr, col):
-        match = match * (line==value)
-    return match
 
 # Sort list of lists (of the same length): the previous lists have higher priority
 def sort_multilist(list_of_lists):
@@ -226,14 +208,6 @@ def list_of_len(list_, len_):
         list_.append(list_[-1])
     return list_
 
-# Returns list with excluded values
-def list_ex(list_, exclude_):
-    exclude_ = obj2list(exclude_)
-    for i in range(len(list_)-1, -1, -1):
-        if (list_[i] in exclude_):
-            list_.pop(i)
-    return list_
-
 def lget(iter_obj, id, id2=None):
     if id2 is not None:
         val = iter_obj[id, id2]
@@ -305,69 +279,6 @@ def mean(x):
         y += i
     return y/len(x)
 
-# Converts data from a root call to a list
-def iter_list(root, call):
-    iter_list = []
-    for obj in root.iter(call):
-        iter_list.append({obj.tag: {'attrib': obj.attrib, 'text': obj.text}})
-    return iter_list
-
-# Removes all values x in list
-def remove_in_list(orig_list, x):
-    new_list = copy(orig_list)
-    while x in new_list:
-        i = new_list.index(x)
-        new_list.pop(i)
-    return new_list
-
-# Replaces all values x in list to y
-def replace_in_list(orig_list, x, y):
-    new_list = copy(orig_list)
-    while x in new_list:
-        i = new_list.index(x)
-        new_list.pop(i)
-        new_list.insert(y)
-    return new_list
-
-# Processes the iter_list created by iter_list() to return list of values of a proper kind
-def iter_return(iter_list, data='text', attrib=None):
-    if isinstance(data, int):
-        data = ['text', 'tag', 'attrib'][data]
-    return_list = []
-    if data == 'attrib':
-        if attrib is None:
-            for monodict in iter_list:
-                return_list.append(mdval(monodict)['attrib'])
-        else:
-            for monodict in iter_list:
-                return_list.append(mdval(monodict)['attrib'][str(attrib)])
-    elif data == 'text':
-        for monodict in iter_list:
-            return_list.append(mdval(monodict)['text'])
-    elif data == 'tag':
-        for monodict in iter_list:
-            return_list.append(list(monodict.keys())[0])
-    return return_list
-
-# Filters the values from iter_return() by the attributes
-def attrib_filter(iter, check):
-    filter = np.ones(len(iter)).astype(np.bool)
-    for key in check:
-        val = str(check[key])
-        filter_key = []
-        for monodict in iter:
-            if key in mdval(monodict)['attrib']:
-                filter_key.append((mdval(monodict)['attrib'][key])==val)
-            else:
-                filter_key.append(False)
-        if True not in filter_key:
-            raise Warning(('No value for ' + key + ' ' + val + ', cannot apply filter'))
-            continue
-        if len(filter_key) != len(filter):
-            raise Warning('Search filter len are not equal')
-        filter[np.array(filter_key).astype(np.bool)==False] = False
-    return filter
-
 # Returns a new dictionary filtered by key values
 def slice_orderdict(dict, call, include = True, delete_call = False):
     call = str(call)
@@ -401,30 +312,6 @@ def list_orderdict(dict_tuple, newvals2tuples = False):
                 newval = tuple(newval)
             result[key] = newval
     return result
-
-# Returns a new dictionary with all values with unique keys and sum of values with different keys
-def sumdict(a, b):
-    assert isinstance(a, dict) and isinstance(b, dict)
-    if isinstance(a, OrderedDict) or isinstance(b, OrderedDict):
-        c = OrderedDict()
-    else:
-        c = dict()
-    keys = list(a.keys())
-    for newkey in b.keys():
-        if newkey not in keys:
-            key.append(newkey)
-    for key in keys:
-        vals = [a.get(key), b.get(key)]
-        if vals[0] is None:
-            c[key] = vals[1]
-        elif vals[1] is None:
-            c[key] = vals[0]
-        else:
-            try:
-                c[key] = vals[0] + vals[1]
-            except:
-                c[key] = vals
-        return c
 
 # Create fullpath from folder, file and extension
 def fullpath(folder, file, ext=None):
@@ -473,28 +360,6 @@ def endict(list_, obj = None, func = None):
             newordict[key] = func(key)
 
     return newordict
-
-# Returns an ordered dictionary of numpy array values and counts
-def arrendict(arr_):
-    dict_ = OrderedDict()
-    values, numbers = np.unique(arr_, return_counts=True)
-    for val, num in zip(values, numbers):
-        dict_[val] = num
-    return dict_
-
-# Creates new path
-def newname(folder, ext = None):
-    # print(os.path.exists(folder), folder)
-    # print(os.path.isdir(folder))
-    if os.path.exists(folder) and os.path.isdir(folder):
-        i = 0
-        path_new = fullpath(folder, i, ext)
-        while os.path.exists(path_new):
-            i += 1
-            path_new = fullpath(folder, i, ext)
-        return path_new
-    else:
-        return None
 
 # Creates new empty dir
 def newdir(path):
@@ -601,24 +466,6 @@ def walk_find(path, ids_list, templates_list, id_max=100000):
     if len(path_list) > id_max:
         raise Exception('Number of folder exceeds maximum = {}'.format(id_max))
     return export_
-
-# Converts a list with just one value to a single value changing format if necessary
-def sing2sing(obj, sing_to_sing=True, digit_to_float=True):
-    try:
-        obj = list(obj)
-        for val_id in range(len(obj)):
-            obj[val_id] = str(obj[val_id])
-    except:
-        raise TypeError('Incorrect data type: list of strings is needed')
-    if sing_to_sing:
-        if len(obj) == 1:
-            obj = obj[0]
-            if digit_to_float and obj.isdigit():
-                try:
-                    obj = float(obj)
-                except:
-                    pass
-    return obj
 
 # Works with temporary directories
 class tdir():
@@ -805,7 +652,7 @@ def sing2sing(obj, sing_to_sing=True, digit_to_float=True):
     if sing_to_sing:
         if len(obj) == 1:
             obj = obj[0]
-            if digit_to_float:
+            if digit_to_float and obj.isdigit():
                 try:
                     obj = float(obj)
                 except:
@@ -877,28 +724,6 @@ def dict_to_xls(path2xls, adict): # It's better to use OrderedDict to preserve t
     wb.save(path2xls)
 
     return None
-
-# Image system data object
-class imsys_data:
-
-    def __init__(self, imsys, template):
-
-        if not isinstance(imsys, str):
-            print('Wrong imsys data type: str is needed')
-            raise TypeError
-
-        if len(imsys) != 3:
-            print('Length of imsys was incorrect, reduced to 3')
-            imsys = stringoflen(imsys.strip(), 3)
-
-        if not isinstance(template, str):
-            print('Wrong template data type: str is needed')
-            raise TypeError
-
-        self.imsys = imsys
-        self.template = template
-        self.files = []
-        self.bandpaths = OrderedDict()
 
 # Scene metadata
 class scene_metadata:
@@ -1055,16 +880,6 @@ def count_dirsize(path):
         byte_size += os.path.getsize(file)
     return byte_size
 
-# Filter filepath_list by extension
-def ext_filter(filepaths, ext):
-    assert isinstance(filepaths, (tuple, list))
-    assert isinstance(ext, str)
-    proper_names = []
-    for file in filepaths:
-        if file.endswith(ext):
-            proper_names.append(file)
-    return proper_names
-
 def str_size(byte_size):
     assert byte_size >= 0
     if byte_size < 1024:
@@ -1143,14 +958,3 @@ def find_parts(list_, start, fin):
             passingby = True
     return results
 
-def DictTuples(dict_):
-    export = []
-    for key in dict_:
-        export.append((key, dict_[key]))
-    return export
-
-def TuplesDict(list_):
-    export = {}
-    for key, value in list_:
-        export[key] = value
-    return export

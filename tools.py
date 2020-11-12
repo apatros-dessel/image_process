@@ -695,7 +695,7 @@ def scroll(obj, print_type=True, decoding=None, header=None, lower=None, depth=0
         print(header)
     elif print_type:
         print('{}Object of {}:'.format(tab, type(obj)))
-    if hasattr(obj, '__iter__'):
+    if hasattr(obj, '__iter__') and not isinstance(obj, str):
         try:
             len_ = len(obj)
         except:

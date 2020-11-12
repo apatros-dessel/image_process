@@ -8,7 +8,6 @@ import xml.etree.ElementTree as et
 from collections import OrderedDict
 from datetime import datetime
 from copy import copy, deepcopy
-from PIL import Image
 
 default_temp = '{}\image_processor'.format(os.environ['TMP'])
 silent = False

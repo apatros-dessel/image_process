@@ -2,7 +2,6 @@
 
 from image_processor import *
 from shutil import copyfile
-from PIL import Image
 import subprocess
 
 # Пути к сценам

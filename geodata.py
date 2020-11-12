@@ -12,7 +12,7 @@ except:
 import numpy as np
 import math
 import cv2
-import json
+# import json
 
 from tools import *
 from raster_data import RasterData, MultiRasterData
@@ -137,12 +137,6 @@ def format_to_gdal(dtype_in):
         print(('Error reading formats: ' + str(dtype_in) + ', ' + str(key)))
         print('Unknown format: {}'.format(dtype_in))
     return gdal.GDT_Byte
-
-# Returns osr coordinate system from EPSG
-def get_projection(proj_id=3857):
-    t_crs = osr.SpatialReference()
-    t_crs.ImportFromEPSG(int(proj_id))
-    return t_crs
 
 # Converts ogr dataset to a predefined projection
 def vec_to_crs(ogr_dataset, t_crs, export_path):
@@ -424,7 +418,7 @@ def shp(path2shp, editable = False, copy_ds = None):
     return dst_ds
 
 # Create GeoJSON vector dataset
-def json(path2json, editable = False, srs = None):
+def json(path2json, editable = False, srs = None): # !!! Need to rename to differ from json module !!!
 
     gdal.UseExceptions()
 
@@ -561,40 +555,6 @@ def get_band_array(path2band):
         print('Cannot get array from: {}'.format(path2band))
     return array
 
-# Calculates difference between two bands
-def band_difference(path2oldband, path2newband, export_path, nodata = 0, compress = None, overwrite = True):
-
-    data_key = MultiRasterData((path2oldband, path2newband), data = [2,4])
-    old_array, old_nodata = old = data_key.next()
-    new_array, new_nodata = new = data_key.next()
-    no_data_mask = np.zeros(old_array.shape).astype(bool)
-
-    for arr, nodata_arr in (old, new):
-        no_data_mask[arr==nodata_arr] = True
-        arr = arr.astype(float)
-
-    print(no_data_mask.shape)
-
-    if (old_array is not None) and (new_array is not None):
-        band_fin = (new_array - old_array).reshape(tuple([1] + list(new_array.shape)))
-        print(band_fin.shape)
-        band_fin[0][no_data_mask] = nodata
-        res = save_raster(export_path, band_fin, copypath = path2newband[0], dt = 6, nodata = nodata, compress = compress, overwrite=overwrite)
-    else:
-        res = 1
-    return res
-
-# Calculates quotient between two bands
-def band_quot(path2oldband, path2newband, export_path, nodata = 0, compress = None, overwrite = True):
-    old_array = get_band_array(path2oldband).astype(float)
-    new_array = get_band_array(path2newband).astype(float)
-    if (old_array is not None) and (new_array is not None):
-        band_fin = (new_array / old_array).reshape(tuple([1] + list(new_array.shape)))
-        res = save_raster(export_path, band_fin, copypath = path2newband[0], dt = 6, nodata = nodata, compress = compress, overwrite=overwrite)
-    else:
-        res = 1
-    return res
-
 # Calculates quotient between two bands
 def Changes(old_bandpaths, new_bandpaths, export_path,
             calc_path = None, formula = 0, nodata = 0,
@@ -654,75 +614,6 @@ def Changes(old_bandpaths, new_bandpaths, export_path,
 
     return 0
 
-# Make classifier values from raster data
-def RasterLearn(raster_path_list, raster_classes_list, mask_path_list = None, classifier_zero = None, limit_zero = None, save_statistics_path = None):
-
-    assert len(raster_path_list)==len(raster_classes_list)
-
-    if mask_path_list is not None:
-        assert len(mask_path_list)==len(raster_path_list)
-        masked = True
-    else:
-        mask_raster = False
-
-    if classifier_zero is None:
-        classifier_zero = OrderedDict()
-    else:
-        classifier_zero = deepcopy(classifier_zero)
-
-    raster_data = MultiRasterData(raster_path_list, data=2)
-    raster_classes = MultiRasterData(raster_classes_list, data=2)
-
-    if mask_raster is not None:
-        raster_mask = MultiRasterData(mask_path_list)
-    else:
-        raster_mask = iternone()
-
-    for data_arr, classes_arr, mask_arr in zip(raster_data, raster_classes, raster_mask):
-
-        classes_arr = classes_arr.astype(bool)
-
-        if mask_arr is not None:
-            mask_arr = mask_arr.astype(bool)
-            classes_arr = classes_arr[mask_arr]
-            data_arr = data_arr[mask_arr]
-            del(mask_arr)
-
-        vals, vals_count = np.unique(data_arr, return_counts=True)
-
-        for val, count in zip(vals, vals_count):
-            count_true = np.sum(classes_arr[data_arr==val])
-            count_false = count - count_true
-            if val in classifier_zero:
-                classifier_zero[val] = classifier_zero[val] + np.array([0, count_true, count_false])
-            else:
-                classifier_zero[val] = np.array([val, count_true, count_false])
-
-    if save_statistics_path is not None:
-        try:
-            dict_to_xls(save_statistics_path, classifier_zero)
-        except:
-            print('Error saving xls: {}'.format(save_statistics_path))
-
-    fullstat = np.vstack(classifier_zero.values())
-    fullstat.sort(0)
-    min = fullstat[:,0][splitbin(fullstat[:,1], fullstat[:,2])]
-
-    return min
-
-
-# Division of two bands with calculating percent of change
-def percent(path2raster, export_path, band1 = 1, band2 = 1, nodata = 0, compress = None, overwrite = True):
-    raster_ds = gdal.Open(path2raster)
-    if raster_ds is not None:
-        band1_array = raster_ds.GetRasterBand(band1).ReadAsArray().astype(np.float32)
-        band2_array = raster_ds.GetRasterBand(band2).ReadAsArray().astype(np.float32)
-    band_fin = ((band2_array / band1_array) * 100).reshape(tuple([1] + list(band1_array.shape)))
-    band_fin[band_fin != 0] = band_fin[band_fin != 0] - 100
-    param = band_fin, raster_ds.GetProjection(), raster_ds.GetGeoTransform(), band_fin.dtype, nodata
-    res = save_raster(export_path, band_fin, copypath = path2raster, nodata = nodata, compress = compress, overwrite=overwrite)
-    return res
-
 # Saves data from a band in Dataset to polygon shapefile
 def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, classify_table = None, export_values = None, overwrite = True):
 
@@ -771,46 +662,6 @@ def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, class
     # Write projection
     write_prj(dst_layername + '.prj', raster_ds.GetProjection())
     return None
-
-def ClassifyBandValues(bandpath_in, bandpath_out, classify_table = [(0, None, 1)], nodata = 0, compress = None, overwrite = True):
-
-    if check_exist(bandpath_out[0], ignore=overwrite):
-        return 1
-
-    arr_in = get_band_array(bandpath_in)
-
-    if arr_in is None:
-        return 1
-
-    arr_out = np.full(arr_in.shape, nodata)
-
-    for min_val, max_val, id_val in classify_table:
-        if id_val != nodata:
-            arr_out[band_mask(arr_in, min_val, max_val)] = id_val
-        else:
-            print('Cannot set value {}: id equals to nodata'.format(id_val))
-
-    if not os.path.exists(bandpath_out[0]):
-        ds_out = ds(bandpath_out[0], copypath=bandpath_in[0], options={'bandnum': bandpath_out[1], 'dtype': 1, 'nodata': nodata, 'compress': compress}, editable=True)
-    else:
-        ds_out = gdal.Open(bandpath_out[0], 1)
-
-    if ds_out is not None:
-        # while ds_out.RasterCount < bandpath_out[1]:
-            # ds_out.AddBand(1)
-        try:
-            band_out = ds_out.GetRasterBand(bandpath_out[1])
-            band_out.WriteArray(arr_out)
-        except:
-            print('Error writing data to: {}'.format(bandpath_out))
-            # band_out = ds_out.GetRasterBand(bandpath_out[1])
-            # band_out.WriteArray(arr_out)
-            return 1
-    else:
-        print('Band not found: {}'.format(bandpath_out))
-        return 1
-
-    return 0
 
 # Vectorize raster layers
 def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_id = 'CLASS', erode_val = 0, overwrite = True):
@@ -1065,162 +916,6 @@ def vector_mask(path2raster, path2save_raster_mask, path2shp, limits, sign, noda
 
     return None
 
-def raster_to_image(path2raster, path2export, band_limits, gamma=1, exclude_nodata = True, enforce_nodata = None, compress=None):
-
-    raster_ds = gdal.Open(path2raster)
-
-    num_bands = min(raster_ds.RasterCount, len(band_limits))
-
-    driver = gdal.GetDriverByName('GTiff')
-    options = gdal_options(compress=compress)
-    export_ds = driver.Create(path2export, raster_ds.RasterXSize, raster_ds.RasterYSize, num_bands, 1, options = options)
-    export_ds.SetProjection(raster_ds.GetProjection())
-    export_ds.SetGeoTransform(raster_ds.GetGeoTransform())
-    export_ds = None
-
-    export_ds = gdal.Open(path2export, 1)
-
-    for i in range(num_bands):
-        band_num = i+1
-        band_array = raster_ds.GetRasterBand(band_num).ReadAsArray()
-
-        y_min = 1
-        y_max = 255
-        dy = 254
-        x_min, x_max = band_limits[i][:2]
-        dx = (x_max - x_min)
-        band_array = band_array.astype(np.float)
-        band_array = band_array - x_min
-        # band_array = None
-        band_array[band_array < 0] = 0
-        band_array[band_array > dx ] = dx
-
-        if gamma == 1:
-            band_array = band_array * (dy/dx)
-        else:
-            band_array = band_array / dx
-            band_array = band_array ** gamma
-            band_array = band_array * dy
-
-        band_array = band_array + y_min
-        band_array[band_array < y_min] = y_min
-        band_array[band_array > y_max] = y_max
-        band_array = np.asarray(band_array)
-
-        if exclude_nodata:
-            nodata = raster_ds.GetRasterBand(band_num).GetNoDataValue()
-            band_array[raster_ds.GetRasterBand(band_num).ReadAsArray()==nodata] = 0
-
-            if enforce_nodata is not None:
-                band_array[raster_ds.GetRasterBand(band_num).ReadAsArray()==enforce_nodata] = 0
-
-            export_ds.GetRasterBand(band_num).SetNoDataValue(0)
-
-        export_ds.GetRasterBand(band_num).WriteArray(band_array)
-
-        band_array = None
-
-    export_ds = None
-
-    return None
-
-def mosaic(import_list, path2export, prj, geotrans, xsize, ysize, band_num, dt, nptype=np.int8, method=gdal.GRA_CubicSpline, exclude_nodata=True, enforce_nodata=None, compress = None):
-
-    driver = gdal.GetDriverByName('GTiff')
-    options = gdal_options(compress=compress)
-    temp_path = r'{}\{}'.format(os.path.split(path2export)[0], 'temp.tif')
-    export_ds = driver.Create(temp_path, xsize, ysize, 1, dt, options=options)
-    export_ds.SetProjection(prj)
-    export_ds.SetGeoTransform(geotrans)
-    export_ds = None
-
-    fin_ds = driver.Create(path2export, xsize, ysize, band_num, dt, options=options)
-    fin_ds.SetProjection(prj)
-    fin_ds.SetGeoTransform(geotrans)
-    fin_ds = None
-
-    export_ds = gdal.Open(temp_path, 1)
-
-    for band_id in range(1, band_num + 1):
-
-        export_band = np.zeros((ysize, xsize)).astype(nptype)
-
-        for path2raster in import_list:
-            new_band_mask = band2raster((path2raster, band_id), export_ds, method=method, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata, t_band_num = 1, make_mask = True)
-            new_band_data = export_ds.GetRasterBand(1).ReadAsArray()
-            # print('new_band_data: {}'.format(np.unique(new_band_data, return_counts=True)))
-            # new_band_mask = [new_band_data != 0]
-            # print(np.mean(export_band))
-            # print(np.mean(new_band_data))
-            # print(np.mean(new_band_mask))
-            export_band[new_band_mask] = new_band_data[new_band_mask]
-            # print('export_band: {}'.format(np.unique('export_band: {}'.format(np.unique(new_band_data, return_counts=True)), return_counts=True)))
-            new_band_data = None
-            new_band_mask = None
-            print('Done: {}'.format(os.path.basename(path2raster)))
-
-        print('Export_band:\n {}'.format(np.unique(export_band, return_counts=True)))
-        fin_ds = gdal.Open(path2export, 1)
-        fin_ds.GetRasterBand(band_id).WriteArray(export_band)
-        fin_ds = None
-        export_band = None
-        print('\nFinished export band %i\n' % band_id)
-
-    export_ds = None
-
-    return None
-
-def alpha(path2raster, path2export, use_raster_nodata=True, use_limits_mask=False, lim_list=[(0)], sign='!=', band_mix = 'OR', options = None, overwrite = True):
-
-    raster_data = RasterData(path2raster, data=1)
-
-    if len(raster_data) != 3:
-        print('RasterCount != 3, cannot make alpha channel for {}'.format(path_raster))
-        return 1
-
-    if use_limits_mask:
-        lim_list = list_of_len(lim_list, raster_data.len)
-    else:
-        lim_list = list_of_len([None], raster_data.len)
-
-    mask = limits_mask(RasterData(path2raster), lim_list, sign=sign, band_mix=band_mix, include_raster_nodata=-use_raster_nodata)
-
-    if mask is not None:
-        raster_ds = ds(path=path2export, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
-        raster_ds.AddBand(1)
-        raster_ds.GetRasterBand(raster_ds.RasterCount).WriteArray(mask*255)
-        raster_ds = None
-        return 0
-
-    else:
-        print('Error creating alpha channel')
-        return 1
-
-class bandpath:
-
-    def __init__(self, filepath, bandnum, name = None):
-        self.file = str(filepath)
-        self.band = int(bandnum)
-        self.name = name
-
-    def getdataset(self):
-        if os.path.exists(self.file):
-            return gdal.Open(self.file)
-
-    def getband(self):
-        raster_ds = self.getdataset()
-        if raster_ds is not None:
-            if raster_ds.RasterCount >= self.band:
-                return raster_ds.GetRasterBand(self.band)
-
-    def __bool__(self):
-        return self.getband() is not None
-
-    def array(self):
-        band = self.getband()
-        if band is not None:
-            return array3dim(band.ReadAsArray())
-
 class Bandpath(tuple):
 
     def __init__(self, data):
@@ -1269,127 +964,6 @@ def RasterMultiBandpath(raster_path, band_list):
         bandpaths.append((raster_path, band))
     return MultiBandpath(bandpaths)
 
-def GetRasterPercentiles(raster_path_list, min_percent = 0.02, max_percent = 0.98,
-                         band_num_list = [1,2,3], nodata = 0):
-
-    band_hist_dict = endict(band_num_list, {})
-
-    for raster_path in raster_path_list:
-
-        ds = gdal.Open(raster_path)
-
-        if ds is None:
-            continue
-
-        ds_band_list = []
-
-        for band in band_num_list:
-            if ds.GetRasterBand(band) is not None:
-                ds_band_list.append(band)
-        # print(ds_band_list)
-        for bandnum in ds_band_list:
-
-            raster_array = ds.GetRasterBand(bandnum).ReadAsArray()
-            values, number = np.unique(raster_array, return_counts=True)
-
-            for val, num in zip(values, number):
-                # print(val, num)
-                if val in band_hist_dict[bandnum]:
-                    band_hist_dict[bandnum][val] += num
-                else:
-                    band_hist_dict[bandnum][val] = num
-
-    borders_list = []
-
-    for band in band_hist_dict:
-
-        band_num_dict = band_hist_dict[band]
-
-        if len(band_num_dict) == 1:
-            raise Exception
-
-        if nodata in band_num_dict:
-            band_num_dict.pop(nodata)
-
-        band_vals = np.array(band_num_dict.keys())
-        # band_vals.sort()
-        band_order = band_vals.argsort()
-        band_vals = band_vals[band_order]
-        band_nums = np.array(band_num_dict.values())[band_order]
-        pixel_sum = np.sum(band_nums)
-
-        num_min = pixel_sum * min_percent
-        num_max = pixel_sum * max_percent
-        num_max_inv = pixel_sum - num_max
-
-        min_mask = band_vals
-
-        sum = 0
-        i = 0
-        while sum < num_min:
-            i += 1
-            sum += band_nums[i]
-        min_val = band_vals[i]
-
-        band_vals = band_vals[::-1]
-        band_nums = band_nums[::-1]
-
-        sum = 0
-        i = 0
-        while sum < num_max_inv:
-            i += 1
-            sum += band_nums[i]
-        max_val = band_vals[i]
-        continue
-
-        try:
-
-            if len(band_num_dict) == 1:
-                raise Exception
-
-            if nodata in band_num_dict:
-                band_num_dict.pop(nodata)
-
-            band_vals = np.array(band_num_dict.keys())
-            # band_vals.sort()
-            band_order = band_vals.argsort()
-            band_vals = band_vals[band_order]
-            band_nums = np.array(band_num_dict.values())[band_order]
-            pixel_sum = np.sum(band_nums)
-
-            num_min = pixel_sum * min_percent
-            num_max = pixel_sum * max_percent
-            num_max_inv = pixel_sum - num_max
-
-            min_mask = band_vals
-
-            sum = 0
-            i = 0
-            while sum < num_min:
-                i += 1
-                sum += band_nums[i]
-            min_val = band_vals[i]
-
-            band_vals = band_vals[::-1]
-            band_nums = band_nums[::-1]
-
-            sum = 0
-            i = 0
-            while sum < num_max_inv:
-                i += 1
-                sum += band_nums[i]
-            max_val = band_vals[i]
-
-        except:
-            scroll(raster_path_list, header='Cannot build histogram for band {}: '.format(band))
-            min_val = 0
-            max_val = 10000
-
-        borders_list.append((min_val, max_val))
-        print(min_val, max_val)
-
-    return borders_list
-
 def GetRasterPercentileUInteger(files, min_p = 0.02, max_p = 0.98, bands = [1,2,3], nodata = 0, max = 65536):
     max = int(max)
     count = np.zeros((len(bands), max), np.uint64)
@@ -1430,169 +1004,6 @@ def GetRasterPercentileUInteger(files, min_p = 0.02, max_p = 0.98, bands = [1,2,
                 break
         result.append((min_val, max_val))
     return result
-
-def RasterToImage(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True, enforce_nodata = None, band_order = [1,2,3], compress = None, overwrite = True, alpha=False):
-
-    if check_exist(path2export, ignore=overwrite):
-        return 1
-
-    options = {
-        'dt': 1,
-        'nodata': 0,
-        'compress': compress,
-        'bandnum': [3, 4][alpha],
-    }
-
-    t_ds = ds(path=path2export, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
-
-    source = RasterData(path2raster)
-
-    error_count = 0
-    band_num = 0
-
-    if alpha:
-        t_ds.GetRasterBand(4).WriteArray(np.full((source.ds.RasterYSize, source.ds.RasterXSize), 255))
-
-    i = 0
-    for band_id, raster_array, nodata in source.getting((0,2,3), band_order = band_order):
-
-        res = 0
-
-        band_num += 1
-
-        if exclude_nodata and (nodata is not None):
-            if enforce_nodata is not None:
-                mask = (raster_array!=nodata) * (raster_array!=enforce_nodata)
-            else:
-                mask = raster_array!=nodata
-        else:
-            if enforce_nodata is not None:
-                mask = raster_array!=enforce_nodata
-            else:
-                mask = None
-
-        if np.min(mask) == True:
-            mask = None
-
-        if mask is not None:
-            data = raster_array[mask]
-        else:
-            data = raster_array
-
-        if isinstance(gamma, (list, tuple)):
-            gamma_band = gamma[i]
-        else:
-            gamma_band = gamma
-
-        data = data_to_image(data, method=method, band_limits=band_limits, gamma=gamma)
-
-        if data is None:
-            print('Error calculating band %i' % band_id)
-            error_count += 1
-            continue
-
-        if (mask is not None):
-            raster_array[mask] = data
-            raster_array[~ mask] = 0
-
-        del data
-
-        t_ds.GetRasterBand(band_num).WriteArray(raster_array)
-
-        del raster_array
-
-        if alpha and (mask is not None):
-            oldmask = t_ds.GetRasterBand(4).ReadAsArray()
-            oldmask[~ mask] = 0
-            t_ds.GetRasterBand(4).WriteArray(oldmask)
-
-        del mask
-
-    if error_count == t_ds.RasterCount:
-        res = 1
-
-    t_ds = None
-
-    return res
-
-def RasterToImage2(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True,
-                   enforce_nodata = None, band_order = [1,2,3], compress = None, overwrite = True, alpha=False):
-
-    if check_exist(path2export, ignore=overwrite):
-        return 1
-
-    options = {
-        'dt': 1,
-        'nodata': 0,
-        'compress': compress,
-        'bandnum': [3, 4][alpha],
-    }
-
-    t_ds = ds(path=path2export, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
-
-    source = RasterData(path2raster)
-
-    error_count = 0
-    band_num = 0
-
-    if alpha:
-        t_ds.GetRasterBand(4).WriteArray(np.full((source.ds.RasterYSize, source.ds.RasterXSize), 255))
-
-    for band_id, raster_array, nodata in source.getting((0,2,3), band_order = band_order):
-
-        res = 0
-
-        band_num += 1
-
-        if exclude_nodata and (nodata is not None):
-            if enforce_nodata is not None:
-                mask = (raster_array!=nodata) * (raster_array!=enforce_nodata)
-            else:
-                mask = raster_array!=nodata
-        else:
-            if enforce_nodata is not None:
-                mask = raster_array!=enforce_nodata
-            else:
-                mask = None
-
-        if np.min(mask) == True:
-            mask = None
-
-        if mask is not None:
-            data = raster_array[mask]
-        else:
-            data = raster_array
-
-        data = data_to_image(data, method=method, band_limits=band_limits[band_id-1], gamma=gamma)
-
-        if data is None:
-            print('Error calculating band %i' % band_id)
-            error_count += 1
-            continue
-
-        if (mask is not None):
-            raster_array[mask] = data
-            raster_array[~ mask] = 0
-
-        del data
-
-        t_ds.GetRasterBand(band_num).WriteArray(raster_array)
-
-        del raster_array
-
-        if alpha and (mask is not None):
-            oldmask = t_ds.GetRasterBand(4).ReadAsArray()
-            oldmask[~ mask] = 0
-            t_ds.GetRasterBand(4).WriteArray(oldmask)
-
-        del mask
-
-    if error_count == t_ds.RasterCount:
-        res = 1
-
-    t_ds = None
-
-    return res
 
 # RasterToImage with reprojection
 def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True,
@@ -1779,31 +1190,6 @@ def get_srs(ds):
         # scroll(ds)
         srs = None
     return srs
-
-
-def create_reprojected_raster(path_in, path_out, proj, band_num = None, compress = None, editable = True):
-    ds_in = gdal.Open(path_in)
-    old_proj = ds_in.GetProjection()
-    geotransform = ds_in.GetGeoTransform()
-    x_res = geotransform[1]
-    y_res = geotransform[5]
-    t_raster_base = gdal.AutoCreateWarpedVRT(ds_in, old_proj, proj)
-    x_0, x, x_ang, y_0, y_ang, y = t_raster_base.GetGeoTransform()
-    newXcount = int(math.ceil(t_raster_base.RasterXSize * (x / x_res)))
-    newYcount = int(math.ceil(t_raster_base.RasterYSize * (y / y_res)))
-    if band_num is None:
-        band_num = ds_in.RasterCount
-    optionsMosaic = {
-        'dt': ds_in.GetRasterBand(1).DataType,
-        'prj': t_raster_base.GetProjection(),
-        'geotrans': (x_0, x_res, x_ang, y_0, y_ang, y_res),
-        'bandnum': band_num,
-        'xsize': newXcount,
-        'ysize': newYcount,
-        'compress': compress,
-    }
-    ds_out = ds(path_out, options=options, editable=editable)
-    return ds_out
 
 # Reprojects Raster
 def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, resolution = None, masked = False, compress = None, overwrite = True):
@@ -2078,26 +1464,6 @@ def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata =
 
     return 0
 
-def CopyToJPG(path2raster, path2export, overwrite = True):
-
-    if check_exist(path2export, ignore=overwrite):
-        return 1
-
-    ds_in = gdal.Open(path2raster)
-    if ds_in is None:
-        print('Cannot open dataset: {}'.format(path2raster))
-        return 1
-
-    try:
-        driver = gdal.GetDriverByName('JPEG')
-        ds_out = driver.CreateCopy(path2export, ds_in)
-        ds_out = None
-    except:
-        print('Error saving JPG: {}'.format(path2export))
-        return 1
-
-    return 0
-
 def MakeQuicklook(path_in, path_out, epsg = None, pixelsize = None, method = gdal.GRA_Average, overwrite = True):
 
     if check_exist(path_out, ignore=overwrite):
@@ -2174,8 +1540,6 @@ def MultiplyRasterBand(bandpath_in, bandpath_out, multiplicator, dt = None, comp
 
 
 ''' VECTOR PROCESSING FUNCTIONS '''
-
-
 
 # Unites geometry from shapefiles
 def Unite(path2shp_list, path2export, proj=None, deafault_srs=4326, overwrite=True):
@@ -2393,23 +1757,6 @@ def del_geom_by_type(old_geom, type):
             new_geom.AddGeometry(geom)
         return new_geom
 
-def feature_fid(lyr):
-    fid_list = [-1]
-    for feat in lyr:
-        fid = feat.GetFID()
-        if fid in fid_list:
-            fid = max(fid_list) + 1
-        fid_list.append(fid)
-    fid_list.pop(0)
-    return fid_list
-
-def add_fid(feat, fid_list):
-    fid = feat.GetFID()
-    if fid in fid_list:
-        fid = max(fid_list) + 1
-    fid_list.append(fid)
-    return fid, fid_list
-
 # Get feature data as dictionary
 def feature_dict(feat, keys=None, geom_col_name=None, rep_keys_dict=None):
 
@@ -2443,45 +1790,6 @@ def feature_dict(feat, keys=None, geom_col_name=None, rep_keys_dict=None):
         attr_dict[geom_col_name] = feat.GetGeometryRef()
 
     return attr_dict
-
-# Get feature data type as dictionary
-def feature_data_type_dict(feat, keys=None):
-
-    if keys is None:
-        keys = feat.keys()
-    else:
-        keys = obj2list(keys)
-
-    attr_dict = OrderedDict()
-
-    dt_dict = OrderedDict()
-
-    for key in feat.keys():
-        dt_dict[key] = feat.GetFieldType(key)
-
-    return dt_dict
-
-# Get column data as ordered dictionary
-def column_dict(lyr, key, default = None):
-
-    col_dict = OrderedDict()
-
-    fid_list = lyr.GetFIDColumn()
-
-    for feat in lyr:
-
-        fid = feat.GetFID(key)
-        if fid == (-1):
-            fid = max(fid_list) + 1
-            fid_list.append(fid)
-
-        value = feat.GetField(key)
-        if value is None:
-            value = default
-
-        col_dict[fid] = value
-
-    return col_dict
 
 # Get layer data as ordered dictionary
 def layer_column_dict(lyr, columns=None, geom_col_name=None, lyr_defn_name=None, field_defn_col_name=None, columns_as_arrays=False):
@@ -2561,7 +1869,6 @@ def get_lyr_by_path(path, editable = False):
         print('Cannot get layer from: {}'.format(path))
 
     return (ds, lyr)
-
 
 def JoinShapesByAttributes(path2shape_list,
                            path2export,
@@ -2662,235 +1969,6 @@ def JoinShapesByAttributes(path2shape_list,
         print(new_attributes.add)
 
     return 0
-
-def TimeCovers(path2vec, path2export, time_column, sort_columns=None, time_limit=0, min_area=0, attr_rule=0, overwrite = True):
-
-    if check_exist(path2export, ignore=overwrite):
-        return 1
-
-    s_ds, s_lyr = get_lyr_by_path(path2vec)
-
-    if s_lyr is None:
-        return 1
-
-    vec_dict = layer_column_dict(s_lyr, geom_col_name='geom_')
-
-    for i, acq_date in enumerate(vec_dict.get('acquired')):
-        vec_dict['date'][i] = int(str(acq_date)[:10].replace(r'/', ''))
-    # scroll(vec_dict['date'])
-
-    keys_list = list(vec_dict.keys())
-    keys_list.pop(keys_list.index('geom_'))
-
-    times = np.array(vec_dict.get(time_column))
-    geoms = np.array(vec_dict.get('geom_'))
-
-    data_list = [geoms, times]
-
-    if sort_columns is not None:
-        for key in sort_columns:
-            new_col = vec_dict.get(key)
-            if new_col is not None:
-                data_list.append(np.array(new_col))
-    else:
-        sort_columns = keys_list
-
-    # data_array = np.vstack(data_list)
-
-    # times_array = np.array(times)
-    times_list = list(np.unique(times))
-    times_list.sort()
-    # times_list.reverse()
-
-    upper_cover_dict = OrderedDict()
-    daily_cover_geom_dict = OrderedDict()
-
-    export_cover_dict = OrderedDict()
-    export_cover_dict['geom_'] = []
-
-    for key in keys_list:
-        export_cover_dict['%s_old' % key] = []
-        export_cover_dict['%s_new' % key] = []
-
-    # scroll(times_list)
-
-    for date in times_list:
-
-        print(date)
-
-        source_date_dict = OrderedDict()
-
-        for key in (keys_list + ['geom_']):
-            source_date_dict[key]=[]
-        add_ids = []
-        for id, scene_date in enumerate(times):
-            if scene_date == date:
-                add_ids.append(id)
-        for add_id in add_ids:
-            source_date_dict['geom_'].append(vec_dict['geom_'][add_id])
-            for key in keys_list:
-                source_date_dict[key].append(vec_dict[key][add_id])
-
-        # date_filter = data_array[1] == date
-        # date_data = data_array[:, date_filter]
-
-        # full_cover_geom, cover_lyr = make_cover(date_data, 'geom_', sort_columns)
-        # scroll(source_date_dict.keys())
-        # scroll(source_date_dict['date'])
-
-        full_cover_geom, cover_lyr = make_cover(source_date_dict, 'geom_', sort_columns)
-
-        # scroll(source_date_dict['date'])
-
-        daily_cover_geom_dict[date] = full_cover_geom
-
-        # scroll(source_date_dict['date'])
-
-        if len(upper_cover_dict)==0:
-            upper_cover_dict = cover_lyr
-            continue
-
-        # scroll(source_date_dict['date'])
-
-        for under_id, under_geom in enumerate(cover_lyr['geom_']):
-
-            for upper_id, upper_geom in enumerate(upper_cover_dict['geom_']):
-
-                if (upper_cover_dict.get(time_column)[upper_id] - upper_cover_dict.get(time_column)) < time_limit:
-
-                    if upper_geom.Intersect(under_geom):
-
-                        intersect_geom = upper_geom.Intersection(under_geom)
-
-                        if intersect_geom.Area() > min_area:
-
-                            export_cover_dict['geom_'].append(intersect_geom)
-                            upper_cover_dict['geom_'].append(intersect_geom)
-
-                            for key in keys_list:
-                                export_cover_dict['%s_new' % key].append(upper_cover_dict[key][upper_id])
-
-                            if intersect_geom.Equals(upper_geom):
-                                for key in upper_cover_dict:
-                                    upper_cover_dict[key].pop(upper_id)
-                            else:
-                                upper_cover_dict['geom_'][upper_id] = upper_geom.Difference(intersect_geom)
-
-                            for key in keys_list:
-                                value = cover_lyr.get(key)[under_id]
-                                upper_cover_dict[key].append(value)
-                                export_cover_dict['%s_old' % key].append(value)
-
-                            if intersect_geom.Equals(under_geom):
-                                break
-                            else:
-                                under_geom = under_geom.Difference(intersect_geom)
-
-    if len(export_cover_dict['geom_']) > 0:
-        exp_ds = json(path2export, 1)
-        exp_lyr = json.GetLayer()
-
-        exp_lyr_defn = s_lyr.GetLayerDefn()
-        new_keys = []
-
-        for key in keys_list:
-            field_id = exp_lyr_defn.GetFieldIndex(key)
-            new_field_defn = exp_lyr_defn.GetFieldDefn(field_id)
-
-            old_new_key = '%s_old' % key
-            exp_lyr.CreateField(new_field_defn.SetName('%s_old' % key))
-            new_keys.append(old_new_key)
-
-            new_new_key = '%s_new' % key
-            exp_lyr.CreateField(new_field_defn.SetName('%s_new' % key))
-            new_keys.append(new_new_key)
-
-        exp_ds = None
-        exp_ds, exp_lyr = get_lyr_by_path(path2export, 1)
-        feat_defn = exp_lyr
-
-        for feat_id, feat_geom in range(export_cover_dict['geom_']):
-
-            feat_attr = OrderedDict()
-
-            for key in new_keys:
-                feat_attr[key] = export_cover_dict.get(key)[feat_id]
-
-            feat = feature(feat_defn, geom=feat_geom, attr=feat_attr)
-
-            exp_lyr.CreateFeature(feat)
-
-        exp_ds = None
-
-    return 0
-
-def make_cover(lyr_dict, geom_col_name, sort_columns, save_columns=None, new_columns=None):
-
-    if geom_col_name in lyr_dict:
-        geom_list = lyr_dict[geom_col_name]
-    else:
-        print ('No geometry column found, unable to build cover')
-        return None
-
-
-    # scroll(geom_list)
-
-    sort_col_list = []
-    for sort_col_name in sort_columns:
-        if sort_col_name in lyr_dict:
-            sort_col_list.append(list(lyr_dict[sort_col_name]))
-
-    if len(sort_col_list) == 0:
-        print('No sorting columns found')
-        return None
-
-    order_list = sort_multilist(sort_col_list)
-
-    if save_columns is None:
-        save_columns = list(lyr_dict.keys())
-        save_columns.pop(save_columns.index(geom_col_name))
-
-    save_col_list = []
-    for col_name in save_columns:
-        if col_name in lyr_dict:
-            if isinstance(lyr_dict[col_name], list):
-                save_col_list.append(col_name)
-
-    cover_lyr = OrderedDict()
-    cover_lyr['geom_'] = []
-
-    for col_name in save_col_list:
-        cover_lyr[col_name] = []
-
-    full_cover_geom = None
-
-    # scroll(lyr_dict['date'])
-
-    print(order_list)
-
-    print(geom_list[0:1])
-
-    for id in order_list:
-
-        new_geom = geom_list[id]
-
-        print(new_geom)
-
-        if full_cover_geom is None:
-            add = True
-            full_cover_geom = new_geom
-        else:
-            add = full_cover_geom.Contains(new_geom)
-
-        if add:
-            cover_lyr[geom_col_name].append(new_geom.Difference(full_cover_geom))
-            full_cover_geom = full_cover_geom.Union(new_geom)
-            for col_name in save_col_list:
-                cover_lyr[col_name] = lyr_dict[col_name][id]
-
-    scroll(lyr_dict['date'])
-
-    return full_cover_geom, cover_lyr
 
 def join_feature(feat1, feat2, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}, attr_list=None, ID = None):
 
@@ -3031,32 +2109,6 @@ def unite_geom_list(geom_list):
 
     return old_geom
 
-# Returns geometry from layer
-def geom_from_layer(ds, unite_geom = False, filter_field = None, filter_values = None):
-
-    lyr = ds.GetLayer()
-    geom_list = []
-    filter = None
-
-    if (filter_field is not None) and (filter_values is not None):
-        if lyr.GetLayerDefn().GetFieldIndex(filter_field) != (-1):
-            filter = obj2list(filter_values)
-
-    for feat in lyr:
-        if filter is not None:
-            if feat.GetField(filter_field) not in filter:
-                continue
-        geom_list.append(feat.GetGeometryRef())
-
-    print(geom_list)
-
-    if unite_geom:
-
-        return unite_geom_list(geom_list)
-    else:
-        return geom_list
-
-
 # Returns coordinates of all points in geometry as a list of tuples with two float numbers in each
 def geometry_points(geom):
 
@@ -3074,7 +2126,6 @@ def geometry_points(geom):
         coord_list[i] = (y, x)
 
     return coord_list
-
 
 # Estimates maximum length of line within polygon
 def max_line_length(polygon):
@@ -3393,26 +2444,6 @@ def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, da
 
     return 0
 
-# Makes several vectors split by vector shape values
-def split_vector_shp(path_in, field_id):
-
-    ds_in, lyr_in = get_lyr_by_path(path_in)
-    if lyr_in is None:
-        return None
-
-    path_dict = {}
-
-    for feat in lyr_in:
-        field_val = str(feat.GetField(feat.GetFieldIndex(field_id)))
-        if field_val is None:
-            print('Error collecting scene_id')
-        else:
-            if field_val not in path_dict:
-                new_path = filter_dataset_by_col(path_in, field_id, field_val)
-                path_dict[field_val] = new_path
-
-    return path_dict
-
 # Calculates values for new fields in GDAL features preserving FieldDefn data if nessessary
 class NewFieldsDict():
 
@@ -3498,9 +2529,8 @@ def json_fix_datetime(file, datetimecol='datetime'):
         new_dtime = dtime.replace(u'\\/', '-').replace(' ', 'T')
         new_data = data.replace(dtime, new_dtime)
         if new_data is not None:
-            json = open(file, 'w')
-            json.write(new_data)
-            json = None
+            with open(file, 'w') as json_data:
+                json_data.write(new_data)
     else:
         print('dtime not found for: %s' % file)
 
@@ -3549,79 +2579,6 @@ def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None
 
     return path_out
 
-'''
-import geopandas as gpd
-import ogr, osr
-import gdal
-import uuid
-
-tf = r'f:test2.shp'
-
-def vector_to_raster(source_layer, output_path, x_size, y_size, options, data_type=gdal.GDT_Byte):
-    
-    # This method should create a raster object by burning the values of a source layer to values.
-    
-
-    x_min, x_max, y_min, y_max = source_layer.GetExtent()
-    print(source_layer.GetExtent())
-    x_resolution = int((x_max - x_min) / x_size)
-    y_resolution = int((y_max - y_min) / -y_size)  
-    print(x_resolution, y_resolution)
-
-    target_ds = gdal.GetDriverByName(str('GTiff')).Create(output_path, x_resolution, y_resolution, 1, data_type)
-    spatial_reference = source_layer.GetSpatialRef()         
-    target_ds.SetProjection(spatial_reference.ExportToWkt())
-    target_ds.SetGeoTransform((x_min, x_size, 0, y_max, 0, -y_size))
-    gdal.RasterizeLayer(target_ds, [1], source_layer, options=options)
-    target_ds.FlushCache()
-    return target_ds
-
-
-#create geopandas dataframe
-gdf = gpd.read_file(tf)
-
-#grab projection from the gdf
-projection = gdf.crs['init']
-
-#get geometry from 1 polygon (now just the 1st one)
-polygon = gdf.loc[0].geometry 
-
-#grab epsg from projection
-epsg = int(projection.split(':')[1])
-
-#create geometry
-geom = ogr.CreateGeometryFromWkt(polygon.wkt)
-
-#create spatial reference
-proj = osr.SpatialReference()
-proj.ImportFromEPSG(epsg) 
-
-#get driver
-rast_ogr_ds = ogr.GetDriverByName('Memory').CreateDataSource('wrk')
-
-#create polylayer with projection
-rast_mem_lyr = rast_ogr_ds.CreateLayer('poly', srs=proj)
-
-#create feature
-feat = ogr.Feature(rast_mem_lyr.GetLayerDefn())
-
-#set geometry in feature
-feat.SetGeometryDirectly(geom) 
-
-#add feature to memory layer
-rast_mem_lyr.CreateFeature(feat)
-
-#create memory location
-tif_output = '/vsimem/' + uuid.uuid4().hex + '.vrt'
-
-#rasterize
-lel = vector_to_raster(rast_mem_lyr, tif_output, 0.001, -0.001,['ATTRIBUTE=Shape__Len', 'COMPRESS=LZW', 'TILED=YES', 'NBITS=4'])
-
-# output should consist of 0's and 1's
-print(np.unique(lel.ReadAsArray()))
-'''
-
-
 def FilterShapeByColumn(path2shp, path2export, colname, colvals):
     ds_in = ogr.Open(path2shp)
 
@@ -3659,37 +2616,6 @@ def copydeflate(path_in, path_out, bigtiff = False, tiled = False):
 
     return 0
 
-
-def AddAlphaChannel(path2raster, use_raster_nodata=True, set_nodata=None):
-
-    raster_data = RasterData(path2raster, data=(2,4))
-
-    if len(raster_data) != 3:
-        print('RasterCount != 3, cannot make alpha channel for {}'.format(path_raster))
-        return 1
-
-    mask = np.ones((raster_data.ds.RasterYSize, raster_data.ds.RasterYSize)).astype(bool)
-
-    for arr, nodata in raster_data:
-        if use_raster_nodata:
-            mask[arr==nodata] = False
-        if set_nodata is not None:
-            mask[arr==set_nodata] = False
-
-    del raster_data
-
-    if mask is not None:
-        # raster_ds = ds(path=path2export, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
-        raster_ds = gdal.Open(path2raster, 1)
-        raster_ds.AddBand(1)
-        raster_ds.GetRasterBand(raster_ds.RasterCount).WriteArray(mask*255)
-        raster_ds = None
-        return 0
-
-    else:
-        print('Error creating alpha channel')
-        return 1
-
 # Changes geometry in a
 def change_single_geom(path_in, path_geom, path_out):
     ds_in, lyr_in = get_lyr_by_path(path_in)
@@ -3708,74 +2634,6 @@ def change_single_geom(path_in, path_geom, path_out):
     # feat_out.SetField('area_sqkm', round(geom.Area(), 2))
     lyr_out.SetFeature(feat_out)
     ds_out = None
-    return 0
-
-# Finds objects by dates from vector cover file
-def vector_time_intersection(path_in, path_out, time_col, time_func, epsg=None, min_area=None, min_dt=None):
-
-    ds_in, lyr_in = get_lyr_by_path(path_in)
-    if lyr_in is None:
-        return 1
-
-    if epsg is not None:
-        if not ds_match(ds_in, epsg):
-            tpath = tempname('shp')
-            srs = osr.SpatialReference()
-            srs.ImportFromEPSG(epsg)
-            vec_to_crs(ds_in, srs, tpath)
-            ds_in, lyr_in = get_lyr_by_path(path_in)
-            if lyr_in is None:
-                return 1
-
-    dates_dict = OrderedDict()
-
-    lyr_in.ResetReading()
-
-    driver = ogr.GetDriverByName('GeoJSON')
-    ds_out = driver.Create(path_out)
-
-    lyr_out = None
-
-    for feat in lyr_in:
-        feat_time = time_func(feat.GetField(time_col))
-        if feat_time is not None:
-            assert isinstance(feat_time, datetime)
-            dates_dict[feat.GetFID()] = feat_time
-
-    for feat_id in dates_dict.keys():
-
-        feat_in = lyr_in.GetFeature(feat_id)
-        geom_in = feat_in.GetGeometryRef()
-
-        for feat_key in dates_dict:
-
-            if feat_key==feat_id:
-                continue
-
-            if dates_dict[feat_key] > dates_dict[feat_id]:
-                continue
-
-            if min_dt is not None:
-                if dates_dict[feat_id] - dates_dict[feat_key] < min_dt:
-                    continue
-
-            feat_in2 = lyr_in.GetFeature(feat_key)
-            geom_in2 = feat_in2.GetGeometryRef()
-
-            geom_intersect = geom_in.Interscetion(geom_in2)
-
-            if geom_intersect is None:
-                continue
-
-            area = geom_intersect.Area()
-
-            if area < min_area:
-                continue
-
-            lyr_out.CreateFeature(feat_out)
-
-    ds_out = None
-
     return 0
 
 def json_fields(path_out,
@@ -4027,42 +2885,6 @@ def RasterDataCartesianArea(pin, set_nodata=None, use_single_band=True):
     y_m = - geotrans[-1]
     return (x * y - np.sum(arr_)) * x_m * y_m
 
-def Composite2(path2raster_list, export_path, copypath = None, options=None):
-
-    # t_ds = gdal.BuildVRT(export_path, path2raster_list)
-
-    if copypath is None:
-        tfolder = globals()['temp_dir_list'].create()
-        tpath = newname(tfolder, 'tif')
-        vrt = gdal.BuildVRT(tpath, path2raster_list)
-        driver = gdal.GetDriverByName('GTiff')
-        t_ds = driver.CreateCopy(export_path, vrt, band_num, options = options)
-        t_ds = None
-    else:
-        t_ds = ds(export_path, copypath = copypath, options = options, editable = True)
-
-    print('Started mosaic of %i images' % len(path2raster_list))
-
-    t_ds = gdal.Open(export_path, 1)
-    for path2raster in path2raster_list:
-        print('Start adding to mosaic: {}'.format(path2raster))
-        if band_order is None:
-            s_ds = gdal.Open(path2raster)
-        else:
-            traster = tempname('tif')
-            SaveRasterBands(path2raster, band_order, traster, options={'compress': 'DEFLATE'}, overwrite=True)
-            s_ds = gdal.Open(traster)
-        gdal.ReprojectImage(s_ds, t_ds)
-        if band_order is not None:
-            os.remove(traster)
-        print('Added to mosaic: {}'.format(path2raster))
-        s_ds = None
-
-    t_ds = None
-    print('Finished mosaic of %i images' % len(path2raster_list))
-
-    return 0
-
 def StackBand(bpin, bpout, tile_size=10000):
     pin, bnin = bpin
     pout, bnout = bpout
@@ -4094,18 +2916,6 @@ def SetNoData(pin, nodataval):
         band = raster.GetRasterBand(bandnum)
         band.SetNoDataValue(nodataval)
     raster = None
-
-# Заменить значения в конечном растре, в соответствии со словарём
-def ReplaceRasterValues(f, replace):
-    raster = gdal.Open(f, 1)
-    band = raster.GetRasterBand(1)
-    arr_ = band.ReadAsArray()
-    for key in replace:
-        if key in arr_:
-            arr_[arr_ == key] = replace[key]
-    band.WriteArray(arr_)
-    raster = None
-    print(split3(f)[1], list(np.unique(gdal.Open(f).ReadAsArray())))
 
 # Find vertices in metadata and
 def MultipolygonFromMeta(metapath, srs = None, coord_start = '<Dataset_Extent>', coord_fin = '</Dataset_Extent>', vertex_start = '<Vertex>', vertex_fin = '</Vertex>'):
@@ -4185,7 +2995,6 @@ def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
                     right_list.append(right)
                     break
             del(mask)
-    scroll(flist([up_list, down_list, left_list, right_list], len))
     if max(flist([up_list, down_list, left_list, right_list], len))==0:
         print('Cannot find any limits for: %s' % file)
         return 1
@@ -4193,7 +3002,6 @@ def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
     down = min(down_list)
     left = min(left_list)
     right = min(right_list)
-    print(up, down, left, right)
     if sum((up,down,left,right))>0:
         x0, x, a, y0, b, y = trans
         if up>0 or down>0:
@@ -4204,7 +3012,7 @@ def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
             x_size = x_size - (left + right)
             if left>0:
                 x0 = x0 + (left * x)
-        new_trans = (x0,x,a,y0,b,y) #!!! Works correctly only if a==0 and b==0
+        new_trans = (x0,x,a,y0,b,y) # !!! Works correctly only if a==0 and b==0
         if new_file is None:
             _new_file = tempname('tif')
         else:
@@ -4216,10 +3024,8 @@ def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
                                                                            'compress': compress,})
         for i in range(1, band_num+1):
             arr_ = raster.GetRasterBand(i).ReadAsArray()
-            print(arr_.shape)
             y, x = arr_.shape
             arr_ = arr_[up:y-down,left:x-right]
-            print(arr_.shape)
             new_raster.GetRasterBand(i).WriteArray(arr_)
             del(arr_)
         raster = None

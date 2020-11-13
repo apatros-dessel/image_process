@@ -1,8 +1,8 @@
 from geodata import *
 from image_processor import process
 
-pin = r'd:\rks\KV_sverdlovsk'
-sour = r'e:\20200713_kanopus'
+pin = r'd:\rks\s3\Tver'
+sour = r'\\172.21.195.2\FTP-Share\ftp\images'
 name_tmpt = r'KV.*_S_'
 
 _file_types = {
@@ -191,7 +191,7 @@ for folder in folder_paths(pin)[0]:
 
 for id in s3data:
     if id in sour_files:
-        # print(sour_files[id])
+        print(sour_files[id])
         for rpath in sour_files[id]:
             if s3data[id].RasterMatch(rpath)==3:
                 s3data[id].RepairByScene(os.path.dirname(rpath))

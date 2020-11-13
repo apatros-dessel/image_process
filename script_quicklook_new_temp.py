@@ -34,7 +34,7 @@ if dir_out is None:
 preserve_original = True
 make_rgb = False
 
-json_cover = r'\\172.21.195.215/thematic/source/ntzomz/__selected/region69/vector_cover.json'#r'\\172.21.195.2/FTP-Share/ftp/images/region82/vector_cover.json'
+json_cover = r'\\172.21.195.2/FTP-Share/ftp/roslesinforg/balaganskoe/S3/SNT_сover.json'#r'\\172.21.195.2/FTP-Share/ftp/images/region82/vector_cover.json'
 vector_granule_path = r'\\172.21.195.2\FTP-Share\ftp\images\granules_grid.shp'
 ms2pms = False
 invert_red_blue = False
@@ -50,7 +50,7 @@ names_tmpt = {
     'sentinel_rgbn': ('^S2[AB].+RGBN$', [1,2,3]),
     'planet': ('.*AnalyticMS(_SR)?$', [3,2,1]),
     'planet_neuro': ('IM4-PLN.*', [1,2,3]),
-    'kanopus': ('KV.+MS.+L2$', [1,2,3]),
+    'kanopus': ('KV.+PMS.+L2$', [1,2,3]),
     # 'resursp': ('RP.+L2$', [1,2,3]),
     'resursp-grn': ('RP.+PMS\.L2\.GRN\d+$', [1,2,3]),
     'resursp-grn_new': ('\d_+RP.+PMS\.L2$', [1,2,3]),
@@ -245,7 +245,7 @@ for i, path_in in enumerate(path_in_list):
         if re.search(names_tmpt['resursp-grn_new'][0], n):
             n = RenameGrn(n)
         elif re.search(names_tmpt['sentinel_rgbn'][0], n):
-            n = RenameSnt(n)
+            n = RenameSnt(n, json_cover)
         id_dir_out = fullpath(dir_out, n)
         suredir(id_dir_out)
         raster_out = fullpath(id_dir_out, n, e)

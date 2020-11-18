@@ -3118,13 +3118,16 @@ def TotalCover(pout, files, srs = None):
     ds_out = None
 
 # Заменить значения в конечном растре, в соответствии со словарём
-def ReplaceValues(f, replace):
+def ReplaceValues(f, replace, band_num=1):
     raster = gdal.Open(f, 1)
-    band = raster.GetRasterBand(1)
-    arr_ = band.ReadAsArray()
-    for key in replace:
-        if key in arr_:
-            arr_[arr_ == key] = replace[key]
-    band.WriteArray(arr_)
-    raster = None
-    # print(split3(f)[1], list(np.unique(gdal.Open(f).ReadAsArray())))
+    if raster:
+        band = raster.GetRasterBand(band_num)
+        arr_ = band.ReadAsArray()
+        for key in replace:
+            if key in arr_:
+                arr_[arr_ == key] = replace[key]
+        band.WriteArray(arr_)
+        raster = None
+        # print(split3(f)[1], list(np.unique(gdal.Open(f).ReadAsArray())))
+    else:
+        print('Cannot open raster: %s' % f)

@@ -30,61 +30,6 @@ template_dict = {}
 for key in metalib:
     template_dict[key] = metalib[key].templates
 
-'''
-template_dict = {
-    imsys1_name: (template1, template2, ),
-    imsys2_name: (template1, template2, template3, ),
-    ... etc. ...
-}
-'''
-
-#scroll(template_dict)
-
-'''
--- keeping here until new modules will be made
-
-# Set image systems available for analysis
-image_system_list = [
-    'LST',                  # LANDSAT
-    'SNT',                  # SENTINEL
-    'PLN',                  # PLANET
-    'KAN',                  # KANOPUS
-]
-
-# Set spacecraft list
-spacecraft_list = [
-    'LS8',                  # LANDSAT-8
-    'SN2',                  # SENTINEL-2A
-    'S2B',                  # SENTINEL-2B
-    'PLN',                  # PLANET
-]
-
-# Templates for searching metadata files
-corner_file_list = {                                # Helps to find metadata files
-            'Landsat-8':    r'L[CE]\d\d_.+_MTL\.txt',
-            'Sentinel-2':   r'MTD_MSIL\d[CA]\.xml',
-            'Planet':       r'\d+_\d+_\S+_Analytic\S*_metadata.xml',
-        }
-
-
-# Set indexes for different channels in different image systems 
-# Landsat-8
-band_dict_lsat8 = {
-    'coastal': '1',
-    'blue': '2',
-    'green': '3',
-    'red': '4',
-    'nir': '5',
-    'swir1': '6',
-    'swir2': '7',
-    'pan': '8',
-    'cirrus': '9',
-    'tirs1': '10',
-    'tirs2': '11'
-}
-
-'''
-
 # Set default types of composites
 composites_dict = {
     'RGB':      ['red', 'green', 'blue'],           # Natural colours
@@ -130,17 +75,6 @@ raster_product_types = {
     'Radiance':     7,
     'Reflectance':  7,
 }
-
-# Defines image system by path to file or returns None if no one matches
-def get_imsys(path):
-    if os.path.exists(path):
-        for imsys, module in globals()['metalib']:
-            file = os.path.split(path)[1]
-            if check_name(file, module.template):
-                return imsys
-    else:
-        print('Path does not exist: {}'.format(path))
-    return None
 
 # Returns product generation function
 def get_product_generation_function(imsys, prodid):
@@ -271,16 +205,6 @@ class process(object):
             ids_list.append(ascene.meta.id)
         return ids_list
 
-    # Filters scenes by id values
-    def filter_ids(self, id_part_dict):
-        proc_new = process()
-        for id in self.get_ids():
-            for id_part in id_part_dict:
-                if id_part in id:
-                    proc_new.input(self.get_scene(id).fullpath)
-                    break
-        return proc_new
-
     # Get scene by id
     def get_scene(self, scene_id):
         for ascene in self.scenes:
@@ -296,33 +220,6 @@ class process(object):
                 self.scenes.pop(i)
                 break
         return self
-
-    def get_dates(self):
-        dates_list = []
-        for ascene in self.scenes:
-            # print(ascene.meta.datetime.date())
-            scene_date = ascene.meta.datetime.date()
-            if scene_date not in dates_list:
-                dates_list.append(scene_date)
-        dates_list.sort()
-        return dates_list
-
-    def get_paths(self):
-        paths_dict = OrderedDict()
-        for ascene in self.scenes:
-            paths_dict[ascene.meta.id] = ascene.path
-        return paths_dict
-
-    # Returns a dictionary of scene covers shapefiles list
-    def get_cover_paths(self):
-        covers_dict = OrderedDict()
-        for ascene in self.scenes:
-            datamask = ascene.datamask()
-            if datamask is not None:
-                covers_dict[ascene.meta.id] =  fullpath(ascene.path, datamask)
-            else:
-                print('Datamask not found for {}'.format(ascene.meta.id))
-        return covers_dict
 
     def get_vector_cover(self, vector_cover_name, report_name=None):
 
@@ -347,101 +244,6 @@ class process(object):
         geodata.JoinShapesByAttributes(path2vector_list, fullpath(self.output_path, vector_cover_name), geom_rule=1, attr_rule=0)
 
         return None
-
-    def get_json_cover(self, vector_cover_path):
-
-        fields_dict = OrderedDict()
-        fields_dict['id'] = {'type_id': 4}
-        fields_dict['id_s'] = {'type_id': 4}
-        fields_dict['id_neuro'] = {'type_id': 4}
-        fields_dict['datetime'] = {'type_id': 4}
-        fields_dict['clouds'] = {'type_id': 2}
-        fields_dict['sun_elev'] = {'type_id': 2}
-        fields_dict['sun_azim'] = {'type_id': 2}
-        fields_dict['sat_id'] = {'type_id': 4}
-        fields_dict['sat_view'] = {'type_id': 2}
-        fields_dict['sat_azim'] = {'type_id': 2}
-        fields_dict['channels'] = {'type_id': 0}
-        fields_dict['type'] = {'type_id': 4}
-        fields_dict['format'] = {'type_id': 4}
-        fields_dict['rows'] = {'type_id': 0}
-        fields_dict['cols'] = {'type_id': 0}
-        fields_dict['epsg_dat'] = {'type_id': 0}
-        fields_dict['u_size'] = {'type_id': 0}
-        fields_dict['x_size'] = {'type_id': 2}
-        fields_dict['y_size'] = {'type_id': 2}
-        fields_dict['level'] = {'type_id': 4}
-        fields_dict['area'] = {'type_id': 2}
-        fields_dict['path'] = {'type_id': 4}
-
-        geodata.json_fields(vector_cover_path, geodata.ogr.wkbMultiPolygon, 4326, fields_dict)
-        ds_out, lyr_out = geodata.get_lyr_by_path(vector_cover_path, True)
-
-
-    def get_vector_cover_json(self, vector_cover_path, attributes = []):
-
-        ds_out = geodata.json(vector_cover_path, editable=True)
-        lyr_out = ds_out.GetLayer()
-        for fieldid in attributes:
-            lyr_out.CreateField(geodata.ogr.FieldDefn(fieldid, 4))
-        ds_out = None
-
-        ds_out, lyr_out = geodata.get_lyr_by_path(vector_cover_path, editable = True)
-
-        for ascene in self.scenes:
-
-            try:
-
-                ds_in, lyr_in = geodata.get_lyr_by_path(ascene.datamask())
-
-                for fieldid in attributes:
-                    lyr_in.CreateField(geodata.ogr.FieldDefn(fieldid, 4))
-
-                if lyr_in is None:
-                    print('Datamask not found for: {}'.format(ascene.meta.id))
-                else:
-                    lyr_in.ResetReading()
-                    for feat_in in lyr_in:
-                        # feat_out = geodata.feature(feature_defn = None, geom = feat_in, attr = None, attr_type = 0, attr_type_dict = {}, ID = None)
-                        # feat_out = copy(feat_in)
-                        feat_out_defn = feat_in.GetDefnRef()
-                        for fieldid in attributes:
-                            feat_out_defn.AddFieldDefn(geodata.ogr.FieldDefn(fieldid, 4))
-                        feat_out = geodata.feature(feature_defn = feat_out_defn, geom = feat_in.GetGeomRef(), attr = None, attr_type = 0, attr_type_dict = {}, ID = None)
-                        for fieldid in attributes:
-                            feat_out.SetField(fieldid, ascene.meta.name('[{}]'.format(fieldid)))
-                        print(feat_out.keys())
-                        lyr_out.CreateFeature(feat_out)
-
-            except:
-
-                print('Error getting vector cover for: {}'.format(ascene.meta.id))
-
-                ds_in, lyr_in = geodata.get_lyr_by_path(ascene.datamask())
-
-                for fieldid in attributes:
-                    lyr_in.CreateField(geodata.ogr.FieldDefn(fieldid, 4))
-
-                if lyr_in is None:
-                    print('Datamask not found for: {}'.format(ascene.meta.id))
-                else:
-                    lyr_in.ResetReading()
-                    for feat_in in lyr_in:
-                        # feat_out = geodata.feature(feature_defn = None, geom = feat_in, attr = None, attr_type = 0, attr_type_dict = {}, ID = None)
-                        # feat_out = copy(feat_in)
-                        feat_out_defn = feat_in.GetDefnRef()
-                        for fieldid in attributes:
-                            feat_out_defn.AddFieldDefn(geodata.ogr.FieldDefn(fieldid, 4))
-                        feat_out = geodata.feature(feature_defn=feat_out_defn, geom=feat_in.GetGeometryRef(), attr=None,
-                                                   attr_type=0, attr_type_dict={}, ID=None)
-                        for fieldid in attributes:
-                            feat_out.SetField(fieldid, ascene.meta.name('[{}]'.format(fieldid)))
-                        print(feat_out.keys())
-                        lyr_out.CreateFeature(feat_out)
-
-        ds_out = None
-
-        return 0
 
     # Returns json cover with standard set of fields from scenes metadata
     def GetCoverJSON(self, vector_cover_path, epsg=4326, add_path=True, cartezian_area = False, data_mask=False):
@@ -490,26 +292,6 @@ class process(object):
         ds_out = None
 
         return 0
-
-    def get_change(self, old_scene_id, new_scene_id, intersection_mask = None):
-
-        old_scene = self.get_scene(old_scene_id)
-        new_scene = self.get_scene(new_scene_id)
-
-        if (old_scene is None) or (new_scene is None):
-            print('Scenes not found for {} and {}'.format(old_scene_id, new_scene_id))
-            return 1
-
-        old_datamask = old_scene.meta.datamask
-        new_datamask = new_scene.meta.datamask
-
-        if intersection_mask is None:
-            intersection_mask = tempname('json')
-
-        if (old_datamask is not None) and (new_datamask is not None):
-            pass
-
-
 
 # Every space image scene
 class scene:
@@ -734,24 +516,6 @@ class scene:
                 new_geom = new_feat.GetGeometryRef()
                 # print(new_geom.ExportToWkt())
                 feat.SetGeometry(new_geom)
-
-        '''
-        if data_mask:
-            path2export = tempname('shp')
-            if isinstance(self.meta.base, list):
-                cover_list = []
-                for base in self.meta.base:
-                    
-                geodata.Unite(cover_list, path2export, proj=None, deafault_srs=srs, overwrite=True)
-            else:
-                geodata.RasterDataMask(self.get_raster_path(self.meta.base), path2export, use_nodata=True, enforce_nodata=None, alpha=None, epsg=srs, overwrite=True)
-            # print(path2export)
-            new_ds, new_lyr = geodata.get_lyr_by_path(path2export)
-            new_feat = new_lyr.GetNextFeature()
-            new_geom = new_feat.GetGeometryRef()
-            # print(new_geom.ExportToWkt())
-            feat.SetGeometry(new_geom)
-        '''
         return feat
 
     def quicklook(self):
@@ -824,71 +588,3 @@ class scene:
             else:
                 print('Insuffisient parameters for {} calculation'.format(index_id))
                 return 1
-
-def timecomposite(scenes, band_ids, scene_nums, export_path, path2target = None, exclude_nodata = True, compress = None):
-
-    assert len(band_ids) == len(scene_nums)
-
-    bandpaths = []
-    for i, band_id in enumerate(band_ids):
-        bandpaths.append(scenes[scene_nums[i]].get_band_path(band_id))
-    # scroll(bandpaths)
-
-    try:
-        res = geodata.raster2raster(bandpaths, export_path, path2target = path2target, exclude_nodata = exclude_nodata, compress = compress)
-        if res == 0:
-            print('Time composite saved: {}'.format(export_path))
-    except:
-        print('Error saving timecomposite: {}'.format(export_path))
-        return 1
-
-    return res
-
-# Лютая херня для RGBN
-def RGBNref(ascene, folder):
-    refpaths = []
-    for band_id in ['red', 'green', 'blue', 'nir']:
-        refpaths.append(ascene.get_product_path('Reflectance', band_id, set_product_path=folder, set_name='{}-[fullsat]-[date]-[location]-[lvl].tif'.format(band_id.upper())))
-    # path2export = fullpath(folder, ascene.meta.name(r'RF4-[fullsat]-[date]-[location]-[lvl].tif'))
-    path2export = fullpath(folder, globals()['temp_dir_list'].create('tif'))
-    geodata.raster2raster(refpaths, path2export, path2target=None, method=geodata.gdal.GRA_NearestNeighbour, exclude_nodata=True, enforce_nodata=None, compress='LZW', overwrite=True)
-    return None
-
-# Deleting temporary files at the end of the program
-def fin():
-    globals()['temp_dir_list'].__del__()
-    globals()['geodata'].temp_dir_list.__del__()
-
-def SceneMarker():
-    from PIL import Image
-    import time
-    proc = process()
-    path = input('Write a path to scenes: ')
-    proc.input(path)
-    report = OrderedDict()
-    print('Starting marking a set of %i scenes. Print "break" to stop it' % len(proc))
-    for i, ascene in enumerate(proc.scenes):
-        if (i+1)%20 == 0:
-            print('over 20 quicklooks are now open, please close the windows')
-            time.sleep(10)
-        with Image.open(fullpath(ascene.path, ascene.meta.quicklook)) as quicklook:
-            quicklook.show()
-            mark = input(ascene.meta.name('Give a mark to scene [id]: '))
-            if mark == 'break':
-                break
-            elif mark is not None:
-                report[ascene.meta.id] = {'mark': mark}
-    print('Finished marking, %i scenes have been marked' % len(report))
-    xlspath = input('Write a path to xls report: ')
-    if len(xlspath) > 0:
-        try:
-            dict_to_xls(xlspath, report)
-        except:
-            answer = None
-            while (answer != 'y') and (answer != 'n'):
-                answer = input('Error writing xls report, try to save it manually? (y/n)')
-                if answer == 'y':
-                    return report
-                elif answer == 'n':
-                    return None
-    return report

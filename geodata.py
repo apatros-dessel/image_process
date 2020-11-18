@@ -3131,3 +3131,28 @@ def ReplaceValues(f, replace, band_num=1):
         # print(split3(f)[1], list(np.unique(gdal.Open(f).ReadAsArray())))
     else:
         print('Cannot open raster: %s' % f)
+
+def RasterParams(pin):
+    ds = gdal.Open(pin)
+    if ds is None:
+        print('Raster not found: %s' % pin)
+        return None, None
+    srs = get_srs(ds)
+    geom = RasterGeometry(ds, srs)
+    return srs, geom
+
+#                                  Raster areas are in the same CRS
+#                                       True            False
+# Raster areas intersect    True          3               1
+#                           False         2               0
+def RasterMatch(path1, path2):
+    srs1, geom1 = RasterParams(path1)
+    srs2, geom2 = RasterParams(path2)
+    if None in (srs1, geom1, srs2, geom2):
+        return None
+    crs_match = srs1.GetAttrValue('AUTHORITY',1) == srs2.GetAttrValue('AUTHORITY',1)
+    # print(srs1.GetAttrValue('AUTHORITY',1), srs2.GetAttrValue('AUTHORITY',1), crs_match)
+    if not crs_match:
+        geom1.TransformTo(srs2)
+    result = 2 * int(geom1.Intersects(geom2)) + crs_match
+    return result

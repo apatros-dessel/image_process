@@ -100,6 +100,81 @@ def GetUnmatchingScenes(source_scenes, s3_scenes):
         unmatched[id] = source_scenes[id]
     return unmatched
 
+def ReprojectRasterByAlign(pin, ref, pout, tempdir=None, align_file=None, reproject_method=gdal.GRA_NearestNeighbour):
+    base = pin
+    if tempdir is None:
+        tempdir = os.environ['TMP']
+    for tname in ('1.tif', '2.tif', '3.pickle'):
+        tpath = fullpath(tempdir, tname)
+        if os.path.exists(tpath):
+            os.remove(tpath)
+    transform = fullpath(tempdir, '3.pickle')
+    srs_in = get_srs(gdal.Open(pin))
+    srs_ref = get_srs(gdal.Open(ref))
+    match = ds_match(srs_in, srs_ref)
+    if not match:
+        repr_raster = tempname('tif')
+        ReprojectRaster(pin, repr_raster, int(srs_ref.GetAttrValue('AUTHORITY',1)), method=reproject_method)
+        pin = repr_raster
+    if align_file is None:
+        align_file = pin
+    elif align_file!=pin:
+        srs_align = get_srs(gdal.Open(align_file))
+        align_match = ds_match(srs_align, srs_ref)
+        if not align_match:
+            repr_raster = tempname('tif')
+            ReprojectRaster(align_file, repr_raster, int(srs_ref.GetAttrValue('AUTHORITY', 1)), method=reproject_method)
+            align_file = repr_raster
+    cmd_autoalign = r'python37 C:\Users\TT\PycharmProjects\pereprivyazka\autoalign.py {align_file} {ref} {transform} -l -t {tempdir}'.format(
+        align_file = align_file.replace(' ', '***'),
+        ref = ref.replace(' ', '***'),
+        transform = transform,
+        tempdir = tempdir
+    )
+    print('\n%s\n' % cmd_autoalign)
+    os.system(cmd_autoalign)
+
+    if os.path.exists(transform):
+        cmd_warp = r'python37 C:\Users\TT\PycharmProjects\pereprivyazka\warp.py {pin} {transform} {pout} -t {tempdir}'.format(
+            pin = pin.replace(' ', '***'),
+            transform = transform,
+            pout = pout.replace(' ', '***'),
+            tempdir = tempdir
+        )
+        os.system('\n%s\n' % cmd_warp)
+        print('\nWRITTEN : %s' % pout)
+    else:
+        globals()['errors_list'].append(base)
+        print('\nTRANSFORM NOT CREATED FOR: %s' % base)
+    if not match:
+        if os.path.exists(repr_raster):
+            os.remove(repr_raster)
+
+def GetReferenceFromList(file, reference_list):
+    intersect_list = []
+    for ref in references_list:
+        match = RasterMatch(file, ref)
+        if match==3:
+            return ref
+        elif match==2:
+            intersect_list.append(ref)
+    if intersect_list:
+        return intersect_list[0]
+    else:
+        return None
+
+def ReprojectSystem(scene_dict, reference_list, folder_out):
+    pms_folder = fullpath(folder_out, '_pms')
+    if 'PMS' in scene_dict:
+        pms = align_file = scene_dict['PMS']
+    elif ('MS' in scene_dict) and ('PAN' in scene_dict):
+        ms = scene_dict['MS']
+        pan = align_file = scene_dict['PAN']
+    else:
+        scroll(scene_dict, header='FILES NOT FOUND:')
+
+
+
 reproject_methods_dict = {
     'NN': gdal.GRA_NearestNeighbour,
     'AVG': gdal.GRA_Average,
@@ -117,14 +192,6 @@ composition = OrderedDict()
 
 references_in = folder_paths(references_path,1,'tif')
 
-def raster_params(pin):
-    ds = gdal.Open(pin)
-    if ds is None:
-        print('Raster not found: %s' % pin)
-        return None
-    srs = get_srs(ds)
-    geom = raster_geom(ds, srs)
-    return srs, geom
 
 def raster_geom(ds, reference=None):
     width = ds.RasterXSize
@@ -158,58 +225,6 @@ def raster_match(path1, path2):
     result = 2 * int(geom1.Intersects(geom2)) + crs_match
     return result
 
-def align_system(pin, ref, pout, tempdir=None, align_file=None, reproject_method=gdal.GRA_NearestNeighbour):
-    base = pin
-    if tempdir is None:
-        tempdir = os.environ['TMP']
-    for tname in ('1.tif', '2.tif', '3.pickle'):
-        tpath = fullpath(tempdir, tname)
-        if os.path.exists(tpath):
-            os.remove(tpath)
-    transform = fullpath(tempdir, '3.pickle')
-    srs_in = get_srs(gdal.Open(pin))
-    srs_ref = get_srs(gdal.Open(ref))
-
-    match = ds_match(srs_in, srs_ref)
-    if not match:
-        repr_raster = tempname('tif')
-        ReprojectRaster(pin, repr_raster, int(srs_ref.GetAttrValue('AUTHORITY',1)), method=reproject_method)
-        pin = repr_raster
-    if align_file is None:
-        align_file = pin
-    elif align_file!=pin:
-        srs_align = get_srs(gdal.Open(align_file))
-        align_match = ds_match(srs_align, srs_ref)
-        if not align_match:
-            repr_raster = tempname('tif')
-            ReprojectRaster(align_file, repr_raster, int(srs_ref.GetAttrValue('AUTHORITY', 1)), method=reproject_method)
-            align_file = repr_raster
-
-    cmd_autoalign = r'python37 C:\Users\TT\PycharmProjects\pereprivyazka\autoalign.py {align_file} {ref} {transform} -l -t {tempdir}'.format(
-        align_file = align_file.replace(' ', '***'),
-        ref = ref.replace(' ', '***'),
-        transform = transform,
-        tempdir = tempdir
-    )
-    print('\n%s\n' % cmd_autoalign)
-    os.system(cmd_autoalign)
-
-    if os.path.exists(transform):
-        cmd_warp = r'python37 C:\Users\TT\PycharmProjects\pereprivyazka\warp.py {pin} {transform} {pout} -t {tempdir}'.format(
-            pin = pin.replace(' ', '***'),
-            transform = transform,
-            pout = pout.replace(' ', '***'),
-            tempdir = tempdir
-        )
-        os.system('\n%s\n' % cmd_warp)
-        print('\nWRITTEN : %s' % pout)
-    else:
-        globals()['errors_list'].append(base)
-        print('\nTRANSFORM NOT CREATED FOR: %s' % base)
-
-    if not match:
-        if os.path.exists(repr_raster):
-            os.remove(repr_raster)
 
 proc = process().input(folder_in, skip_duplicates=False)
 temp_cover = fullpath(folder_in, 'vector_cover.json')

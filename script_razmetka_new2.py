@@ -397,20 +397,6 @@ def set_mask(img_in, vec_in, msk_out, overwrite=False):
         print('Rasterizing error: %s %s' % (img_in, vec_in))
         return 'ERROR: Rasterizing error'
 
-
-# Заменить значения в конечном растре, в соответствии со словарём
-def replace_values(f, replace):
-    raster = gdal.Open(f, 1)
-    band = raster.GetRasterBand(1)
-    arr_ = band.ReadAsArray()
-    for key in replace:
-        if key in arr_:
-            arr_[arr_ == key] = replace[key]
-    band.WriteArray(arr_)
-    raster = None
-    # print(split3(f)[1], list(np.unique(gdal.Open(f).ReadAsArray())))
-
-
 def check_type(codes):
     type_dict = {a: 0 for a in mask_types}
     mines = list(range(1,4)) + list(range(10,14)) + list(range(20,24)) + list(range(26,27)) + list(range(30,34))
@@ -503,7 +489,7 @@ for i, neuroid in enumerate(input):
         if not msk_out.startswith('ERROR'):
             if replace_vals:
                 try:
-                    replace_values(msk_out, replace_vals)
+                    ReplaceValues(msk_out, replace_vals)
                     input[neuroid]['report'] = 'SUCCESS'
                 except:
                     print('Error replacing values: %s' % neuroid)
@@ -553,7 +539,7 @@ try:
             if not msk_out.startswith('ERROR'):
                 if replace_vals:
                     try:
-                        replace_values(msk_out, replace_vals)
+                        ReplaceValues(msk_out, replace_vals)
                         input[neuroid]['report'] = 'SUCCESS'
                     except:
                         print('Error replacing values: %s' % neuroid)
@@ -593,4 +579,3 @@ finally:
     dict_to_xls(report_path, input)
     print('FINISHED -- REPORT SAVED TO %s' % report_path)
 print(datetime.now()-t)
-

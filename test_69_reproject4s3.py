@@ -1,9 +1,10 @@
 # Reproject Kanopus source data and prepear for uploading to S3 server
 
 from geodata import *
+from image_processor import process
 
 folder_in = r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339'
-txt_names_in = None #r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339\2020-07-08_1418.txt'
+# txt_names_in = None #r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339\2020-07-08_1418.txt'
 folder_out = r'd:\digital_earth\KV_Tatarstan'
 references_path = r'\\172.21.195.2\FTP-Share\ftp\References'
 source_name_tmpt = r'fr13_kv1_33892_26862_01.' # fr1_KV3_13044_10269_01_3NP2_20_S_584506_090620.tif
@@ -121,12 +122,26 @@ def align_system(pin, ref, pout, tempdir=None, align_file=None, reproject_method
         if os.path.exists(repr_raster):
             os.remove(repr_raster)
 
+proc = process().input(folder_in, skip_duplicates=False)
+temp_cover = fullpath(folder_in, 'vector_cover.json')
+if not os.path.exists(temp_cover):
+    proc.GetCoverJSON(temp_cover)
+files = []
+for ascene in proc.scenes:
+    scene_folder = ascene.path
+    raster_files = folder_paths(scene_folder,1,'tif')
+    if len(raster_files)==1:
+        files.append(raster_files[0])
+    else:
+        scroll(raster_files, header=r'Passed %s' % ascene.meta.id)
 
-if not txt_names_in in (None, ''):
-    files = open(txt_names_in).read().split('\n')
-else:
-    files = folder_paths(folder_in, 1, 'tif')
-names = flist(files, lambda x: split3(x)[1])
+scroll(files)
+sys.exit()
+# if not txt_names_in in (None, ''):
+    # files = open(txt_names_in).read().split('\n')
+# else:
+    # files = folder_paths(folder_in, 1, 'tif')
+# names = flist(files, lambda x: split3(x)[1])
 
 # scroll(files, lower='len=%s Finish it?' % len(files))
 

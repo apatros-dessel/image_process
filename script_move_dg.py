@@ -64,12 +64,6 @@ def MoveDGData(xmlpath, pout, delete=False):
 
 exclude_paths = []
 
-# xls_keys = xls_to_dict(xls_path)
-# scroll(xls_keys)
-# for path in xls_keys:
-    # if xls_keys[path]['remove'] in [1,True, u'ИСТИНА']:
-        # exclude_paths.append(path)
-
 din, lin = geodata.get_lyr_by_path(json_path)
 for feat in lin:
     # if feat.GetField('del') in [1,'1']:
@@ -84,10 +78,8 @@ for file in folder_paths(pin,1):
     if name in exclude_names:
         final_paths.append(file)
 
-scroll(final_paths)
 with open(r'd:\digital_earth\destroy.txt','w') as txt:
     txt.write('\n'.join(final_paths))
-print(len(final_paths))
 
 print('Just do it?')
 doit = input('')

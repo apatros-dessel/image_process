@@ -60,8 +60,6 @@ def metadata(path):
     meta.datetime =     isodatetime(get_from_tree(tree, 'acquisitionDateTime'))
     meta.lvl = get_from_tree(tree, 'productType')
 
-    # scroll(meta.datetime)
-
     meta.namecodes.update(
         {
             '[sat]': meta.sat,
@@ -84,7 +82,6 @@ def metadata(path):
 
 # Adds attributes to a standart feature for cover
 def set_cover_meta(feat, meta):
-    # print(feat)
     if meta is not None:
         metadata = meta.container.get('meta')
         feat.SetField('id', meta.id)

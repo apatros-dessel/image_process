@@ -62,9 +62,6 @@ path_mask = fullpath(path_out, r'masks\buildings\kanopus')
 suredir(path_im4)
 suredir(path_mask)
 
-# scroll(raster_list)
-# scroll(vector_list)
-
 i = 1
 for filepath in raster_list:
     file = os.path.split(filepath)[1]
@@ -112,6 +109,3 @@ for filepath in raster_list:
             print('%i Mask written: %s' % (i, file_id))
             i +=1
             break
-    # print('%i Error writing mask: %s' % (i+1, kan_nameIM4))
-
-# scroll(filepath_list)

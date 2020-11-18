@@ -177,7 +177,6 @@ def filter_id(id, pms=False):
 
 def check_nonzeros(path):
     l = len(np.unique(gdal.Open(path),GetRasterBand(1).ReadAsArray()))
-    print(l)
     return bool(l)
 
 
@@ -342,7 +341,6 @@ def check_image(img_in, neuro):
         band = raster.GetRasterBand(i)
         if band.DataType != 3 or band.GetNoDataValue() != 0:
             return True, counter
-    # print(counter)
     return False, counter
 
 
@@ -388,7 +386,6 @@ def set_mask(img_in, vec_in, msk_out, overwrite=False):
     vec_to_crs(ogr.Open(vec_in), crs, vec_reprojected)
     if not os.path.exists(vec_reprojected):
         vec_reprojected = vec_in
-    print(vec_reprojected)
     try:
         RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2,
                     value_colname=code_col, compress=compress, overwrite=overwrite)
@@ -444,27 +441,10 @@ else:
                     vecis = vecids_data.read().split('\n')
         raster_paths = get_raster_paths(pin)
         input = get_pairs(raster_paths, vin, image_col, vecids=vecids, split_vector=split_vector, pms=pms)
-    # scroll(input, header='Source layers:')
     print('Input collected for {}'.format(datetime.now()-t))
-
-scroll(input)
-# sys.exit()
 
 # Создать пути для размещения изображений и масок
 suredir(pout)
-'''
-print('\nILLEGAL APPENDING EXTRA IMAGES:')
-illegally_appended = 0
-for file in folder_paths(r'e:\rks\razmetka\set021__20200625__doobuchenie_MWT_MGR_MQR_MCN_MBD\image\kanopus',1,'tif'):
-    f,n,e = split3(file)
-    if n in input:
-        print('Already in: %s' % n)
-    else:
-        input[n] = {'r': file, 'v': r'\\172.21.195.2\FTP-Share\ftp\train_data\set021__20200625__doobuchenie_MWT_MGR_MQR_MCN_MBD\vector\object_all_07072020_fixed.shp'}
-        print('Illegally appended: %s' % n)
-        illegally_appended += 1
-print('%i OBJECTS ILLEGALLY APPENDED\n' % illegally_appended)
-'''
 
 # Создавать маски из найденных пар
 t = datetime.now()

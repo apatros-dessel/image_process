@@ -24,7 +24,6 @@ for p in files:
         # elif i==11:
             # i = 10
         o = np.unique(arr_)[0]
-        # print(i, o)
         arr_[arr_ == o] = 0
         new_raster.GetRasterBand(i).WriteArray(arr_)
         # raster.GetRasterBand(i).SetNoDataValue(0)

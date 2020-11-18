@@ -37,12 +37,10 @@ def get_skysat_files(folder):
     files = OrderedDict()
     if os.path.exists(folder):
         for img in flist(folder_paths(folder,1,'tif'), lambda x: x[len(folder)+1:]):
-            # print(img)
             if re.search(r'\d{8}_\d+_.+_analytic.*.tif', img):
                 files['Analytic'] = img
             elif re.search(r'\d{8}_\d+_.+_analytic_udm.*.tif', img):
                 files['Mask'] = img
-    # print(files)
     return files
 
 # Fill SkySat metadata
@@ -89,7 +87,6 @@ def metadata(path):
 
 # Adds attributes to a standart feature for cover
 def set_cover_meta(feat, meta):
-    # print(feat)
     if meta is not None:
         feat0 = meta.container.get('feat')
         feat.SetField('id', meta.id)

@@ -72,9 +72,6 @@ def FindPairsInList(files):
                 pairs[params].append((file, size))
             else:
                 pairs[params] = [(file, size)]
-    # if len(pairs)>1:
-        # for params in pairs:
-            # print('{} {}'.format(params, pairs[params]))
     return pairs
 
 def ChooseMinSize(filesizes):
@@ -121,25 +118,18 @@ for file in files:
                 id_files['RGB'].append(file)
             elif re.search(rsp_ql_tmpt, n):
                 id_files['QL'].append(file)
-            # else:
-                # print('UNKNOWN FILE TYPE: %s' % n)
             report[id] = id_files
-        # else:
-            # print('CANNOT GET ID: %s' % n)
 
 size_total = 0
 file_export = []
 for id in report:
-    # print(PrintFiles(id, report[id]))
     grn = report[id]['GRN']
     if grn:
         grn_files = SortById(grn, rsp_grn_tmpt)
         for grn_id in grn_files:
-            # scroll(grn_files[grn_id], header=grn_id)
             pairs = FindPairsInList(grn_files[grn_id])
             file, size = ChooseFile(pairs)
             size_total += size
-            # print(file)
             file_export.append(file)
     else:
         sour = report[id]['SOUR']
@@ -147,7 +137,6 @@ for id in report:
             pairs = FindPairsInList(sour)
             file, size = ChooseFile(pairs)
             size_total += size
-            # print(file)
             file_export.append(file)
     rgb = report[id]['RGB']
     if rgb:
@@ -156,13 +145,10 @@ for id in report:
             if grn_id is None:
                 print('EXCLUDED: %s' % rgb_files[grn_id])
                 continue
-            # scroll(grn_files[grn_id], header=grn_id)
             pairs = FindPairsInList(rgb_files[grn_id])
             file, size = ChooseFile(pairs)
             size_total += size
-            # print(file)
             file_export.append(file)
-print(str_size(size_total))
 
 with open(paths_out_txt,'w') as txt:
     for id in report:

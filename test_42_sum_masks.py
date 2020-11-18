@@ -67,7 +67,6 @@ path_dict = collect_masks(dir_in)
 # path_dict = repack(path_dict, dir_in)
 
 for i, id in enumerate(path_dict):
-    # scroll(path_dict[id])
     try:
         sum_rasters(path_dict[id], r'%s\MSK-%s.tif' % (dir_out, id),
                     order_keys=('MQR-', 'MGR-', 'MCN-', 'MWT-', 'MBD-'), overwrite=False)

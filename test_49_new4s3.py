@@ -10,9 +10,6 @@ raster_ids = flist(raster_paths, lambda x: prenom + split3(x)[1].replace('.REF',
 meta_paths = folder_paths(path_meta,1,'json')
 meta_ids = flist(meta_paths, lambda x: split3(x)[1])
 
-scroll(raster_ids[:])
-# scroll(meta_ids[:10])
-
 def copy_data(raster_path, meta_path, path_s3, id, prenom = ''):
     if not id.startswith(prenom):
         id += prenom
@@ -67,7 +64,6 @@ def correct_meta(raster_path, vector_path, type, ms_part=None, pms_part=None):
             feat.SetField('y_size', -float(trans[-1]))
             lyr_in.SetFeature(feat)
         ds_in = None
-        # print('META_CHANGED: %s' % id_new)
     else:
         print('ERROR CHANGING META: %s' % vector_path)
 

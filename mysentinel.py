@@ -175,8 +175,6 @@ def get_sentinel_filepaths(filepath_list):
 
     if len(filepath_list) > 0:
         scroll(filepath_list, header = 'Some raster files were not processed:')
-    # scroll(filepaths)
-    # scroll(bandpaths)
     return files, filepaths, bandpaths
 
 def check_mask_paths(path_list, folder=''):
@@ -258,8 +256,6 @@ def metadata(path):
 
     path2mask_data = check_mask_paths(get_from_tree(msl, 'MASK_FILENAME', check={'type': 'MSK_DETFOO', 'bandId': '2'}), folder)
 
-    # scroll(path2mask_data)
-
     # JoinShapesByAttributes([path2mask_data], fullpath2mask, attributes = ['maskType'], geom_rule = 1, attr_rule = 0)
     epsg = int(get_from_tree(msl,'HORIZONTAL_CS_CODE')[-5:])
     Unite(path2mask_data, fullpath2mask, proj=4326, deafault_srs=epsg, overwrite=False)
@@ -271,11 +267,9 @@ def metadata(path):
 
 # Adds attributes to a standart feature for cover
 def set_cover_meta(feat, meta):
-    print(feat)
     if meta is not None:
         mtd = meta.container.get('mtd')
         msl = meta.container.get('msl')
-        print(msl)
         feat.SetField('id', meta.id.replace('.SAFE', ''))
         feat.SetField('id_s', meta.name('[location]'))
         feat.SetField('id_neuro', meta.name('[fullsat]-[date]-[location]-[lvl]'))

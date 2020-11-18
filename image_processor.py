@@ -119,10 +119,8 @@ class process(object):
     # Adds new path to self.input_list
     def add_scene(self, newpath, imsys, skip_duplicates = True):
         newscene = scene(newpath, imsys)
-        # print(newpath)
         try:
             newscene = scene(newpath, imsys)
-        #except FileNotFoundError:
         except:
             print('Cannot open {} scene by path: {}'.format(imsys, newpath))
             newscene = None
@@ -137,12 +135,10 @@ class process(object):
 
     def input(self, path, imsys_list = None, skip_duplicates = True):
         path = listoftype(path, str)
-        # print('Path: {}'.format(path))
         if path is None:
             return self
         if imsys_list is None:
             imsys_list = globals()['template_dict'].keys()
-        # print(imsys_list)
         errors = []
         for path2scene in path:
             file = os.path.isfile(path2scene)
@@ -153,13 +149,10 @@ class process(object):
                         if fin:
                             break
                         templates = globals()['template_dict'].get(imsys)
-                        # print(templates)
                         if templates is not None:
                             for template in templates:
-                                # print(template)
                                 file = os.path.basename(path2scene)
                                 if re.search(template, file):
-                                    # print(re.search(template, path2scene).group())
                                     self.add_scene(path2scene, imsys, skip_duplicates=skip_duplicates)
                                     fin = True
                                     break
@@ -168,12 +161,10 @@ class process(object):
                     errors.append(path2scene)
             else:
                 input_list = walk_find(path2scene, globals()['template_dict'].keys(), globals()['template_dict'].values())
-                # scroll('Input list: {}'.format(input_list))
                 if (input_list is not None) and len(input_list)>0:
 
                     for newpath2scene in input_list:
 
-                        # print(newpath2scene)
                         newpath, imsys = newpath2scene
 
                         if 'new_KV' in newpath:
@@ -210,7 +201,6 @@ class process(object):
         for ascene in self.scenes:
             if ascene.meta.id == scene_id:
                 return ascene
-        # print('Scene not found: {}'.format(scene_id))
         return None
 
     # Delete scene by id
@@ -227,9 +217,7 @@ class process(object):
         report = OrderedDict()
 
         for ascene in self.scenes:
-            # print(ascene.meta.datamask)
             path2vector_list.append(fullpath(ascene.path, ascene.meta.datamask))
-            # path2vector_list.append(ascene.meta.datamask)
             rep_row = OrderedDict()
             rep_row['datamask'] = path2vector_list[-1]
             report[ascene.meta.id] = rep_row
@@ -239,8 +227,6 @@ class process(object):
                 dict_to_xls(fullpath(self.output_path, report_name), report)
             except:
                 print('Unable to export data as xls')
-                # scroll(report)
-        # print(fullpath(self.output_path, vector_cover_name))
         geodata.JoinShapesByAttributes(path2vector_list, fullpath(self.output_path, vector_cover_name), geom_rule=1, attr_rule=0)
 
         return None
@@ -276,7 +262,6 @@ class process(object):
                 try:
                     feat = ascene.json_feat(lyr_defn, add_path=add_path, cartesian_area=cartezian_area, data_mask=data_mask)
                     lyr_out.CreateFeature(feat)
-                    # print('Metadata written: {}'.format(ascene.meta.id))
                 except:
                     feat = ascene.json_feat(lyr_defn, add_path=add_path, cartesian_area=cartezian_area, data_mask=data_mask)
                     lyr_out.CreateFeature(feat)
@@ -287,8 +272,6 @@ class process(object):
                 with open(log, 'w') as txt:
                     txt.write('\n'.join(errors))
                 print('List of errors in %s' % log)
-        # print(len(lyr_out))
-        # for feat in lyr_out: print(feat.GetGeometryRef().ExportToWkt())
         ds_out = None
 
         return 0
@@ -300,7 +283,6 @@ class scene:
 
         if not os.path.exists(path):
             print('Path does not exist: "{}"'.format(path))
-            # raise FileNotFoundError
             raise IOError
 
         module = globals()['metalib'].get(imsys)
@@ -404,7 +386,6 @@ class scene:
 
             if set_product_path is None:
                 set_product_path = globals()['temp_dir_list'].create()
-                print(set_product_path)
 
             if set_name is None:
                 prod_name = r'[id]_{}_{}.tif'.format(band_id, prod_id)
@@ -460,13 +441,11 @@ class scene:
     # Returns a scene cover as a feature with standard set of attributes
     def json_feat(self, lyr_defn, add_path=True, cartesian_area = False, data_mask=False, srs=4326):
         feat = geodata.ogr.Feature(lyr_defn)
-        print(self.datamask())
         ds_mask, lyr_mask = geodata.get_lyr_by_path(self.datamask())
         t_crs = geodata.get_srs(srs)
         if lyr_mask is not None:
             geom_feat = lyr_mask.GetNextFeature()
             geom = geom_feat.GetGeometryRef()
-            # print(geom.ExportToWkt())
             v_crs = lyr_mask.GetSpatialRef()
             if (v_crs is None) and self.imsys=='PLD':
                 v_crs = geodata.osr.SpatialReference()
@@ -475,7 +454,6 @@ class scene:
             else:
                 if not geodata.ds_match(v_crs, t_crs):
                     coordTrans = geodata.osr.CoordinateTransformation(v_crs, t_crs)
-                    scroll(coordTrans)
                     geom.Transform(coordTrans)
                 if sys.version.startswith('3'):
                     geom = geodata.changeXY(geom)
@@ -514,7 +492,6 @@ class scene:
                 new_ds, new_lyr = geodata.get_lyr_by_path(path2export)
                 new_feat = new_lyr.GetNextFeature()
                 new_geom = new_feat.GetGeometryRef()
-                # print(new_geom.ExportToWkt())
                 feat.SetGeometry(new_geom)
         return feat
 
@@ -530,8 +507,6 @@ class scene:
         bandpaths = []
         for band_id in bands:
             bandpaths.append(self.get_band_path(band_id))
-
-        # scroll(bandpaths)
 
         try:
             res = geodata.raster2raster(bandpaths, export_path, path2target = path2target, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata, compress = compress, overwrite=overwrite)

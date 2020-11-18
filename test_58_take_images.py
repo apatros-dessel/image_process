@@ -99,8 +99,6 @@ elif target=='COPY RASTER':
 else:
     print('Unreckognized target: need "LIST COPY PATHS" or "COPY RASTER"')
 
-# scroll(files)
-# scroll(id_list)
 scene_folders = []
 suredir(pout)
 
@@ -109,7 +107,6 @@ for file in files:
     if name_tmpt:
         if not re.search(name_tmpt, n):
             continue
-    # print(file)
     if id_list_txt:
         for id in id_list:
             if re.search(id, n):
@@ -138,8 +135,6 @@ for file in files:
                 continue
             for feat in lyr_cover:
                 vector_geometry = feat.GetGeometryRef()
-                # print('r: '+raster_geometry.ExportToWkt()[:50])
-                # print('v: '+vector_geometry.ExportToWkt()[:50])
                 if raster_geometry.Intersects(vector_geometry):
                     print('MATCH: %s' % n)
                     if copy_:

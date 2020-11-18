@@ -45,7 +45,6 @@ dg_sats = {
 def get_filepaths(folder):
     export = OrderedDict()
     files = os.listdir(folder)
-    # print(files)
     i = 1
     for file in files:
         file = file.lower()
@@ -138,7 +137,6 @@ def metadata(path):
 
 # Adds attributes to a standart feature for cover
 def set_cover_meta(feat, meta):
-    # print(feat)
     if meta is not None:
         metadata = meta.container.get('meta')
         feat.SetField('id', meta.id)

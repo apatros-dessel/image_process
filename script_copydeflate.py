@@ -27,7 +27,6 @@ for i, file in enumerate(file_list):
         continue
 
     driver = gdal.GetDriverByName('GTiff')
-    print(['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9', 'TILED=YES', 'BIGTIFF=YES'])
     driver.CreateCopy(os.path.join(dir_out, file), ds_in, options=['COMPRESS=DEFLATE', 'PREDICTOR=2', 'ZLEVEL=9', 'TILED=YES', 'BIGTIFF=YES'])
     print('{} File written {}'.format(i+1, file))
 

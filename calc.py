@@ -197,8 +197,6 @@ def get_raster_limits(raster_array, method=0, band_limits = None):
         "Custom",  # User-defined values of min/max
     ]
 
-    # print(method_list[method])
-
     band_limits_defaults = [
         None,
         (2, 2),
@@ -232,15 +230,11 @@ def get_raster_limits(raster_array, method=0, band_limits = None):
         print('Unknown hystogram limits')
         return None, None
 
-    # print(min, max)
-
     return  min, max
 
 def data_to_image(raster_array, method=0, band_limits=None, gamma=1):
 
     min, max = get_raster_limits(raster_array, method=method, band_limits = band_limits)
-
-    # print('min = {}, max = {}'.format(min, max))
 
     y_min = 1
     y_max = 255
@@ -253,8 +247,6 @@ def data_to_image(raster_array, method=0, band_limits=None, gamma=1):
     raster_array[raster_array < 0] = 0
     raster_array[raster_array > dx] = dx
 
-    # print(np.unique(raster_array))
-
     if gamma == 1:
         raster_array = (raster_array * (float(dy) / float(dx))).astype(np.int)
     else:
@@ -262,14 +254,10 @@ def data_to_image(raster_array, method=0, band_limits=None, gamma=1):
         raster_array = raster_array ** gamma
         raster_array = (raster_array * float(dy)).astype(np.int)
 
-    # print(np.unique(raster_array))
-
     raster_array = raster_array + y_min
     raster_array[raster_array < y_min] = y_min
     raster_array[raster_array > y_max] = y_max
     raster_array = np.asarray(raster_array)
-
-    # print(np.unique(raster_array))
 
     return raster_array
 

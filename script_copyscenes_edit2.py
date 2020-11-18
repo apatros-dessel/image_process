@@ -29,10 +29,6 @@ proc_old = process().input(input1)
 old_list = proc_old.get_ids()
 for i, id in enumerate(old_list):
     old_list[i] = id[:-6]
-# old_list.append('KV3_09174_07262_02_KANOPUS_20190928_084000_084035.SCN10.')
-# old_list.append('KV6_03543_02510_02_KANOPUS_20190817_083858_083941.SCN11.')
-
-scroll(old_list)
 
 # Пути к сценам
 input_list = [

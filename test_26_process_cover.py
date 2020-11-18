@@ -61,7 +61,4 @@ for path2xls, vector_cover_in, vector_cover_path in zip(path2xls_list, vector_co
     for i, id in enumerate(fullpath_list):
         fullpath_list[i] = id[:-7]
 
-    scroll(fullpath_list)
-    print(len(fullpath_list))
-
     geodata.filter_dataset_by_col(vector_cover_in, 'product_id', fullpath_list, path_out = vector_cover_path, unique_vals=True)

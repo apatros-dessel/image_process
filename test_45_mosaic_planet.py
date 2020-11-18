@@ -18,7 +18,6 @@ for ascene in process().input(path_in, imsys_list=['PLN']).scenes:
     if re.search(r'^\d{8}_.+_3B_AnalyticMS_clip$',n):
         path_rgb = fullpath(folder_out,n+'.RGB',e)
         up_lim = 1 - (float(get_from_tree(ascene.meta.container.get('xmltree'), 'cloudCoverPercentage')[0])/100.0)
-        print(up_lim)
         res = RasterToImage3(file,
                                              path_rgb,
                                              method=2,

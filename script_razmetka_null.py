@@ -85,14 +85,11 @@ for imsys in dtype_id:
             suredir(dir)
         for ascene in proc.scenes:
             # ascene = scene(save_data[scene_id], imsys)
-            # print(ascene.meta.lvl)
             rgbn_name = ascene.meta.name('IM4-[fullsat]-[date]-[location]-[lvl].tif')
             path_to_rgbn = fullpath(path_to_rgbn_folder, rgbn_name)
             res = ascene.default_composite('RGBN', path_to_rgbn, compress=compression, overwrite=overwrite_existing_files)
             if res==0:
                 print('RGBN written: {}'.format(path_to_rgbn))
-            # else:
-                # print('Error saving RGBN: {}'.format(path_to_rgbn))
             nullmask_name = ascene.meta.name('MQR-[fullsat]-[date]-[location]-[lvl].tif')
             path_to_nullmask = fullpath(path_to_empty_masks, nullmask_name)
             ds(path_to_nullmask, copypath = path_to_rgbn, options = {'bandnum': 1, 'dt': 1, 'compress': 'DEFLATE'},

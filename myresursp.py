@@ -133,7 +133,6 @@ def metadata(path):
 
     # Optional:
     meta.datamask = get_resursp_datamask(meta.id)
-    # print(meta.datamask)
     # meta.cloudmask =      # path to vector data
 
     try:
@@ -145,8 +144,6 @@ def metadata(path):
 
 # Adds attributes to a standart feature for cover
 def set_cover_meta(feat, meta):
-    # print(feat)
-    # print(meta.id)
     if meta is not None:
         metadata = meta.container.get('metadata')
         feat.SetField('id', meta.id)

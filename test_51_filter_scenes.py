@@ -29,15 +29,10 @@ else:
     with open(txt_path) as txt:
         filter_names_list = txt.read().split('\n')
 
-print(len(filter_names_list))
-scroll(zero_names)
-
 input_folder_list = []
 for i, name in enumerate(zero_names):
     if name in filter_names_list:
         input_folder_list.append(zero_folders[i])
-
-print(len(input_folder_list))
 
 proc = process().input(input_folder_list, imsys_list=['RSP'], skip_duplicates=False)
 proc.GetCoverJSON(pout)

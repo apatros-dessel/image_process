@@ -42,7 +42,6 @@ def get_filepaths(tree):
             i += 1
         # elif file.endswith('.jpg'):
             # export['image'] = file
-    # scroll(export)
     return export
 
 # Gets Pleiades bandpaths as ordered dictionary
@@ -99,7 +98,6 @@ def metadata(path):
 
 # Adds attributes to a standart feature for cover
 def set_cover_meta(feat, meta):
-    # print(feat)
     if meta is not None:
         metadata = meta.container.get('meta')
         feat.SetField('id', meta.id)

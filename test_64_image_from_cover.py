@@ -54,7 +54,6 @@ def TotalCover(pout, files, srs = None):
             feat = ogr.Feature(feat_defn)
             feat.SetField('id', id)
             geom = RasterGeometry(ds_, reference=srs)
-            # print(geom.ExportToWkt())
             feat.SetGeometry(geom)
             proc = process().input(f)
             ascene = proc.scenes[0]

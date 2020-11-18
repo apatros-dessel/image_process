@@ -58,15 +58,11 @@ def layers_intersection_array(shapes_list, proc):
     for shp1 in shapes_list:
         result_array = None
         for ascene in proc.scenes:
-            # print(os.path.basename(ascene.datamask()))
             if result_array is None:
                 result_array = geodata.intersect_array(shp1, ascene.datamask())
-                # print(np.unique(result_array, return_counts=True))
             else:
                 new_array = geodata.intersect_array(shp1, ascene.datamask())
-                # print(np.unique(new_array, return_counts=True))
                 if new_array is not None:
-                    # print(os.path.basename(ascene.datamask()))
                     result_array = np.hstack([result_array, new_array])
         if export_array is None:
             export_array = result_array
@@ -84,8 +80,6 @@ if len(vector_cover_path_list) > 0:
 	intersection_array = layers_intersection_array(vector_cover_path_list, proc)
 else:
 	intersection_array = np.ones((1, len(proc.scenes))).astype(bool)
-
-# print(intersection_array.shape)
 
 scene_ids = np.array(proc.get_ids())
 
@@ -153,14 +147,10 @@ for i, ascene in enumerate(proc.scenes):
                         break
 
                 except:
-                    # print(u'Неизвестная ошибка')
-                    # break
                     pass
 
     else:
         print(u'Сцена за пределами области интереса: {}'.format(ascene.meta.id))
-
-# scroll(final_list, header=u'Список сцен для копирования:')
 
 report_dict = OrderedDict()
 for id in marks_dict.keys():
@@ -170,35 +160,7 @@ for id in marks_dict.keys():
     line['date'] = ascene.meta.name('[date]')
     line['mark'] = marks_dict[id]
     report_dict[id] = line
-    # report_dict[id] = {
-            # 'fullpath': ascene.fullpath,
-            # 'date': ascene.meta.name('[date]'),
-            # 'filepath': ascene.get_band_path('red')[0],
-            # 'datamask': ascene.datamask(),
-            # 'quicklook': ascene.quicklook(),
-            # 'clouds': infullcloud(id),
-        # }
 dict_to_xls(path2xls, report_dict)
-'''
-while True:
-	print(u'Всего отобрано {} сцен, выполнить копирование в {} (1) или отменить копирование (0)'.format(len(final_list), output_path))
-	copyfiles = input(' >>> ')
-	if copyfiles in (1,0):
-		break
-
-if copyfiles:
-
-    for id in final_list:
-        ascene = proc.get_scene(id)
-        scene_path = ascene.path
-        scene_folder = os.path.basename(scene_path)
-        scene_folder_path = fullpath(output_path, scene_folder)
-        if not os.path.exists(scene_folder_path):
-            os.makedirs(scene_folder_path)
-        for filename in os.listdir(scene_path):
-            copyfile(fullpath(scene_path, filename), fullpath(scene_folder_path, filename))
-        print(u'Сцена сохранена {}'.format(id))
-'''
 
 scroll(code_list, header=u'Использованные коды оценок')
 

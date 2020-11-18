@@ -72,7 +72,6 @@ def intersect_array(shp1, shp2):
         for j, feat2 in enumerate(lyr2):
             geom2 = feat2.GetGeometryRef()
             int_arr[i,j] = geom1.Intersects(geom2)
-            #print(geom1.Intersects(geom2))
     return int_arr
 
 def layers_intersection_array(shapes_list, proc):
@@ -106,9 +105,6 @@ scene_dates = np.array(scene_dates)
 
 for path2shp in obj_of_interest:
 
-    print(path2shp)
-    #raise Exception
-
     obj_ds, obj_lyr = geodata.get_lyr_by_path(path2shp)
 
     if obj_lyr is None:
@@ -119,8 +115,6 @@ for path2shp in obj_of_interest:
     for obj_feat in obj_lyr:
 
         obj_geom = obj_feat.GetGeometryRef()
-        # print(obj_geom.ExportToWkt())
-        #raise Exception
 
         feat_id_list = []
         feat_dates_list = []
@@ -143,7 +137,6 @@ for path2shp in obj_of_interest:
                         break
 
             else:
-
                 print('Cannot open scene_lyr: %s' % ascene.meta.id)
 
         feat_id_arr = np.array(feat_id_list)
@@ -164,7 +157,6 @@ for path2shp in obj_of_interest:
         approved = False
 
         for id in feat_id_arr:
-            # print(1, id)
             if id in input_list:
                 approved = True
                 print('Scene already in input_list: {}'.format(id))

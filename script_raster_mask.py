@@ -3,7 +3,6 @@
 from image_processor import *
 
 path2raster = r'c:\sadkov\toropez\image_test\Mosaic_20190516_1011_LZW.tif'
-# print(path)
 path2export = r'c:\sadkov\toropez\image_test\Mosaic_20190516_1011_LZW_mask.shp'
 shp_name = r'planet_cover.shp'
 report_name = r'planet_cover.xls'

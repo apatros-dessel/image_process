@@ -12,7 +12,6 @@ ms2pms = True
 
 def crop_bigraster_gdal(path_in, path_vec, path_out):
     command = "gdalwarp -of GTiff -cutline {path_vec} -crop_to_cutline -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 {path_in} {path_out} -co NUM_THREADS=ALL_CPUS".format(path_vec=path_vec, path_in=path_in, path_out=path_out)
-    # print(command)
     os.system(command)
 
 def resurs_granule_index(filename):
@@ -52,7 +51,6 @@ def granule_metadata_json(path_granule, path_cover_meta, path_out, raster_path, 
             transform = rgr.GetGeoTransform()
             fout.SetField('x_size', float(transform[1]))
             fout.SetField('y_size', float(-transform[-1]))
-    print(tile_id)
     fout.SetField('id', tile_id)
     fout.SetField('id_neuro', resurs_granule_index(tile_id))
     fout.SetField('id_s', fout.GetField('id_neuro').split('-')[2])
@@ -65,14 +63,12 @@ loop = OrderedDict()
 
 for fpath in folder_paths(path_in, 1, 'tif'):
     f = os.path.basename(fpath)
-    # print(f)
     if re.search(r'^r.*\.pms\.l2\.tif$', f.lower(), flags=0):
         id, ext = os.path.splitext(f)
         if ms2pms:
             filter_id = id.replace('.PMS.','.MS.')
         else:
             filter_id = id
-        print(filter_id)
         json_ = filter_dataset_by_col(raster_fullcover, 'id', filter_id, path_out=tempname('json'))
         ds_meta, lyr_meta = get_lyr_by_path(json_)
         if lyr_meta:
@@ -85,8 +81,6 @@ for fpath in folder_paths(path_in, 1, 'tif'):
                 print('WARNING: Empty lyr %s' % filter_id)
         else:
             print('WARNING: Lyr not created %s' % filter_id)
-
-scroll(loop)
 
 for i, id in enumerate(loop):
 
@@ -115,7 +109,6 @@ for i, id in enumerate(loop):
                     aoi_feat = lyr_aoi.GetNextFeature()
                     aoi_geom = aoi_feat.GetGeometryRef()
                     if not feat.GetGeometryRef().Intersects(aoi_geom):
-                        # print('Out of AOI: %s.GRN%s' % (id, granule_id))
                         continue
             tpath = filter_dataset_by_col(vector_path, 'granule', granule_id, path_out=tempname('json'))
             tpath_meta = filter_dataset_by_col(raster_cover_path, 'id', filter_id, path_out=tempname('json'))
@@ -135,4 +128,3 @@ for i, id in enumerate(loop):
                 print('%i Granule metadata written: %s.GRN%s \n' % (i, id, granule_id))
             else:
                 print('ERROR: lyr_meta not found: %s' % id)
-            # sys.exit()

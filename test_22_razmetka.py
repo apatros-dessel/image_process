@@ -59,7 +59,6 @@ for folder in folders:
 # idlist = []
 # for ascene in proc.scenes:
     # idlist.append(ascene.meta.name('[id]_[location]'))
-    # print(ascene.meta.name('[id]_[location]'))
 
 # idarr = np.array(idlist)
 

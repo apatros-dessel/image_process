@@ -7,9 +7,7 @@ field_out = 'path'
 din, lin = get_lyr_by_path(pin, 1)
 for i, feat in enumerate(lin):
     data = feat.GetField(field_in).decode('utf-8')
-    # scroll(data)
     new_data = split3(data)[1]
-    # scroll(new_data)
     feat.SetField(field_out, new_data)
     lin.SetFeature(feat)
     if not i%1000:

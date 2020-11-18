@@ -55,7 +55,6 @@ def TotalCover(pout, files, srs = None):
             feat = ogr.Feature(feat_defn)
             feat.SetField('id', id)
             feat.SetField('path', file)
-            # print(geom.ExportToWkt())
             try:
                 proc = process().input(f)
                 if len(proc)==1:

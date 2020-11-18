@@ -29,8 +29,6 @@ if isinstance(copy_folders, str):
     elif copy_folders=="false":
         copy_folders = False
 
-scroll(copy_folders)
-
 for file in files:
     folder, file_name = os.path.split(file)
     if file_name_template:
@@ -41,7 +39,6 @@ for file in files:
         output_file = os.path.join(output_folder, end_path)
     else:
         output_file = os.path.join(output_folder, file_name)
-    # print(file)
     if os.path.exists(output_file):
         if renaming_options==0:
             continue
@@ -51,7 +48,6 @@ for file in files:
             if renaming_options==3:
                 if os.path.getsize(file)==os.path.getsize(output_file):
                     continue
-            print(file)
             f,n,e = split3(output_file)
             for i in counter(2):
                 new_output = '%s\\%s_%i.%s' % (f,n,i,e)
@@ -61,6 +57,4 @@ for file in files:
     if copy_folders:
         output_foldername = os.path.dirname(output_file)
         suredir(output_foldername)
-    # scroll((file, output_file), lower='\n')
-    # sys.exit()
     shutil.copyfile(file, output_file)

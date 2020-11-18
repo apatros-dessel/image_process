@@ -33,22 +33,6 @@ def colfromdict(dict_, key, listed=False):
     if listed:
         return col_dict.values()
     return col_dict
-'''
-folder_in = r'J:\rks\kanopus_cherepan\Samara'
-folder_out = r'e:\test\forest_masks'
-
-if os.path.exists(folder_out) == False:
-    os.makedirs(folder_out)
-
-path_in = folder_paths(folder_in, files=True, extension='tif')
-kanids = colfromdict(names_dict, 'kanopusid')
-names_out = colfromdict(names_dict, 'filename')
-vector_names = folder_paths(r'i:\forest_masks', files=True, extension='shp')
-vector_ids = colfromdict(names_dict, 'oldid')
-'''
-# scroll(path_in)
-# scroll(kanids)
-# scroll(names_out)
 
 raster_paths = [
     r'D:\terratech\changes_mask\IM4-S2B-20180423_20190428_T36VXK__mask1.tif',
@@ -73,8 +57,6 @@ for raster_path, vector_path in zip(raster_paths, vector_paths):
                             overwrite=overwrite_existing_files)
 
     folder, raster_name = os.path.split(raster_path)
-
-    print(raster_name)
 
     maskid, sat, ending = raster_name.split('-')
     start, fin, tile, zero, ending = ending.split('_')
@@ -146,21 +128,15 @@ for i, filepath in enumerate(filepath_list):
     kan_nameIM4 = kanopus_index(file)#.replace('.MS', '.PMS')
     kan_nameMSK = kan_nameIM4.replace('IM4', 'MQR')
     temp_shp = tempname('shp')
-    print(file[:-4].replace('.MS', '.PMS'))
     geodata.filter_dataset_by_col(path_shp, raster_scene_id_col_name, file[:-4].replace('.MS', '.PMS'), path_out=temp_shp)
     filter_ds, filter_lyr = geodata.get_lyr_by_path(temp_shp)
     if filter_lyr is not None:
         if filter_lyr.GetFeatureCount() > 0:
-            # print(temp_shp)
             geodata.RasterizeVector(temp_shp, filepath, fullpath(path_mfr, kan_nameMSK, 'tif'),
                                     value_colname=raster_index_col_name,
                                     filter_nodata=True,
                                     compress=compression,
                                     overwrite=overwrite_existing_files)
             copyfile(filepath, fullpath(path_im4, kan_nameIM4, 'tif'))
-            # print('%i Mask written: %s' % (j, kan_nameIM4))
             j +=1
             continue
-    # print('%i Error writing mask: %s' % (i+1, kan_nameIM4))
-
-# scroll(filepath_list)

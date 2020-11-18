@@ -96,8 +96,6 @@ def gdal_options(compress = None):
             options.append('COMPRESS={}'.format(compress))
         else:
             print('Unknown compression method: {}, use one of the following:'.format(compress))
-            scroll(globals()['tiff_compress_list'], print_type=False)
-
 
     return options
 
@@ -247,8 +245,6 @@ def vector_mask_0(layer, array_shape, geotrans):
 
 # Write data to raster (GeoTIFF)
 def save_raster(path, band_array, copypath = None, proj = None, trans = None, dt = None, nodata = None, compress = None, overwrite = True):
-
-    # print(np.unique(band_array))
 
     if check_exist(path, overwrite):
         return 1
@@ -525,14 +521,10 @@ def raster2raster(path2bands, path2export, path2target=None,  method = gdal.GRA_
     dt = t_raster.GetRasterBand(1).DataType
     ds = create_virtual_dataset(t_proj, t_trans, t_shape, 0)
 
-    print('Raster created')
-
     for bandpath in path2bands:
         band2raster(bandpath, ds, method, exclude_nodata = exclude_nodata, enforce_nodata = enforce_nodata)
-        print('Band written: {}'.format(bandpath))
 
     options = gdal_options(compress=compress)
-    # scroll(options)
 
     driver = gdal.GetDriverByName('GTiff')
     outputData = driver.CreateCopy(path2export, ds, len(path2bands), options = options)
@@ -577,8 +569,6 @@ def Changes(old_bandpaths, new_bandpaths, export_path,
     elif calc_path is None:
         calc_path = r'{}\calc.tif'.format(globals()['temp_dir_list'].create())
 
-    # print(calc_path)
-
     calc_ds = ds(calc_path, copypath=new_bandpaths[0][0], options={'dt': 6}, editable=True)
 
     old_bands = MultiRasterData(old_bandpaths, data = 2)
@@ -596,8 +586,6 @@ def Changes(old_bandpaths, new_bandpaths, export_path,
             band_fin = (new_array / old_array)
         elif formula == 2:
             band_fin = (((new_array / old_array) - 1) * 100)
-
-        print(band_fin.shape)
 
         calc_ds.GetRasterBand(band_num).WriteArray(band_fin)
 
@@ -636,7 +624,6 @@ def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, class
     dst_field = 0
 
     # Polygonize raster data
-    #print(path2raster)
     raster_ds = gdal.Open(path2raster)
     if classify_table is not None:
         band_array = segmentator(raster_ds.GetRasterBand(band_num).ReadAsArray(), classify_table)
@@ -685,8 +672,6 @@ def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_
             for v in vals:
                 if v != 0:
                     classify_table.append((v, v, v))
-        # print(vals)
-        # scroll(classify_table, header = split3(bandpath_in[0])[1])
 
     data_ds = ds(globals()['temp_dir_list'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
     mask_arr = np.zeros(arr.shape).astype(bool)
@@ -748,7 +733,6 @@ def getrastershape(raster_ds):
 def getbandarrays(path2bands):
     assert isinstance(path2bands, (tuple, list)) and (len(path2bands) > 0)
     raster_list = []
-    #(path2bands)
     for path2raster, band_num in path2bands:
         raster_ds = gdal.Open(path2raster)
         if raster_ds is None:
@@ -775,7 +759,6 @@ def getbandarrays(path2bands):
 # Calculates normalized difference raster (for NDVI, NDWI and other indices calculation
 def normalized_difference(path2bands, path2export, dt = None, compress = None, overwrite = True):
     data_array = getbandarrays(path2bands).astype(np.float)
-    #print(data_array.shape)
     mask = np.ones(data_array.shape[1:]).astype(np.bool)
     for slice in data_array:
         mask[slice==0] = False
@@ -787,7 +770,6 @@ def normalized_difference(path2bands, path2export, dt = None, compress = None, o
 # Calculates normalized difference adjusted raster (for NDVI_adj indices calculation
 def normalized_adjusted(path2bands, path2export, dt = None, compress = None, overwrite = True):
     data_array = getbandarrays(path2bands).astype(np.float)
-    #print(data_array.shape)
     mask = np.ones(data_array.shape[1:]).astype(np.bool)
     for slice in data_array:
         mask[slice==0] = False
@@ -827,19 +809,14 @@ def unite_vector(path2vector_list, path2export): # No georeference check is used
             feat_dict = OrderedDict()
             feat_attr_list = feat.keys()
             for attr_key in feat_attr_list:
-                # print('{}: {}'.format(attr_key, feat.IsFieldNull(feat.GetFieldIndex(attr_key))))
                 feat_dict[attr_key] = feat.GetField(attr_key)
-                # print('{}: {} of {}'.format(attr_key, feat_dict[attr_key], type(feat_dict[attr_key])))
             attr_list.append(feat_dict)
-            # scroll(feat_dict)
     attr_names_dict = OrderedDict()
     for dict_ in attr_list:
         for attr in dict_.keys():
             if attr not in attr_names_dict:
                 attr_names_dict[attr] = type(dict_[attr])
-                # print((type(dict_[attr])==str) + (type(dict_[attr])==int))
 
-    scroll(attr_names_dict)
     for key in attr_names_dict:
         dtype = ogr_dt(attr_names_dict[key])
         field = ogr.FieldDefn(key, dtype)
@@ -855,22 +832,9 @@ def unite_vector(path2vector_list, path2export): # No georeference check is used
         s_lyr = s_vector_ds.GetLayer()
 
         for feat in s_lyr:
-            # print(feat)
             t_lyr.CreateFeature(feat)
             newfeat = t_lyr.GetNextFeature()
             attr_list = feat.keys()
-            # for attr_key in attr_names_dict:
-                # attr_value = feat.GetField(attr_key)
-                #print('  {}: {}'.format(attr_key, attr_value))
-                # if attr_key not in attr_list:
-                    # field = feat.GetFieldDefnRef(attr_key)
-                    # print(field.GetName(), field.GetType())
-                    # if field.GetType() == ogr.OFTString:
-                        # print(field.GetWidth())
-                        # pass
-                    # t_lyr.CreateField(field)
-                    # pass
-            #print(newfeat.keys())
 
     t_ds = None
 
@@ -933,7 +897,6 @@ class MultiBandpath(list):
         for i, bandpath_tuple in enumerate(bandpaths):
             while len(self) <= i:
                 self.append(None)
-            # print(len(self))
             try:
                 self[i] = Bandpath(bandpath_tuple)
             except:
@@ -1036,7 +999,6 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
         srs_in.ImportFromWkt(ds_in.GetProjection())
         srs_out = osr.SpatialReference()
         srs_out.ImportFromEPSG(reprojectEPSG)
-        # print(srs_in.ExportToProj4(), srs_out.ExportToProj4())
         if srs_in.ExportToProj4() != srs_out.ExportToProj4():
             path2rgb = newname(globals()['temp_dir_list'].create(), 'tif')
             reproject = True
@@ -1064,9 +1026,7 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
 
         if exclude_nodata and (nodata is not None):
             if enforce_nodata is not None:
-                print(nodata, enforce_nodata)
                 mask = (raster_array!=nodata) * (raster_array!=enforce_nodata)
-                print(np.unique(mask, return_counts=True))
             else:
                 mask = raster_array!=nodata
         else:
@@ -1102,7 +1062,6 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
         if mask is not None:
             image_array = np.full(mask.shape, 0)
             image_array[mask] = image
-            # image_array[~ mask] = 0
             del image
         else:
             image_array = image
@@ -1172,7 +1131,6 @@ def ds_match(ds1, ds2):
     return srs1 == srs2
 
 def get_srs(ds):
-    # scroll(ds)
     if isinstance(ds, gdal.Dataset):
         srs = osr.SpatialReference()
         srs.ImportFromWkt(ds.GetProjection())
@@ -1187,7 +1145,6 @@ def get_srs(ds):
         srs = ds
     else:
         print('Unknown srs input data: {}'.format(ds))
-        # scroll(ds)
         srs = None
     return srs
 
@@ -1214,7 +1171,6 @@ def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, resoluti
     else:
         x_res = float(resolution)
         y_res = - float(resolution)
-    # print(x_res, y_res)
 
     t_raster_base = gdal.AutoCreateWarpedVRT(ds_in, proj, srs.ExportToWkt())
     x_0, x, x_ang, y_0, y_ang, y =  t_raster_base.GetGeoTransform()
@@ -1232,7 +1188,6 @@ def ReprojectRaster(path_in, path_out, epsg, method = gdal.GRA_Lanczos, resoluti
         'compress': compress,
     }
 
-    # scroll(options)
     ds_out = ds(path_out, options = options, editable = True)
     gdal.ReprojectImage(ds_in, ds_out, None, None, method)
 
@@ -1369,8 +1324,6 @@ def RasterLimits(path2raster_list, method=0, band_limits=None, band_num = 3, exc
         raster_ds = None
 
     raster_bands_limits = np.vstack(raster_bands_limits)
-
-    print(raster_bands_limits)
 
     band_limits = []
 
@@ -1551,8 +1504,6 @@ def Unite(path2shp_list, path2export, proj=None, deafault_srs=4326, overwrite=Tr
 
     path2shp_list = obj2list(path2shp_list)
 
-    scroll(path2shp_list)
-
     for path2shp in path2shp_list:
 
         s_ds, s_lyr = get_lyr_by_path(path2shp)
@@ -1590,8 +1541,6 @@ def Unite(path2shp_list, path2export, proj=None, deafault_srs=4326, overwrite=Tr
             Geom2Shape(t_path, t_geom, proj=s_srs.ExportToWkt())
             return ReprojectVector(t_path, path2export, t_srs, overwrite=True)
 
-        # print(t_geom.ExportToWkt())
-
     # return Geom2Shape(path2export, t_geom, proj=proj)
 
 def ShapesIntersect(path2shp1, path2shp2):
@@ -1600,12 +1549,10 @@ def ShapesIntersect(path2shp1, path2shp2):
 
     shp1_ds, shp1_lyr = get_lyr_by_path(path2shp1)
     if shp1_lyr is None:
-        # print('Cannot open shapefile: {}'.format(path2shp1))
         return 1
 
     shp2_ds, shp2_lyr = get_lyr_by_path(path2shp2)
     if shp2_lyr is None:
-        # print('Cannot open shapefile: {}'.format(path2shp2))
         return 1
 
     if shp1_lyr.GetSpatialRef() != shp2_lyr.GetSpatialRef():
@@ -1614,14 +1561,11 @@ def ShapesIntersect(path2shp1, path2shp2):
 
     result = False
 
-    # print(len(shp1_lyr), len(shp2_lyr))
-
     for feat1 in shp1_lyr:
         geom1 = feat1.GetGeometryRef()
         shp2_lyr.ResetReading()
         for feat2 in shp2_lyr:
             geom2 = feat2.GetGeometryRef()
-            # print(geom1.ExportToWkt(), geom2.ExportToWkt())
             if geom1.Intersects(geom2):
                 return True
 
@@ -1629,16 +1573,12 @@ def ShapesIntersect(path2shp1, path2shp2):
 
 def Intersection(path2shp1, path2shp2, path_out):
 
-    # print(path2shp1, path2shp2)
-
     shp1_ds, shp1_lyr = get_lyr_by_path(path2shp1)
     if shp1_lyr is None:
-        # print('Cannot open shapefile: {}'.format(path2shp1))
         return 1
 
     shp2_ds, shp2_lyr = get_lyr_by_path(path2shp2)
     if shp2_lyr is None:
-        # print('Cannot open shapefile: {}'.format(path2shp2))
         return 1
 
     if shp1_lyr.GetSpatialRef() != shp2_lyr.GetSpatialRef():
@@ -1657,7 +1597,6 @@ def Intersection(path2shp1, path2shp2, path_out):
     shp2_lyr.ResetReading()
     for feat2 in shp2_lyr:
         geom2 = feat2.GetGeometryRef()
-        # print(geom1.ExportToWkt(), geom2.ExportToWkt())
         geom = geom.Intersection(geom2)
     if path_out.endswith('json'):
         dout = json(path_out, srs=shp1_lyr.GetSpatialRef())
@@ -1689,7 +1628,6 @@ def intersect_array(shp1, shp2):
         for j, feat2 in enumerate(lyr2):
             geom2 = feat2.GetGeometryRef()
             int_arr[i,j] = geom1.Intersects(geom2)
-            #print(geom1.Intersects(geom2))
     return int_arr
 
 # Returns intersection of two polygons in two different shapefiles of length == 1
@@ -1782,9 +1720,7 @@ def feature_dict(feat, keys=None, geom_col_name=None, rep_keys_dict=None):
             fin_key = feat_rep_keys_dict.get(key, key)
             attr_dict[fin_key] = feat.GetField(key)
         else:
-            # print(key, feat.GetFieldIndex(key))
             attr_dict[key] = feat.GetField(key)
-        # print('{}: {}'.format(key, type(feat.GetField(key))))
 
     if geom_col_name is not None:
         attr_dict[geom_col_name] = feat.GetGeometryRef()
@@ -1814,10 +1750,7 @@ def layer_column_dict(lyr, columns=None, geom_col_name=None, lyr_defn_name=None,
 
     for i, feat in enumerate(lyr):
 
-        # fid, fid_list = add_fid(feat, fid_list)
-        # print(columns)
         feat_dict = feature_dict(feat, keys=columns, geom_col_name=geom_col_name, rep_keys_dict=rep_keys_dict)
-        # print(columns)
 
         if columns is None:
             new_key_list = feat_dict.keys()
@@ -1898,8 +1831,6 @@ def JoinShapesByAttributes(path2shape_list,
 
     for path2shape in path2shape_list:
 
-        # print('Started %s' % path2shape)
-
         s_ds, s_lyr = get_lyr_by_path(path2shape)
 
         if s_lyr is None:
@@ -1927,8 +1858,6 @@ def JoinShapesByAttributes(path2shape_list,
                 new_attr = new_attributes.ValuesList(feat)
                 attr_check.extend(new_attr)
 
-            # print(attr_check)
-
             if attr_check is not None:
 
                 if attr_check in attr_val_list:
@@ -1944,7 +1873,6 @@ def JoinShapesByAttributes(path2shape_list,
                     else:
                         new_feat = None
                     if new_feat is not None:
-                        # print(new_feat.GetFID())
                         if new_attr_call:
                             # new_feat = new_attributes.AddFields(new_feat, new_attr)
                             new_feat = new_attributes.AddFields(new_feat)
@@ -2013,12 +1941,10 @@ def join_feature(feat1, feat2, geom_rule = 0, attr_rule = 0, attr_rule_dict = {}
 
     new_feat = feature(feature_defn=feat1.GetDefnRef(), geom=new_geom, attr=new_attr_dict)
 
-    # print(new_feat.GetFID())
     if ID is not None:
         new_feat.SetFID(ID)
     else:
         new_feat.SetFID(feat1.GetFID())
-    # print(new_feat.GetFID())
 
     return new_feat
 
@@ -2136,21 +2062,16 @@ def max_line_length(polygon):
 
     for i, coord1 in enumerate(coord_list):
 
-        # print(coord1)
         y1, x1 = coord1
 
         for coord2 in coord_list[i+1:]:
 
-            # print(coord2)
             y2, x2 = coord2
-            # print(math.sqrt((x1-x2)**2+(y1-y2)**2))
             line_new = ogr.Geometry(wkt='LINESTRING ({y1} {x1}, {y2} {x2})'.format(x1=x1, y1=y1, x2=x2, y2=y2))
             len_new = line_new.Length()
-            # print(len_new, line_new.ExportToWkt(), line_new.Within(polygon))
 
             if len_new > len_max:
                 if line_new.Within(polygon):
-                    # print(len_new, line_new.ExportToWkt())
                     len_max = len_new
 
     return len_max
@@ -2168,8 +2089,6 @@ def random_point_geom(extent, border_geom):
         x = x_min + dx * np.random.random()
         y = y_min + dy * np.random.random()
         new_point = ogr.Geometry(wkt = 'POINT ({y} {x})'.format(x=x, y=y))
-
-        # print(extent, new_point.ExportToWkt())
 
         if border_geom.Intersects(new_point):
             return new_point
@@ -2234,8 +2153,6 @@ def RandomPointsInside(path_in, path_out, points_num=100, overwrite=True):
         geom_list.append(feat.GetGeometryRef())
 
     border_geom = unite_geom_list(geom_list)
-
-    # print(border_geom.ExportToWkt())
 
     geom_list = None
 
@@ -2365,7 +2282,6 @@ def RandomLinesRectangle(path_in, path_out,
     for i in range(lines_num):
 
         new_line_geom = random_rectangle_line(x1, y1, dx2, dy2, dx3, dy3)
-        # print(new_line_geom.ExportToWkt())
         new_line_feat = feature(line_feat_defn, new_line_geom)
 
         if lyr_patches is not None:
@@ -2374,8 +2290,6 @@ def RandomLinesRectangle(path_in, path_out,
 
             lyr_patches.ResetReading()
             for feat in lyr_patches:
-                # print(new_line_geom.Intersect(feat.GetGeometryRef()))
-                # print(feat.GetGeometryRef().ExportToWkt())
                 if filter is not None:
                     if feat.GetField(filter_field) not in filter:
                         continue
@@ -2388,7 +2302,6 @@ def RandomLinesRectangle(path_in, path_out,
         lyr_out.CreateFeature(new_line_feat)
 
     lyr_out.ResetReading()
-    print(lyr_out.next().keys())
 
     ds_out = None
 
@@ -2434,8 +2347,6 @@ def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, da
     if filter_nodata:
         ds_in = gdal.Open(path_in_raster)
         band_in = ds_in.GetRasterBand(1)
-        # print(path_in_raster)
-        # print(band_in.ReadAsArray(), band_in.GetNoDataValue())
         mask = (band_in.ReadAsArray() != band_in.GetNoDataValue()).astype(int)
         new_data = t_ds.GetRasterBand(1).ReadAsArray() * mask
         t_ds.GetRasterBand(1).WriteArray(new_data)
@@ -2663,8 +2574,6 @@ def json_fields(path_out,
 
     lyr_defn = lyr.GetLayerDefn()
 
-    # scroll(field_name_translator)
-
     if feats_list is None:
         feat = ogr.Feature(lyr_defn)
         if fields_dict is not None:
@@ -2702,21 +2611,16 @@ def json_fields(path_out,
                     new_feat.SetField(field_id, None)
             lyr.CreateFeature(new_feat)
 
-    # print(lyr.GetLayerDefn().GetFieldCount())
-
     ds = None
 
     ds, lyr = get_lyr_by_path(path_out)
-    # print(lyr.GetLayerDefn().GetFieldCount())
 
 def ReprojectVector(path_in, path_out, epsg, overwrite = True):
 
     if check_exist(path_in, overwrite):
         return 1
     path_in = path_in
-    # print(path_in)
     ds_in = ogr.Open(path_in)
-    # print(ds_in)
 
     # t_crs = osr.SpatialReference()
     # t_crs.ImportFromEPSG(epsg)
@@ -2855,7 +2759,6 @@ def RasterizeVector2(vec_path, img, msk_out, value_colname=None, compress=None, 
     crs = get_srs(gdal.Open(img))
     if not ds_match(ogr.Open(vec_path), crs):
         vec_reprojected = tempname('shp')
-        # print(vec_reprojected)
         ds_new = vec_to_crs(ogr.Open(vec_path), crs, vec_reprojected)
         if os.path.exists(vec_reprojected):
             vec_path = vec_reprojected
@@ -2894,10 +2797,6 @@ def StackBand(bpin, bpout, tile_size=10000):
     y = rasterout.RasterYSize
     assert x == rasterin.RasterXSize
     assert y == rasterin.RasterYSize
-    print('%i x %i' % (x, y))
-    '''ReadAsArray(self, xoff=0, yoff=0, win_xsize=None, win_ysize=None, buf_xsize=None, buf_ysize=None, buf_type=None, 
-        buf_obj=None, resample_alg=gdalconst.GRIORA_NearestNeighbour, callback=None, callback_data=None)'''
-    '''WriteArray(self, array, xoff=0, yoff=0, resample_alg=gdalconst.GRIORA_NearestNeighbour, callback=None, callback_data=None)'''
     bandin = rasterin.GetRasterBand(bnin)
     for x_i in range(x//tile_size+1):
         for y_i in range(y//tile_size+1):
@@ -3112,7 +3011,6 @@ def TotalCover(pout, files, srs = None):
             feat = ogr.Feature(feat_defn)
             feat.SetField('id', id)
             geom = RasterGeometry(ds_, reference=srs)
-            # print(geom.ExportToWkt())
             feat.SetGeometry(geom)
             lyr_out.CreateFeature(feat)
     ds_out = None
@@ -3128,7 +3026,6 @@ def ReplaceValues(f, replace, band_num=1):
                 arr_[arr_ == key] = replace[key]
         band.WriteArray(arr_)
         raster = None
-        # print(split3(f)[1], list(np.unique(gdal.Open(f).ReadAsArray())))
     else:
         print('Cannot open raster: %s' % f)
 
@@ -3151,7 +3048,6 @@ def RasterMatch(path1, path2):
     if None in (srs1, geom1, srs2, geom2):
         return None
     crs_match = srs1.GetAttrValue('AUTHORITY',1) == srs2.GetAttrValue('AUTHORITY',1)
-    # print(srs1.GetAttrValue('AUTHORITY',1), srs2.GetAttrValue('AUTHORITY',1), crs_match)
     if not crs_match:
         geom1.TransformTo(srs2)
     result = 2 * int(geom1.Intersects(geom2)) + crs_match

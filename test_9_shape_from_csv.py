@@ -23,7 +23,6 @@ def csv2dict(path, names1st_line=True, delimeter=';'):
         read_list.append(line[0].split(delimeter))
     len_ = len(read_list[0])
     for line_list in read_list:
-        #print(line_list)
         if len(line_list) != len_:
             raise Exception(r"Number of columns doesn't match")
     if names1st_line:
@@ -162,12 +161,6 @@ def dd2shp(path, coord_dict_list, epsg=4326, shptype='point'):
         print('Cannot reckognize type: %type_dict')
 
     return None
-'''
-x = 'N57.56.43532E36.23.56723'
-y = dms2dd(parse_coordinate(x), method='deg_min_decmin')
-print(y)
-dd2shp(r'C:\sadkov\test.shp', [y])
-'''
 
 def csv2shp(csv_path, shp_path, delimeter=';', col_names=None, coord_source='DMS', coord_method='deg_min_sec', shptype='point'):
     csv_dict = csv2dict(csv_path, delimeter=delimeter)
@@ -222,7 +215,6 @@ def csv2shp(csv_path, shp_path, delimeter=';', col_names=None, coord_source='DMS
                 coords_list.append(dd)
         except:
             print('Cannot add coodrinates %i' % id)
-        #print(coords_list[id])
     dd2shp(shp_path, coords_list, shptype=shptype)
     return True
 
@@ -243,6 +235,4 @@ for path in csv_list:
         csv2shp(path, shp_path, shptype='polygon')
         print('Written %s' % shp_path)
     except:
-        #print('Cannot write %s' % shp_path)
-        #print(path, csv2dict(path))
         pass

@@ -6,6 +6,5 @@ files = folder_paths(path, 1, 'SHP')
 for file in files:
     file_out = (path_out + file[28:])
     # file_out = (path_out + file[28:]).decode('cp1251')
-    print(file_out)
     ReprojectVector(file, file_out, 4326)
     print('File written: {}'.format(file_out))

@@ -58,7 +58,6 @@ def raster_match(path1, path2):
         srs1, geom1 = geosrs1
         srs2, geom2 = geosrs2
     crs_match = srs1.GetAttrValue('AUTHORITY',1) == srs2.GetAttrValue('AUTHORITY',1)
-    # print(srs1.GetAttrValue('AUTHORITY',1), srs2.GetAttrValue('AUTHORITY',1), crs_match)
     if not crs_match:
         geom1.TransformTo(srs2)
     result = 2 * int(geom1.Intersects(geom2)) + crs_match
@@ -124,13 +123,6 @@ else:
     files = folder_paths(folder_in, 1, 'tif')
 names = flist(files, lambda x: split3(x)[1])
 
-# scroll(files, lower='len=%s Finish it?' % len(files))
-
-# fin = input()
-# print(bool(int(fin)))
-# if bool(int(fin)):
-    # sys.exit()
-
 suredir(folder_out)
 
 print('\nSTART REFERENCING %i FILES' % len(files))
@@ -176,15 +168,10 @@ for file in files:
             break
         else:
             intersect_dict[ref] = match
-    # print(file)
     if fail:
-        scroll(intersect_dict)
         for ref in intersect_dict:
             if intersect_dict[ref] == 2:
                 align_system(file, ref, pout, align_file=None, reproject_method=gdal.GRA_Bilinear)
-                # for method_id in reproject_methods_dict:
-                    # pout_new = pout.replace('.tif', '_%s.tif' % method_id)
-                    # align_system(file, ref, pout_new, align_file=None, reproject_method=reproject_methods_dict[method_id])
                 fail = False
                 break
     if fail:
@@ -198,7 +185,6 @@ if folder_pansharp:
         pin = folder_out,
         pout = folder_pansharp,
     )
-    print(cmd_pansharp)
     os.system(cmd_pansharp)
 
 if errors_list:

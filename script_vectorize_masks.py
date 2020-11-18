@@ -3,8 +3,6 @@ from geodata import *
 path = r'e:\test\razmetka\data\db_etalons'
 folders = folder_paths(path)[0][7:21]
 
-scroll(folders)
-
 for folder in folders:
 
     fmsk = fullpath(folder, 'masks')

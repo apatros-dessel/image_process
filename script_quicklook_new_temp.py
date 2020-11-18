@@ -41,7 +41,6 @@ invert_red_blue = False
 
 if json_cover is None:
     json_cover = tempname('json')
-    # print(json_cover)
     process().input(dir_in, skip_duplicates=False).GetCoverJSON(json_cover)
     pass
 
@@ -83,8 +82,6 @@ def get_pms_json(path_cover, path_out, pms_id, pms_raster_path=''):
     if os.path.exists(path_out):
         print('FILE EXISTS: %s' % path_out)
         return 1
-
-    # print('Original PMS data not found for %s, collecting data from MS' % pms_id)
 
     if not os.path.exists(path_cover):
         print('Cannot find path: {}'.format(path_cover))
@@ -178,7 +175,6 @@ def granule_metadata_json(path_granule, path_cover_meta, path_out, raster_path, 
             transform = rgr.GetGeoTransform()
             fout.SetField('x_size', float(transform[1]))
             fout.SetField('y_size', float(-transform[-1]))
-    # print(tile_id)
     fout.SetField('id', tile_id)
     fout.SetField('id_neuro', resurs_granule_index(tile_id))
     fout.SetField('id_s', fout.GetField('id_neuro').split('-')[2])

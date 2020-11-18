@@ -84,7 +84,6 @@ def shift(arr1, arr2, iter_num=10000):
         else:
             print('Finished for {} iterations'.format(iter))
             iter = iter_num
-    #print('Finished for {} iterations'.format(iter))
     return arr2
 
 # Moves an array from the predefined boreder adding a new line calculated from its neighbours

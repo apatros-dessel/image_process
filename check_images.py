@@ -83,5 +83,4 @@ def dict_to_xls2(path2xls, adict): # It's better to use OrderedDict to preserve 
 path = r'd:\terratech\quicklook'
 xls_path = path + '\\report.xls'
 checkdict = filter_image(path)
-print(checkdict)
 dict_to_xls(xls_path, checkdict)

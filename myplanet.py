@@ -38,7 +38,6 @@ planet_bandpaths = OrderedDict(
 def getplanetfiles(xml_tree):
 
     file_list = get_from_tree(xml_tree, 'fileName')
-    # scroll(file_list)
     file_dict = OrderedDict()
 
     for file in file_list:
@@ -94,9 +93,6 @@ def metadata(path):
     meta.files = globals()['planet_files']
 
     loc_id = str(get_from_tree(planet_tree, 'tileId', digit_to_float=False))
-    # scroll(loc_id)
-    # print(loc_id, len(loc_id))
-    # if (loc_id is None):
     if (loc_id is None) or (loc_id in ['[]']):
         loc_id = 'S{}'.format(meta.id.split('_')[1])    # Satellite scene number
     else:
@@ -135,14 +131,12 @@ def metadata(path):
         search = re.search(datamask_template, filename)
         if search is not None:
             meta.datamask = filename
-            # print(meta.datamask)
             break
 
     return meta
 
 # Adds attributes to a standart feature for cover
 def set_cover_meta(feat, meta):
-    # print(feat)
     if meta is not None:
         metadata = meta.container.get('xmltree')
         feat.SetField('id', meta.id)

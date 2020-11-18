@@ -92,7 +92,6 @@ def raster_match(path1, path2):
         srs1, geom1 = geosrs1
         srs2, geom2 = geosrs2
     crs_match = srs1.GetAttrValue('AUTHORITY',1) == srs2.GetAttrValue('AUTHORITY',1)
-    # print(srs1.GetAttrValue('AUTHORITY',1), srs2.GetAttrValue('AUTHORITY',1), crs_match)
     if not crs_match:
         geom1.TransformTo(srs2)
     result = 2 * int(geom1.Intersects(geom2)) + crs_match
@@ -116,22 +115,7 @@ def raster_geom(ds, reference=None):
     return geom
 
 def get_pms_json(path_out, pms_raster_path):
-    '''
-    if os.path.exists(path_out):
-        filter_dataset_by_col(path_dict['json'], 'id', pms_id, path_out=path_out)
-        old_ds, old_lyr = get_lyr_by_path(path_out)
-        if len(old_lyr) > 0:
-            return 0
 
-    # print('Original PMS data not found for %s, collecting data from MS' % pms_id)
-
-    if not os.path.exists(path_cover):
-        print('Cannot find path: {}'.format(path_cover))
-        return 1
-
-    ms_id = pms_id.replace('.PMS', '.MS')
-    filter_dataset_by_col(path_cover, 'id', ms_id, path_out=path_out)
-    '''
     pms_ds, pms_lyr = get_lyr_by_path(path_out, 1)
 
     feat = pms_lyr.GetNextFeature()
@@ -150,17 +134,6 @@ def get_pms_json(path_out, pms_raster_path):
         feat.SetField('y_size', -float(pms_data.GetGeoTransform()[5]))
     else:
         print('Raster not found: %s' % pms_raster_path)
-        '''
-        pan_id = pms_id.replace('.PMS', '.PAN')
-        tpan_path = filter_dataset_by_col(path_cover, 'id', pan_id)
-        pan_ds, pan_lyr = get_lyr_by_path(tpan_path)
-        pan_feat = pan_lyr.GetNextFeature()
-        feat.SetField('rows', int(pan_feat.GetField('rows')))
-        feat.SetField('cols', int(pan_feat.GetField('cols')))
-        feat.SetField('x_size', float(pan_feat.GetField('x_size')))
-        feat.SetField('y_size', float(pan_feat.GetField('y_size')))
-        '''
-    # feat.SetField('area', None)
 
     pms_lyr.SetFeature(feat)
 
@@ -185,13 +158,9 @@ for folder in folder_paths(pin)[0]:
     s3scene = s3folder(folder)
     if s3scene:
         s3data[s3scene.id.replace('PSS4','S')] = s3scene
-        # print(s3scene.id.replace('PSS4','S'), s3scene.files)
-
-# scroll(s3data)
 
 for id in s3data:
     if id in sour_files:
-        print(sour_files[id])
         for rpath in sour_files[id]:
             if s3data[id].RasterMatch(rpath)==3:
                 s3data[id].RepairByScene(os.path.dirname(rpath))

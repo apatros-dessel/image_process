@@ -59,7 +59,6 @@ def raster_match(path1, path2):
         srs1, geom1 = geosrs1
         srs2, geom2 = geosrs2
     crs_match = srs1.GetAttrValue('AUTHORITY',1) == srs2.GetAttrValue('AUTHORITY',1)
-    # print(srs1.GetAttrValue('AUTHORITY',1), srs2.GetAttrValue('AUTHORITY',1), crs_match)
     if not crs_match:
         geom1.TransformTo(srs2)
     result = 2 * int(geom1.Intersects(geom2)) + crs_match
@@ -130,16 +129,7 @@ with file_csv:
     write = csv.writer(file_csv)
     write.writerows(files)
 
-# scroll(files, lower='len=%s Finish it?' % len(files))
-
-# fin = input()
-# print(bool(int(fin)))
-# if bool(int(fin)):
-    # sys.exit()
-
 suredir(folder_out)
-print(names)
-
 
 print('\nSTART REFERENCING %i FILES' % len(files))
 count = 0
@@ -179,7 +169,6 @@ for file in files:
     composition[file]['output_file'] = pout
     if os.path.exists(pout):
         print('\nFILE ALREADY EXISTS: %s' % pout)
-        # continue
         exist = True
 
     intersect_dict = OrderedDict()
@@ -197,39 +186,17 @@ for file in files:
             if os.path.exists(pout3):
                 continue
             align_system(file, ref, pout3, align_file=align_file, reproject_method=gdal.GRA_Bilinear)
-
-
-            # if exist:
-            #     if fr2 in file:
-            #         print("existed pan")
-            #         continue
-            #     print("match == 3; trying reproject with bilinear")
-            #     pout3 = fullpath(folder_out, n + '.REF3', e)
-            #     composition[file]['output_file2'] = pout3
-            #     if os.path.exists(pout3):
-            #         continue
-            #     align_system(file, ref, pout3, align_file=align_file, reproject_method=gdal.GRA_Bilinear)
-            #
-            # else:
-            #     print("match == 3; didn't exist")
-            #     align_system(file, ref, pout, align_file=align_file)
             fail = False
             break
         else:
             intersect_dict[ref] = match
-    # print(file)
     if fail:
-        scroll(intersect_dict)
         for ref in intersect_dict:
             if intersect_dict[ref] == 2:
-                # pout2 = fullpath(folder_out, n + '.REF2', e)
                 print("match == 2")
                 if exist:
                     continue
                 align_system(file, ref, pout, align_file=None, reproject_method=gdal.GRA_Bilinear)
-                # for method_id in reproject_methods_dict:
-                    # pout_new = pout.replace('.tif', '_%s.tif' % method_id)
-                    # align_system(file, ref, pout_new, align_file=None, reproject_method=reproject_methods_dict[method_id])
                 fail = False
                 break
     if fail:
@@ -243,7 +210,6 @@ if folder_pansharp:
         pin = folder_out,
         pout = folder_pansharp,
     )
-    print(cmd_pansharp)
     os.system(cmd_pansharp)
 
 if errors_list:

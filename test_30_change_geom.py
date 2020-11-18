@@ -8,17 +8,14 @@ path_out = r'D:/resurs_p+/test'
 
 attr_path_list = folder_paths(path_in, files=True, extension='json')
 attr_path_list = [r'd:\export\resursp\krym\RP1_28828_05_GEOTON_20180820_081207_081219.SCN2.PMS.L2\RP1_28828_05_GEOTON_20180820_081207_081219.SCN2.PMS.L2.json']
-scroll(attr_path_list)
 '''
 geom_path_input = folder_paths(path_geom, files=True, extension='shp')
-scroll(geom_path_input)
 
 geom_path_list = []
 for attr_path in attr_path_list:
     unfound = True
     for geom_path in geom_path_input:
         basename = os.path.basename(attr_path)[:-5]
-        print(basename)
         if basename in geom_path:
             geom_path_list.append(geom_path)
             unfound = False
@@ -27,7 +24,6 @@ for attr_path in attr_path_list:
         geom_path_list.append(None)
 '''
 geom_path_list = [r'D:/resurs_p+/RP1_28828_05_GEOTON_20180820_081207_081219.SCN2.PMS.L2_obrez_ref.json']
-scroll(geom_path_list)
 
 suredir(path_out)
 

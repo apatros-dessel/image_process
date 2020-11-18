@@ -55,16 +55,13 @@ def order_for_level(list_of_lists, reposition=None):
         if id < count:
             continue
         else:
-            # print('{} -- {}'.format(list_of_lists, list_of_lists[0][pos]))
             res, value = order_for_val(list_of_lists, list_of_lists[0][pos])
-            # print(value)
             if reposition is not None:
                 print('{} -- {} -- {} -- {}'.format(list_of_lists, reposition, list_of_lists[0][pos], value))
             if res == 0:
                 continue
             elif res == 1:
                 if reposition is not None:
-                    print(order_list, id)
                     value = reposition[value]
                 export_order_list.append(value)
                 count += 1
@@ -83,5 +80,3 @@ list_2 = [5,3,0,7,0,1,9,3]
 correct = [0,4,7,1,2,5,3,6]
 
 list_of_lists = [list_1, list_2]
-
-print(order_for_level(list_of_lists))

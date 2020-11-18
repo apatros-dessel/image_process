@@ -262,7 +262,6 @@ for i in xls_data.keys():
 	init_test = test['old']#.replace('.PMS','.MS')
 	final_test = test['new']#.replace('.PMS','.MS')
 	# time.sleep(5)
-	# print(init_test, final_test)
 	for path in folder_paths(input_folder, 1, 'tif'):
 		if init_test in path:
 			init_image_list.append(path)
@@ -275,13 +274,8 @@ argv = sys.argv
 if argv is None:
     sys.exit(1)
 
-#for name1, name2, name3 in zip(init_image_list, final_image_list, composit_image_list):
-	#scroll([name1, name2, name3], header = 'Old & New')
-
 if not os.path.exists(output_folder):
 	os.makedirs(output_folder)
-	
-# sys.exit(1)
 
 '''
 # Parse command line arguments.
@@ -412,7 +406,5 @@ for init_image, final_image, composit_image in zip(init_image_list, final_image_
 
         else:
             print('Overlaping error - %s '%str(overlap))
-
-        # raise Exception
 
 scroll(error_list, header='Errors found')

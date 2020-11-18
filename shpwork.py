@@ -133,7 +133,6 @@ def index(array2index):
     val_dict = {}
     for num in range:
         val_dict[num] = vals[num-1]
-        #print(type(vals[num-1]))
         new_array[array2index==val_dict[num]] = num
     assert len(new_array[new_array==0])==0
     return new_array, val_dict

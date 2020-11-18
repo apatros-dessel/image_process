@@ -123,8 +123,6 @@ def pms_iter(data_source_folder,
 
     for filepath in folder_paths(data_source_folder, files = True, extension='tif'):
 
-        print(filepath)
-
         root, f = os.path.split(filepath)
 
         # Kanopus
@@ -170,7 +168,6 @@ def pms_iter(data_source_folder,
                 loop[scene_id]={product:os.path.join(root, f)}
 
     scroll(loop, header = 'Files:', lower='%i objects found' % len(loop))
-    # print(len(loop))
     finish = []
 
     i=1
@@ -205,8 +202,6 @@ def pms_iter(data_source_folder,
             else:
                 print(item, v.keys(), u'%s from %s' % (i, len(loop.keys())))
 
-            # print('Starting %s' % psh)
-
             try:
                 if use_deflate:
                     tpath = tempname('tif')
@@ -238,9 +233,6 @@ def pms_iter(data_source_folder,
 argv = sys.argv
 if argv is None:
     sys.exit(1)
-
-# scroll(filter_names)
-# sys.exit(1)
 
 suredir(output_folder)
 

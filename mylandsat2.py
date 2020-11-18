@@ -132,7 +132,6 @@ def get_files_landsat(text, word):
 
 def getlandsatfiles(text):
     file_list = get_files_landsat(text, "FILE_NAME_BAND_")
-    # scroll(file_list)
     file_dict = OrderedDict()
     for file in file_list:
         if 'B1' in file and 'B10' not in file and 'B11' not in file:
@@ -191,13 +190,6 @@ def metadata(path):
     #meta.filepaths = slice_orderdict(meta.mtl, 'FILE_NAME_BAND_', delete_call=True) #номер бенда
     meta.filepaths = getlandsatfiles(landsat_data) #имя бенда
 
-    # cur_meta = meta.container.get('text')
-    # if cur_meta is None:
-    #     print('Metadata file not found for {}'.format(meta.id))
-    # else:
-    #     meta.filepaths = {meta.files[0]: get_from_text(cur_meta, '???')} # get filepaths as OrderedDict
-    #meta.filepaths =  make_paths(landsat_data, "FILE_NAME_BAND_")  # get filepaths as OrderedDict
-
 
     meta.bandpaths = globals()['landsat_bandpaths'] # get bandpaths as tuple of files_id and band numbers
     meta.location = meta.id[10:16]   # get scene location id
@@ -221,28 +213,8 @@ def metadata(path):
 
     return meta
 
-
-
-# Landsat-8 metadata
-# class landsat_8:
-#
-#     def __init__(self, path):
-#         folder, file = os.path.split(path)
-#         if check_name(file, globals()['filepattern']['LS8']):
-#             self.files = globals()['bands']['LS8']
-#             self.bands = globals()['bands']['LS8']
-#             self.mtl = mtl2orderdict(path)
-#             self.filenames = slice_orderdict(self.mtl, 'FILE_NAME_BAND_', delete_call = True)
-#             self.bandpaths = list_orderdict([self.filenames, fill_orderdict(self.filenames, 1)])
-#             year, month, day = intlist(self.mtl.get('DATE_ACQUIRED').split('-'))
-#             self.date = dtime.date(year, month, day)
-#             self.place = file[10:16]
-#         else:
-#             print('Wrong file name: {}'.format(file))
-
 # Adds attributes to a standart feature for cover
 def set_cover_meta(feat, meta):
-    # print(feat)
     if meta is not None:
         metadata = meta.container.get('text')
         feat.SetField('id', meta.id)

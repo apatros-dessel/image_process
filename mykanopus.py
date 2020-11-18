@@ -212,7 +212,6 @@ def metadata(path):
         if len(paths) == 1:
             meta.datamask = os.path.basename(paths[0])
 
-    # print(meta.files, meta.filepaths)
     meta.bandpaths =    globals()['kanopus_bandpaths'].get(meta.files[0], {})
     meta.namecodes.update(
         {
@@ -225,24 +224,6 @@ def metadata(path):
     )
     meta.write_time_codes(meta.datetime)
 
-    scroll(meta.namecodes)
-
-    return meta
-
-# Gets metadata from alternate format
-def get_alternate_metadata(path):
-    meta = scene_metadata('KAN')
-    meta.container['metadata'] = xml2tree(file_path)
-    satid, loc1, loc2, sentnum, fr, num1, num2, scn_num = parse_kanopus_alternate(meta.id)
-    meta.files = [{'PAN':'pan','MS':'mul','PMS':'mul'}.get(get_type_alternate(txt))]
-    meta.filepaths = {meta.files[0]: ('%s.tif' % meta.id[:-3].replace('_OB','')).replace('..','.')}
-    meta.location = loc1+loc2+scn_num
-    date = from_txt(txt, 'SessionDate = \d+/\d+/\d+')[14:]
-    time = from_txt(txt, 'SessionTime = \d+:\d+:\d+.\d+')[14:]
-    meta.datetime = get_date_from_string('%s-%s-%sT%s' % (date[-4:], date[3:5], date[:2], time))
-    meta.lvl = from_txt(txt, 'ProcLevel = ".+"')[13:-1]
-    meta.datamask = ('%s.shp' % meta.id[:-3].replace('_OB','')).replace('..','.')
-    meta.quicklook = '%s.jpg' % meta.id[:-3]
     return meta
 
 # Get Kanopus type from alternate metadata

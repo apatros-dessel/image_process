@@ -92,7 +92,6 @@ suredir(folder_out)
 mosaic_list = []
 for group in groups.values():
     params = GetRasterPercentileUInteger(group, 0.01, 0.998, manage_clouds=False, bands=band_order)
-    print(params)
     for file in group:
         f,n,e = split3(file)
         rgb = n+'.RGB'

@@ -36,7 +36,6 @@ def kanopus_cover_new(files, pms_path = None):
                 feats_list=None,
                 field_name_translator=None,
                 overwrite=True)
-    # return None
 
     dout, lout = get_lyr_by_path(path_out, 1)
 
@@ -51,7 +50,6 @@ def kanopus_cover_new(files, pms_path = None):
 
         f, n, e = split3(feats.vec_list[feats.vec_num])
         id = re.search(r'KV[\d,I]_.+\.MS', f).group().replace('.MS', '.PMS.L2')
-        print(id)
         satid, loc1, loc2, sentnum, date, num1, num2, scn, type, lvl = parse_kanopus(id)
 
         meta = open(folder_paths(f,1,'xml')[0]).read()

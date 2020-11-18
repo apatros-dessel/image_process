@@ -40,16 +40,11 @@ for ascene in process().input(path_in, imsys_list=['PLN']).scenes:
     else:
         print('Wrong name format: %s' % n)
 
-print(codes_dict)
-
 file_limits = {}
 for code in codes_list:
     limits = GetRasterPercentileUInteger(codes_dict[code], 0.02, 0.98, bands=[1, 2, 3], nodata=0, max=65536)
     for f in codes_dict[code]:
         file_limits[f] = limits
-
-
-print(file_limits)
 
 for i in range(0, len(files_list)):
     path_rgb = rgblist[i]

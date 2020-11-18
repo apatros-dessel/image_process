@@ -33,8 +33,6 @@ for file in files:
     else:
         shooting_list[id] = {channel: file}
 
-# scroll(shooting_list)
-
 for id in shooting_list:
     channels = shooting_list[id]
     scroll(channels, header=id, lower='\n')

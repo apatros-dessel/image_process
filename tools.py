@@ -52,7 +52,6 @@ def check_exist(path, ignore=False, check_size=None):
             if check_size:
                 if os.path.getsize(path)<check_size:
                     return False
-            # print('The file already exists: {}'.format(path))
             return True
     return False
 
@@ -345,8 +344,6 @@ def newname2(name, name_list, update_list=False):
 
 # Creates new path
 def newname(folder, ext = None):
-    # print(os.path.exists(folder), folder)
-    # print(os.path.isdir(folder))
     if os.path.exists(folder) and os.path.isdir(folder):
         i = 0
         path_new = fullpath(folder, i, ext)
@@ -415,9 +412,7 @@ def destroydir(path, preserve_path = False):
             success.append(folder)
         except:
             errors.append(folder)
-    # scroll(success, header = 'Deleted files and folders: ')
     if bool(errors):
-        # scroll(errors, header = 'Failed to delete files and folders:')
         return False
     return True
 
@@ -471,7 +466,6 @@ def walk_find(path, ids_list, templates_list, id_max=100000):
                 path_list.append(fold_)
             for file_n in file_:
                 for i, templates in enumerate(templates_list):
-                    #print('{}: \n {} \n'.format(template, file_n))
                     for template in templates:
                         if check_name(file_n, template):
                             export_.append((file_n, ids_list[i]))
@@ -575,7 +569,6 @@ def scroll(obj, print_type=True, decoding=None, header=None, lower=None, depth=0
 
 # Get datetime from string
 def get_date_from_string(date_str):
-    # print(date_str)
     year = int(date_str[:4])
     month = int(date_str[5:7])
     day = int(date_str[8:10])
@@ -610,7 +603,6 @@ def iter_list(root, call):
 
 # Processes the iter_list created by iter_list() to return list of values of a proper kind
 def iter_return(iter_list, data='text', attrib=None):
-    # scroll(iter_list)
     if isinstance(data, int):
         data = ['text', 'tag', 'attrib'][data] or 'text'
     return_list = []
@@ -681,7 +673,6 @@ def get_from_tree(xml_tree, call, check=None, data='text', attrib=None, sing_to_
     if check is not None:
         filter = attrib_filter(iter, check)
         result = list(np.array(result)[filter])
-    #scroll(sing2sing(result, sing_to_sing, digit_to_float))
     return sing2sing(result, sing_to_sing, digit_to_float)
 
 # Import data from xls
@@ -780,7 +771,6 @@ class scene_metadata:
         if False in check_list.values():
             error_keys = np.array(list(check_list.keys()))[~ np.array(list(check_list.values()))]
             for key in error_keys:
-                # print(self.id, get_from_tree(self.container.get('meta'), 'CATID'))
                 print('Error in key: {} == {}'.format(key, check_list[key]))
             return False
         else:
@@ -849,8 +839,6 @@ class scene_metadata:
     # Make name from a string using the templates
     def name(self, namestring):
         for key in self.namecodes.keys():
-            # print(type(self.namecodes.get(key, '')))
-            # print(delist(self.namecodes.get(key, '')))
             namestring = namestring.replace(key, delist(self.namecodes.get(key, '')))
         return namestring
 

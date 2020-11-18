@@ -30,14 +30,9 @@ raster_names = flist(raster_paths, lambda x: parse_raster_name(split3(x)[1]))
 xml_paths = folder_paths(xml_path,1,'xml')
 xml_names = flist(xml_paths, lambda x: parse_stinky_resursp(split3(x)[1]))
 
-scroll(raster_names)
-scroll(xml_names)
-
 for i, id in enumerate(xml_names):
     if id in raster_names:
         input[id] = {'m': xml_paths[i], 'r': raster_paths[raster_names.index(id)]}
-
-scroll(input)
 
 for id in input:
     xml = input[id]['m']

@@ -146,5 +146,3 @@ for path_in in path_in_list:
                    alpha=True)
 
     print('File written: %s' % file)
-
-    # sys.exit()

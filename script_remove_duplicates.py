@@ -50,10 +50,7 @@ for feat in lin:
                 continue
     id_dict[id] = (path, geom, check, date, satid, type)
 
-scroll(duplicates)
-
 scroll(remove_list, header='Remove FIDS:')
-print(len(remove_list))
 dict_to_xls(report_xls, duplicates)
 filter_dataset_by_col(pin, 'path', duplicates.keys(), path_out=report_json)
 din, lin = get_lyr_by_path(report_json,1)

@@ -75,11 +75,8 @@ for i, file_ms in enumerate(list_ms):
         lack_list.append(file_pan)
         continue
 
-scroll(ok_list, header='OK:')
-print(len(ok_list))
+scroll(ok_list, header='OK:', lower=len(ok_list))
 
-scroll(error_list, header='ERRORS:')
-print(len(error_list))
+scroll(error_list, header='ERRORS:', lower=len(error_list))
 
-scroll(lack_list, header='MISSING:')
-print(len(lack_list))
+scroll(lack_list, header='MISSING:', lower=len(lack_list))

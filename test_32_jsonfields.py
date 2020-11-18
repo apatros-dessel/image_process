@@ -39,8 +39,6 @@ translator['y_size'] =      ['pixel_reso']
 translator['level'] =       ['prodL']
 translator['area'] =        ['area_sqkm']
 
-# scroll(translator)
-
 path_in_list = [
     r'e:\test\cover_tver_planet_fin.json',
     # r'e:\test\cover_krym_fin.json',
@@ -145,9 +143,7 @@ for path_in, path_out, path_data in zip(path_in_list, path_out_list, path_data_l
                 feat.SetField('level', get_from_tree(metadata, 'productType'))
 
             lyr_out.SetFeature(feat)
-            # print('Set the attributes for {}'.format(feat.GetField('id')+'_3B_AnalyticMS'))
 
         ds_out = None
 
-    # scroll(proc.get_ids()[:10])
     print('File written: {}'.format(path_out))

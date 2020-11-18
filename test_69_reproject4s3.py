@@ -11,6 +11,95 @@ source_name_tmpt = r'fr13_kv1_33892_26862_01.' # fr1_KV3_13044_10269_01_3NP2_20_
 align_renaming_template = (r'fr.+_s_.+$', '_S_', '_PSS1_')
 folder_pansharp = None
 
+'''
+STAGES
+1. Find all scenes available in source data sorting them by location and image type (PAN, MS, PMS)
+2. Check if some of the scenes are already processed
+3. Reproject source images from PMS data
+4. If PMS data is not available, reproject PAN and MS and make pansharpening
+5. Prepare PMS data for S3
+6. If reprojection was failed, save the source data separately
+'''
+
+def FindScenes(path_in):
+    scenes = OrderedDict()
+    for folder_in in obj2list(path_in):
+        proc = process.input(folder_in)
+        for ascene in proc.scenes:
+            id = ascene.meta.id
+            if '.PAN' in id:
+                base_id = id.replace('.PAN','.PMS')
+                type = 'PAN'
+            elif '.MS' in id:
+                base_id = id.replace('.MS','.PMS')
+                type = 'MS'
+            elif '.PMS' in id:
+                base_id = id
+                type = 'PMS'
+            else:
+                print('Unknown type: %s' % id)
+                continue
+            if base_id in scenes:
+                if type in scenes[base_id]:
+                    print('Scene already exists: %s' % id)
+                    continue
+                else:
+                    scenes[base_id][type] = ascene.fullpath
+            else:
+                scenes[base_id] = {type: ascene.fullpath}
+    return scenes
+
+def GetS3Scenes(folder_in):
+    scenes = OrderedDict()
+    for s3id in os.listdir(folders):
+        folder = fullpath(folder_in, s3id)
+        if os.path.isdir(folder):
+            meta_path = fullpath(folder, s3id, 'json')
+            if os.path.exists(meta_path):
+                meta_ds, meta_lyr = get_lyr_by_path(meta_path)
+                if meta_lyr:
+                    id = meta_lyr.GetNextFeature().GetField('id')
+                    scenes[s3id] = (id, meta_path)
+                    continue
+        print('Cannot find metadata: %s' % s3id)
+    return scenes
+
+def CoverMatch(feat1, feat2, field_list = None):
+    if field_list is None:
+        field_list = ['id', 'id_s', 'id_neuro', 'datetime', 'sun_elev', 'sun_azim', 'sat_id', 'sat_view', 'sat_azim', 'channels', 'type', 'format', 'rows', 'cols', 'epsg_dat', 'u_size', 'x_size', 'y_size', 'level']
+    else:
+        field_list = obj2list(field_list)
+    geom1 = feat1.GetGeometryRef()
+    geom2 = feat2.GetGeometryRef()
+    if geom1.Intersects(geom2):
+        for field_id in field_list:
+            if feat1.GetField(field_id)!=feat2.GetField(field_id):
+                return False
+    return True
+
+def GetUnmatchingScenes(source_scenes, s3_scenes):
+    unmatched = OrderedDict()
+    for id in source_scenes:
+        for s3id in s3_scenes:
+            source_id, meta_path = s3_scenes[s3id]
+            if id==source_id:
+                source_scene = scene(source_scenes[id])
+                temp_json = tempname(json)
+                source_scene.GetCoverJSON(temp_json)
+                source_ds, source_lyr = get_lyr_by_path(temp_json)
+                s3_ds, s3_lyr = get_lyr_by_path(meta_path)
+                if source_lyr and s3_lyr:
+                    source_feat = source_lyr.GetNextFeature(source_lyr)
+                    s3_feat = source_lyr.GetNextFeature(s3_lyr)
+                    match = CoverMatch(source_feat, s3_feat)
+                    if match:
+                        print('SCENE ALREADY EXIST: %s' % s3id)
+                        continue
+                else:
+                    print('COVER ERROR: %s' % s3id)
+        unmatched[id] = source_scenes[id]
+    return unmatched
+
 reproject_methods_dict = {
     'NN': gdal.GRA_NearestNeighbour,
     'AVG': gdal.GRA_Average,

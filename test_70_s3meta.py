@@ -21,8 +21,23 @@ def GetS3Scenes(folder_in):
             print('Cannot find metadata: %s' % s3id)
     return scenes
 
+class Attributes(OrderedDict):
+
+    def GetFromFeature(self, feat, attr_list = None):
+        if attr_list is None:
+            attr_list = feat.keys()
+        for key in attr_list:
+            try:
+                value = feat.GetField(key)
+                if value is not None:
+                    self[key] = value
+            except KeyError:
+                print('KeyError: %s' % key)
+            except:
+                print('Unreckognized error: %s' % key)
+
 def InspectS3Scene(folder_in):
-    report = OrderedDict()
+    report = Attributes()
     s3id = os.path.split(folder_in)[1]
     report['s3id'] = s3id
     meta_path = fullpath(folder_in, s3id, 'json')
@@ -31,8 +46,7 @@ def InspectS3Scene(folder_in):
         if meta_lyr:
             meta_feat = meta_lyr.GetNextFeature()
             if meta_feat:
-                id = meta_feat.GetField('id')
-                report['id'] = id
+                report.GetFromFeature(meta_feat, ['id','id_neuro','datetime','sat_id','channels','type','rows','cols','epsg_dat','x_size','y_size','level','area'])
             else:
                 print('METADATA FEATURE NOT FOUND: %s' % s3id)
         else:
@@ -48,6 +62,9 @@ def InspectS3Scene(folder_in):
     else:
         print('DATA FILE NOT FOUND: %s' % s3id)
     report['data'] = data
+    # ql_path = fullpath(folder_in, s3id+'.QL', 'tif')
+    # if os.path.exists(ql_path):
+        # raster_ql = gdal.Open()
 
     return report
 
@@ -92,6 +109,9 @@ scenes = GetS3Scenes(folder_in)
 info = OrderedDict()
 for s3id in scenes:
     info[s3id] = InspectS3Scene(fullpath(folder_in, s3id))
+
+# scroll(info)
+# sys.exit()
 
 txts = folder_paths(r'd:\temp',1,'txt')
 test_ids = []

@@ -51,7 +51,7 @@ def FindScenes(path_in):
 
 def GetS3Scenes(folder_in):
     scenes = OrderedDict()
-    for s3id in os.listdir(folders):
+    for s3id in os.listdir(folder_in):
         folder = fullpath(folder_in, s3id)
         if os.path.isdir(folder):
             meta_path = fullpath(folder, s3id, 'json')

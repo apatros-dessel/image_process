@@ -340,17 +340,18 @@ reference_list = folder_paths(references_path,1,'tif')
 test_ids = open(test_ids_txt).read().split('\n')
 
 source_scenes = FindScenes(folder_in)
-scroll(source_scenes, lower=len(source_scenes))
-sys.exit()
 s3_scenes = GetS3Scenes(folder_s3)
 unmatched = GetUnmatchingScenes(source_scenes, s3_scenes)
 
 matched, missed = CheckIdFromList(unmatched, test_ids, pms=True)
+scroll(unmatched, lower=len(unmatched))
+print(len(matched))
+sys.exit()
 
 success = []
 fail = []
 for id in unmatched:
-    if id in matched:
+    # if id in matched:
         res = ReprojectSystem(unmatched[id], reference_list, folder_out)
         if res:
             success.append(id)

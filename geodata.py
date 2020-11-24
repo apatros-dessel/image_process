@@ -2962,6 +2962,7 @@ def RasterReport(file):
                         empty = False
                 else:
                     empty_list.append('0.0')
+                    empty = False
             report['nodata'] = str(nodata)
             report['empty_list'] = ' '.join(empty_list)
             report['empty'] = str(empty)

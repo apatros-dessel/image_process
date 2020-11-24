@@ -3,13 +3,14 @@
 from geodata import *
 from image_processor import process, scene
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\__selected\region82'
-folder_out = r'd:\rks\s3\kanopus_missed'
-references_path = r'\\172.21.195.2\FTP-Share\ftp\References'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1159'
+folder_out = r'd:\rks\s3\kanopus_missed\1159_PMS'
+references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 source_name_tmpt = r'fr13_kv1_33892_26862_01.' # fr1_KV3_13044_10269_01_3NP2_20_S_584506_090620.tif
 align_renaming_template = (r'fr.+_s_.+$', '_S_', '_PSS1_')
 test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
+overwrite = False
 
 '''
 STAGES
@@ -61,7 +62,7 @@ def GetS3Scenes(folder_in):
                     id = meta_lyr.GetNextFeature().GetField('id')
                     scenes[s3id] = (id, meta_path)
                     continue
-        print('Cannot find metadata: %s' % s3id)
+            print('Cannot find metadata: %s' % s3id)
     return scenes
 
 def CoverMatch(feat1, feat2, field_list = None):
@@ -127,7 +128,10 @@ def GetReference(file, ref_list):
         print('REFERENCE NOT FOUND FOR: %s' % file)
         return None
 
-def AlignSystem(pin, ref, pout, tempdir=None, align_file=None, reproject_method=gdal.GRA_NearestNeighbour, errors_folder = None):
+def AlignSystem(pin, ref, pout, tempdir=None, align_file=None, reproject_method=gdal.GRA_NearestNeighbour, errors_folder = None,
+                overwrite = True):
+    if check_exist(pout, ignore=overwrite):
+        return False
     base = pin
     if tempdir is None:
         tempdir = os.environ['TMP']
@@ -174,11 +178,10 @@ def AlignSystem(pin, ref, pout, tempdir=None, align_file=None, reproject_method=
         print('\nWRITTEN : %s' % pout)
         res = True
     else:
-        globals()['errors_list'].append(base)
         print('\nTRANSFORM NOT CREATED FOR: %s' % base)
         if errors_folder:
             suredir(errors_folder)
-            f, n, e = split3(pout)[1]
+            f, n, e = split3(pout)
             error_path = fullpath(errors_folder,n,e)
             if not os.path.exists(error_path):
                 shutil.copyfile(pin, error_path)
@@ -253,7 +256,7 @@ def GetReferenceFromList(file, references_list):
     else:
         return None
 
-def ReprojectSystem(scene_dict, reference_list, folder_out):
+def ReprojectSystem(scene_dict, reference_list, folder_out, overwrite = False):
     pms_folder = fullpath(folder_out, '_pms')
     panms_folder = fullpath(folder_out, '__mspms')
     errors_folder = fullpath(folder_out, '__errors')
@@ -262,12 +265,12 @@ def ReprojectSystem(scene_dict, reference_list, folder_out):
         print('ERROR: SCENE ID NOT FOUND: {}' % scene_dict)
         return False
     if 'PMS' in scene_dict:
-        pms = scene_dict['PMS']
+        pms = folder_paths(split3(scene_dict['PMS'])[0],1,'tif')[0]
         endpath = fullpath(pms_folder, id, 'tif')
         ref = GetReference(pms, reference_list)
         if ref:
             suredir(pms_folder)
-            AlignSystem(pms, ref, endpath, align_file=pms, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder)
+            AlignSystem(pms, ref, endpath, align_file=pms, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder, overwrite=overwrite)
         else:
             suredir(errors_folder)
             errpath = fullpath(errors_folder, id, 'tif')
@@ -277,15 +280,15 @@ def ReprojectSystem(scene_dict, reference_list, folder_out):
             else:
                 shutil.copyfile(pms, errpath)
     elif ('MS' in scene_dict) and ('PAN' in scene_dict):
-        ms = scene_dict['MS']
-        pan = scene_dict['PAN']
+        ms = folder_paths(split3(scene_dict['MS'])[0],1,'tif')[0]
+        pan = folder_paths(split3(scene_dict['PAN'])[0],1,'tif')[0]
         panpath = fullpath(panms_folder, id.replace('.PMS','.PAN'), 'tif')
         mspath = fullpath(panms_folder, id.replace('.PMS', '.MS'), 'tif')
         ref = GetReference(pan, reference_list)
         if ref:
             suredir(panms_folder)
-            res_pan = AlignSystem(pan, ref, panpath, align_file=pan, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder)
-            res_ms = AlignSystem(ms, ref, mspath, align_file=pan, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder)
+            res_pan = AlignSystem(pan, ref, panpath, align_file=pan, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder, overwrite=overwrite)
+            res_ms = AlignSystem(ms, ref, mspath, align_file=pan, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder, overwrite=overwrite)
         else:
             suredir(errors_folder)
             mserrpath = fullpath(errors_folder, id.replace('.PMS', '.MS'), 'tif')
@@ -297,7 +300,7 @@ def ReprojectSystem(scene_dict, reference_list, folder_out):
                 shutil.copyfile(ms, mserrpath)
                 shutil.copyfile(pan, mserrpath)
     else:
-        scroll(scene_dict, header='FILES NOT FOUND:')
+        # scroll(scene_dict, header='FILES NOT FOUND:')
         return False
     return True
 
@@ -346,6 +349,7 @@ s3_scenes = GetS3Scenes(folder_s3)
 matched, unmatched = GetUnmatchingScenes(source_scenes, s3_scenes)
 
 # match, miss = CheckIdFromList(unmatched, test_ids, pms=True)
+''' REPORT OF MATCHING AND UNMATCHING FILES
 scroll(unmatched, lower=len(unmatched))
 name = os.path.split(folder_in)[1]
 matched_list = list(matched.keys())
@@ -356,17 +360,21 @@ unmatched_list = list(unmatched.keys())
 scroll(unmatched_list, lower=len(unmatched_list))
 with open(fullpath(folder_out, name+'_missed', 'txt'), 'w') as txt:
     txt.write('\n'.join(unmatched_list))
-sys.exit()
+'''
 
 success = []
 fail = []
 for id in unmatched:
-    if id in match:
-        res = ReprojectSystem(unmatched[id], reference_list, folder_out)
+    # if id in match:
+        # print(id)
+        # continue
+        res = ReprojectSystem(unmatched[id], reference_list, folder_out, overwrite=overwrite)
         if res:
             success.append(id)
         else:
-            fail.append(id)
+            # fail.append(id)
+            pass
+sys.exit()
 
 scroll(success, header='SUCCESS', lower=len(success))
 scroll(fail, header='FAIL', lower=len(fail))

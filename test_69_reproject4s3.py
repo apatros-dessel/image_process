@@ -3,7 +3,7 @@
 from geodata import *
 from image_processor import process, scene
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1275'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\__selected\region82'
 folder_out = r'd:\rks\s3\kanopus_missed'
 references_path = r'\\172.21.195.2\FTP-Share\ftp\References'
 source_name_tmpt = r'fr13_kv1_33892_26862_01.' # fr1_KV3_13044_10269_01_3NP2_20_S_584506_090620.tif
@@ -85,6 +85,7 @@ def GetSceneFullpath(scene_dict):
 
 def GetUnmatchingScenes(source_scenes, s3_scenes):
     unmatched = OrderedDict()
+    matched = OrderedDict()
     for id in source_scenes:
         for s3id in s3_scenes:
             source_id, meta_path = s3_scenes[s3id]
@@ -103,13 +104,14 @@ def GetUnmatchingScenes(source_scenes, s3_scenes):
                         match = CoverMatch(source_feat, s3_feat)
                         if match:
                             print('SCENE ALREADY EXIST: %s' % s3id)
+                            matched[id] = source_scenes[id]
                             continue
                     else:
                         print('COVER ERROR: %s' % s3id)
                 else:
                     print('CANNOT OPEN SCENE: %s' % id)
         unmatched[id] = source_scenes[id]
-    return unmatched
+    return matched, unmatched
 
 def GetReference(file, ref_list):
     match_list = []
@@ -341,22 +343,30 @@ test_ids = open(test_ids_txt).read().split('\n')
 
 source_scenes = FindScenes(folder_in)
 s3_scenes = GetS3Scenes(folder_s3)
-unmatched = GetUnmatchingScenes(source_scenes, s3_scenes)
+matched, unmatched = GetUnmatchingScenes(source_scenes, s3_scenes)
 
-matched, missed = CheckIdFromList(unmatched, test_ids, pms=True)
+# match, miss = CheckIdFromList(unmatched, test_ids, pms=True)
 scroll(unmatched, lower=len(unmatched))
-print(len(matched))
+name = os.path.split(folder_in)[1]
+matched_list = list(matched.keys())
+scroll(matched_list, lower=len(matched_list))
+with open(fullpath(folder_out, name+'_matched', 'txt'), 'w') as txt:
+    txt.write('\n'.join(matched_list))
+unmatched_list = list(unmatched.keys())
+scroll(unmatched_list, lower=len(unmatched_list))
+with open(fullpath(folder_out, name+'_missed', 'txt'), 'w') as txt:
+    txt.write('\n'.join(unmatched_list))
 sys.exit()
 
 success = []
 fail = []
 for id in unmatched:
-    # if id in matched:
+    if id in match:
         res = ReprojectSystem(unmatched[id], reference_list, folder_out)
         if res:
             success.append(id)
         else:
             fail.append(id)
 
-scroll(success, header='SUCESS', lower=len(success))
+scroll(success, header='SUCCESS', lower=len(success))
 scroll(fail, header='FAIL', lower=len(fail))

@@ -156,7 +156,7 @@ def AlignSystem(pin, ref, pout, tempdir=None, align_file=None, reproject_method=
             ReprojectRaster(align_file, repr_raster, int(srs_ref.GetAttrValue('AUTHORITY', 1)), method=reproject_method)
             align_file = repr_raster
 
-    cmd_autoalign = r'python37 C:\Users\TT\PycharmProjects\pereprivyazka\autoalign.py {align_file} {ref} {transform} -l -t {tempdir}'.format(
+    cmd_autoalign = r'python37 autoalign.py {align_file} {ref} {transform} -l -t {tempdir}'.format(
         align_file = align_file.replace(' ', '***'),
         ref = ref.replace(' ', '***'),
         transform = transform,
@@ -166,7 +166,7 @@ def AlignSystem(pin, ref, pout, tempdir=None, align_file=None, reproject_method=
     os.system(cmd_autoalign)
 
     if os.path.exists(transform):
-        cmd_warp = r'python37 C:\Users\TT\PycharmProjects\pereprivyazka\warp.py {pin} {transform} {pout} -t {tempdir}'.format(
+        cmd_warp = r'python37 warp.py {pin} {transform} {pout} -t {tempdir}'.format(
             pin = pin.replace(' ', '***'),
             transform = transform,
             pout = pout.replace(' ', '***'),
@@ -255,8 +255,9 @@ def GetReferenceFromList(file, references_list):
         return None
 
 def ReprojectSystem(scene_dict, reference_list, folder_out, overwrite = False):
-    pms_folder = fullpath(folder_out, '_pms')
-    panms_folder = fullpath(folder_out, '__mspms')
+    pms_folder = fullpath(folder_out, '__pms')
+    pan_folder = fullpath(folder_out, '__pan')
+    ms_folder = fullpath(folder_out, '__ms')
     errors_folder = fullpath(folder_out, '__errors')
     id = scene_dict.get('id')
     if id is None:
@@ -283,14 +284,16 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, overwrite = False):
     elif ('MS' in scene_dict) and ('PAN' in scene_dict):
         ms = folder_paths(split3(scene_dict['MS'])[0],1,'tif')[0]
         pan = folder_paths(split3(scene_dict['PAN'])[0],1,'tif')[0]
-        panpath = fullpath(panms_folder, id.replace('.PMS','.PAN'), 'tif')
-        mspath = fullpath(panms_folder, id.replace('.PMS', '.MS'), 'tif')
+        panpath = fullpath(pan_folder, id.replace('.PMS','.PAN'), 'tif')
+        mspath = fullpath(ms_folder, id.replace('.PMS', '.MS'), 'tif')
         ref = GetReference(pan, reference_list)
         if ref:
-            suredir(panms_folder)
+            suredir(pan_folder)
+            suredir(ms_folder)
             res_pan = AlignSystem(pan, ref, panpath, align_file=pan, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder, overwrite=overwrite)
             res_ms = AlignSystem(ms, ref, mspath, align_file=pan, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder, overwrite=overwrite)
-            cmd_pansharp = r'python py2pci_pansharp.py {} {} {} -d TRUE'.format(res_pan, res_ms, endpath)
+            cmd_pansharp = r'python py2pci_pansharp.py {} {} {} -d TRUE'.format(panpath, mspath, endpath)
+            print(cmd_pansharp)
             os.system(cmd_pansharp)
             print(cmd_pansharp)
             if os.path.exists(endpath):
@@ -323,6 +326,7 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, overwrite = False):
     else:
         # scroll(scene_dict, header='FILES NOT FOUND:')
         return False
+    # raise Exception
     return True
 
 def CheckIdFromList(info, test_ids, pms=True):

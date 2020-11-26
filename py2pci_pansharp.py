@@ -12,6 +12,8 @@ except:
     sys.exit(1)
 
 def StringToListInteger(str_):
+    if isinstance(str_, list):
+        return flist(str_, int)
     list0 = str_.split(' ')
     list_fin = []
     for val0 in list0:

@@ -222,9 +222,9 @@ def get_dist_distr(kps1, kps2, matches):
 def show_stat(kps1, kps2, matches, shape):
 	accuracy = get_dist_distr(kps1, kps2, matches)
 
-	print('Points count:', len(kps1))
-	print('Average distance:', np.mean(accuracy))
-	print('Variance:', np.var(accuracy))
+	# print('Points count:', len(kps1))
+	# print('Average distance:', np.mean(accuracy))
+	# print('Variance:', np.var(accuracy))
 
 	if args.plot_stat:
 		dx = []
@@ -376,7 +376,7 @@ if not os.path.exists(args.temp_dir):
 	os.mkdir(args.temp_dir)
 
 start = time.time()
-print("arg", args.img2_path)
+# print("arg", args.img2_path)
 # GDAL based intersection
 imI_wkt, imI_epsg, imI_srs, imI_gt = ImageProperties(args.img1_path)
 imF_wkt, imF_epsg, imF_srs, imF_gt = ImageProperties(args.img2_path)
@@ -464,8 +464,8 @@ if args.composit_path is not None:
 transform = [Hs, intersection_geom, im1_ds.GetGeoTransform()]
 open(args.transform_path, 'wb').write(pickle.dumps(transform))
 
-if args.print_stat:
-	print('Elapsed time:', time.time() - start)
+# if args.print_stat:
+	# print('Elapsed time:', time.time() - start)
 
 if args.inter_dir is not None:
 	cv2.imwrite(os.path.join(args.inter_dir, 'sum_before.png'), array1 + array2)

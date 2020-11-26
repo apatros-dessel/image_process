@@ -3,11 +3,9 @@
 from geodata import *
 from image_processor import process, scene
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1159'
-folder_out = r'd:\rks\s3\kanopus_missed\1159_PMS'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1275'
+folder_out = r'd:\rks\s3\kanopus_missed\1275_PMS'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
-source_name_tmpt = r'fr13_kv1_33892_26862_01.' # fr1_KV3_13044_10269_01_3NP2_20_S_584506_090620.tif
-align_renaming_template = (r'fr.+_s_.+$', '_S_', '_PSS1_')
 test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
 overwrite = False
@@ -47,7 +45,7 @@ def FindScenes(path_in):
                 else:
                     scenes[base_id][type] = ascene.fullpath
             else:
-                scenes[base_id] = {'id': id, type: ascene.fullpath}
+                scenes[base_id] = {'id': base_id, type: ascene.fullpath}
     return scenes
 
 def GetS3Scenes(folder_in):
@@ -264,9 +262,12 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, overwrite = False):
     if id is None:
         print('ERROR: SCENE ID NOT FOUND: {}' % scene_dict)
         return False
+    endpath = fullpath(pms_folder, id, 'tif')
+    if os.path.exists(endpath):
+        print('ERROR: ENDPATH EXISTS: %s' % id)
+        return False
     if 'PMS' in scene_dict:
         pms = folder_paths(split3(scene_dict['PMS'])[0],1,'tif')[0]
-        endpath = fullpath(pms_folder, id, 'tif')
         ref = GetReference(pms, reference_list)
         if ref:
             suredir(pms_folder)
@@ -289,6 +290,14 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, overwrite = False):
             suredir(panms_folder)
             res_pan = AlignSystem(pan, ref, panpath, align_file=pan, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder, overwrite=overwrite)
             res_ms = AlignSystem(ms, ref, mspath, align_file=pan, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder, overwrite=overwrite)
+            cmd_pansharp = r'python py2pci_pansharp.py {} {} {} -d TRUE'.format(res_pan, res_ms, endpath)
+            os.system(cmd_pansharp)
+            print(cmd_pansharp)
+            if os.path.exists(endpath):
+                print('PANSHARPENING SUCCESSFUL: %s' % id)
+            else:
+                print('PANSHARPENING ERROR: %s' % id)
+                return False
         else:
             suredir(errors_folder)
             mserrpath = fullpath(errors_folder, id.replace('.PMS', '.MS'), 'tif')
@@ -299,6 +308,18 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, overwrite = False):
             else:
                 shutil.copyfile(ms, mserrpath)
                 shutil.copyfile(pan, mserrpath)
+                errpath = fullpath(errors_folder, id, 'tif')
+                if os.path.exists(errpath):
+                    print('ERROR PATH EXISTS: %s' % id)
+                    return False
+                else:
+                    cmd_pansharp = r'python py2pci_pansharp.py {} {} {} -d TRUE'.format(mserrpath, mserrpath, errpath)
+                    print(cmd_pansharp)
+                    if os.path.exists(errpath):
+                        print('ERROR PANSHARPENING SUCCESSFUL: %s' % id)
+                    else:
+                        print('ERROR PANSHARPENING ERROR: %s' % id)
+                        return False
     else:
         # scroll(scene_dict, header='FILES NOT FOUND:')
         return False

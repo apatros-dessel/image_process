@@ -262,6 +262,15 @@ def intlist(list_):
             list_[val] = 0
     return list_
 
+# Remove value from list
+def RemoveFromList(list_, val_):
+    report = []
+    if val_ in list_:
+        for val in list_:
+            if val!=val:
+                report.append(val)
+
+
 # Change all values in list using the function
 def flist(l, func, copy=True):
     if copy:

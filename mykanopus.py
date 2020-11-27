@@ -223,6 +223,7 @@ def metadata(path):
         }
     )
     meta.write_time_codes(meta.datetime)
+    meta.type = get_kanopus_type(meta.id)
 
     return meta
 

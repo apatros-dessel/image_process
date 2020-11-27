@@ -21,10 +21,10 @@ STAGES
 6. If reprojection was failed, save the source data separately
 '''
 
-def FindScenes(path_in):
+def FindScenes(path_in, skip_duplicates = False):
     scenes = OrderedDict()
     for folder_in in obj2list(path_in):
-        proc = process().input(folder_in)
+        proc = process().input(folder_in, skip_duplicates = skip_duplicates)
         for ascene in proc.scenes:
             id = ascene.meta.id
             if '.PAN' in id:

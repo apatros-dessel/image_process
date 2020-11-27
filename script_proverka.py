@@ -1,24 +1,20 @@
 # -*- coding: utf-8 -*-
 
+import os, sys, argparse
 dir_in = os.getcwd()
-try:
-    os.chdir(r'\\172.21.195.215\thematic\exchange\Sadkov_SA\code\image_process')
-except:
-    print('Cannot chdir')
-    pass
 try:
     from image_processor import *
 except:
     print('Cannot import image_processor')
     sys.exit(1)
 from PIL import Image
-import argparse
 
 parser = argparse.ArgumentParser(description='Given 2 geotiff images finds transformation between')
 parser.add_argument('-d', default=None, dest='dir_in', help='Input folder')
 parser.add_argument('-o', default=None, dest='dir_out', help='Output folder')
 parser.add_argument('-x', default='report.xls', dest='xls', help='Excel report table')
 parser.add_argument('-v', default=None, dest='v_cover', help='Vector cover path')
+parser.add_argument('-t', default=None, dest='type', help='Scene type')
 args = parser.parse_args()
 if args.dir_in is not None:
     dir_in = args.dir_in
@@ -28,6 +24,10 @@ else:
     dir_out = args.dir_out
 xls = fullpath(dir_out, args.xls)
 v_cover = args.v_cover
+type = None
+if args.type is not None:
+    if args.type.upper() in ['PAN', 'MS', 'PMS']:
+        type = args.type.upper()
 
 '''
 # Пути к сценам
@@ -116,6 +116,9 @@ for i, ascene in enumerate(proc.scenes):
 
     if finish:
         break
+    if type:
+        if ascene.meta.type != type:
+            continue
 
     if np.sum(intersection_array[:, i]) > 0:
 
@@ -132,7 +135,7 @@ for i, ascene in enumerate(proc.scenes):
                 with Image.open(ascene.quicklook()) as quicklook:
                     quicklook.show()
                     print(u'Введите числовой индекс сцены {}'.format(id))
-                    qualtest = input(' >>> ')
+                    qualtest = int(input(' >>> '))
 
                     if qualtest not in code_list:
                         code_list.append(qualtest)
@@ -159,16 +162,16 @@ for i, ascene in enumerate(proc.scenes):
 
                 try:
                     print(u'Ошибка при оценке снимка, введите 101 чтобы пропустить сцену или 909 чтобы прервать операцию: ')
-                    qualtest = input(' >>> ')
+                    qualtest = int(input(' >>> '))
 
-                    if qualtest == 101:
+                    if qualtest==101:
                         error_list.append(id)
                         approved = True
                         marks_dict[id] = 'None'
                         print(u'Сцена пропущена: {}'.format(id))
                         break
 
-                    if qualtest == 909:
+                    if qualtest==909:
                         finish = True
                         print(u'Операция прервана пользователем')
                         break

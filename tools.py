@@ -450,7 +450,8 @@ def fold_finder(path, filter_folder=[]):
             else:
                 fold_.append(full)
     except:
-        print('Error fold_finder')
+        # print('Error fold_finder: %s' % path)
+        pass
     return [fold_, file_]
 
 # Searches filenames according to template and returns a list of full paths to them

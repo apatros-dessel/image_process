@@ -3,8 +3,8 @@
 from geodata import *
 from image_processor import process, scene
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1159'
-folder_out = r'd:\rks\s3\kanopus_missed\1159_MS'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1275'
+folder_out = r'd:\rks\s3\kanopus_missed\1275_MS'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
@@ -315,7 +315,7 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, pms=True, overwrite 
                 else:
                     print('CANNOT MAKE PANSHARPENING: PAN ALIGN ERROR: %s' % id)
                     return False
-            else:
+            elif not res_ms:
                 print('CANNOT MAKE PANSHARPENING: MS ALIGN ERROR: %s' % id)
                 return False
         else:

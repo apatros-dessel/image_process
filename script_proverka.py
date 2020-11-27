@@ -1,9 +1,35 @@
 # -*- coding: utf-8 -*-
 
-from image_processor import *
-from shutil import copyfile
-import subprocess
+dir_in = os.getcwd()
+try:
+    os.chdir(r'\\172.21.195.215\thematic\exchange\Sadkov_SA\code\image_process')
+except:
+    print('Cannot chdir')
+    pass
+try:
+    from image_processor import *
+except:
+    print('Cannot import image_processor')
+    sys.exit(1)
+from PIL import Image
+import argparse
 
+parser = argparse.ArgumentParser(description='Given 2 geotiff images finds transformation between')
+parser.add_argument('-d', default=None, dest='dir_in', help='Input folder')
+parser.add_argument('-o', default=None, dest='dir_out', help='Output folder')
+parser.add_argument('-x', default='report.xls', dest='xls', help='Excel report table')
+parser.add_argument('-v', default=None, dest='v_cover', help='Vector cover path')
+args = parser.parse_args()
+if args.dir_in is not None:
+    dir_in = args.dir_in
+if args.dir_out is None:
+    dir_out = dir_in
+else:
+    dir_out = args.dir_out
+xls = fullpath(dir_out, args.xls)
+v_cover = args.v_cover
+
+'''
 # Пути к сценам
 input_list = [
     r'G:\102_2020_116',
@@ -20,10 +46,11 @@ path2xls = r'E:\script export\krym.xls'
 vector_cover_path_list = [
     # r'E:\script export/maska2.shp',
 ]
+'''
 
 print(u'Исходные данные загружены')
 
-proc = process(output_path=output_path).input(input_list)
+proc = process().input(dir_in, skip_duplicates=False)
 
 print(u'Обнаружено сцен: %i' % len(proc))
 
@@ -76,8 +103,8 @@ qual_dict = {}
 error_list = []
 code_list = []
 
-if len(vector_cover_path_list) > 0:
-	intersection_array = layers_intersection_array(vector_cover_path_list, proc)
+if v_cover:
+	intersection_array = layers_intersection_array([v_cover], proc)
 else:
 	intersection_array = np.ones((1, len(proc.scenes))).astype(bool)
 
@@ -160,7 +187,7 @@ for id in marks_dict.keys():
     line['date'] = ascene.meta.name('[date]')
     line['mark'] = marks_dict[id]
     report_dict[id] = line
-dict_to_xls(path2xls, report_dict)
+dict_to_xls(xls, report_dict)
 
 scroll(code_list, header=u'Использованные коды оценок')
 

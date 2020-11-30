@@ -36,7 +36,7 @@ make_rgb = False
 
 json_cover = r'\\172.21.195.2/FTP-Share/ftp/roslesinforg/balaganskoe/S3/SNT_сover.json'#r'\\172.21.195.2/FTP-Share/ftp/images/region82/vector_cover.json'
 vector_granule_path = r'\\172.21.195.2\FTP-Share\ftp\images\granules_grid.shp'
-ms2pms = False
+ms2pms = True
 invert_red_blue = False
 
 if json_cover is None:
@@ -88,6 +88,7 @@ def get_pms_json(path_cover, path_out, pms_id, pms_raster_path=''):
         return 1
 
     ms_id = pms_id.replace('.PMS', '.MS')
+    print(ms_id)
     filter_dataset_by_col(path_cover, 'id', ms_id, path_out=path_out)
 
     pms_ds, pms_lyr = get_lyr_by_path(path_out, 1)
@@ -97,6 +98,7 @@ def get_pms_json(path_cover, path_out, pms_id, pms_raster_path=''):
         return 1
     elif len(pms_lyr)==0:
         print('EMPTY LAYER: %s' % path_out)
+        pms_ds = None
         os.remove(path_out)
         return 1
 
@@ -374,6 +376,7 @@ for i, path_in in enumerate(path_in_list):
                     if lyr_.GetFeatureCount()==1:
                         granule_metadata_json(tpath, tpath_meta, json_out, path_in, ms2pms=ms2pms)
                 elif ms2pms:
+                    print(n)
                     get_pms_json(json_cover, json_out, n, pms_raster_path=path_in)
                 else:
                     filter_dataset_by_col(json_cover, 'id', n, path_out=json_out)

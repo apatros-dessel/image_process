@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import os, sys, argparse
-dir_in = os.getcwd()
 try:
     from image_processor import *
 except:
@@ -10,13 +9,22 @@ except:
 from PIL import Image
 
 parser = argparse.ArgumentParser(description='Given 2 geotiff images finds transformation between')
-parser.add_argument('-d', default=None, dest='dir_in', help='Input folder')
+parser.add_argument('-d', default=None, dest='dir_in',  help='Input folder')
 parser.add_argument('-o', default=None, dest='dir_out', help='Output folder')
 parser.add_argument('-x', default='report.xls', dest='xls', help='Excel report table')
 parser.add_argument('-v', default=None, dest='v_cover', help='Vector cover path')
 parser.add_argument('-t', default=None, dest='type', help='Scene type')
 args = parser.parse_args()
-if args.dir_in is not None:
+if args.dir_in is None:
+    dir_in = 'None'
+    while True:
+        print(u'Введите путь к исходным данным:')
+        dir_in = str(input(' >>> '))
+        if os.path.exists(dir_in):
+            break
+        else:
+            print('Путь не найден: %s' % dir_in)
+else:
     dir_in = args.dir_in
 if args.dir_out is None:
     dir_out = dir_in
@@ -54,7 +62,10 @@ proc = process().input(dir_in, skip_duplicates=False)
 
 if v_cover is None:
     v_cover = tempname('json')
+    del_v_cover = True
     proc.GetCoverJSON(v_cover)
+else:
+    del_v_cover = False
 
 print(u'Обнаружено сцен: %i' % len(proc))
 
@@ -79,7 +90,6 @@ print(u'Отфильтровано сцен для ручной обработк
 # proc.get_vector_cover(r'resursp_filtered_cover.json') # Сохранить векторную маску
 '''
 
-print(u'Фильтрация сцен отключена')
 
 ''' MANUAL FILTER BY QUICKLOOKS '''
 
@@ -127,6 +137,7 @@ for i, ascene in enumerate(proc.scenes):
     if np.sum(intersection_array[:, i]) > 0:
 
         id = ascene.meta.id
+        path = ascene.fullpath
 
         approved = False
 
@@ -144,7 +155,7 @@ for i, ascene in enumerate(proc.scenes):
                     if qualtest not in code_list:
                         code_list.append(qualtest)
 
-                    marks_dict[id] = str(qualtest)
+                    marks_dict[path] = str(qualtest)
                     break
 
                     # if qualtest == 1:
@@ -171,7 +182,7 @@ for i, ascene in enumerate(proc.scenes):
                     if qualtest==101:
                         error_list.append(id)
                         approved = True
-                        marks_dict[id] = 'None'
+                        marks_dict[path] = 'None'
                         print(u'Сцена пропущена: {}'.format(id))
                         break
 
@@ -187,15 +198,23 @@ for i, ascene in enumerate(proc.scenes):
         print(u'Сцена за пределами области интереса: {}'.format(ascene.meta.id))
 
 report_dict = OrderedDict()
-for id in marks_dict.keys():
-    ascene = proc.get_scene(id)
-    line = OrderedDict()
-    line['path'] = ascene.path
-    line['date'] = ascene.meta.name('[date]')
-    line['mark'] = marks_dict[id]
-    report_dict[id] = line
+for path in marks_dict.keys():
+    proc = process().input(path)
+    if proc:
+        ascene = proc.scenes[0]
+        id = ascene.meta.id
+        line = OrderedDict()
+        line['id'] = id
+        line['date'] = ascene.meta.name('[date]')
+        line['mark'] = marks_dict[path]
+        report_dict[path] = line
+    else:
+        print('ERROR UPDATING PATH: %s' % path)
 dict_to_xls(xls, report_dict)
 
 scroll(code_list, header=u'Использованные коды оценок')
 
 input(u'  Нажмите Enter для выхода  ')
+
+if del_v_cover:
+    os.remove(v_cover)

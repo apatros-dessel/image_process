@@ -52,6 +52,10 @@ print(u'Исходные данные загружены')
 
 proc = process().input(dir_in, skip_duplicates=False)
 
+if v_cover is None:
+    v_cover = tempname('json')
+    proc.GetCoverJSON(v_cover)
+
 print(u'Обнаружено сцен: %i' % len(proc))
 
 ''' FILTER SCENES '''

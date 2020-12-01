@@ -76,6 +76,17 @@ def get_resursp_location(rsp_id):
     location = ''.join(idlist[1:3] + [idlist[-1].split(r'.')[1][-1]])
     return location
 
+# Returns Resurs-P type
+def get_resursp_type(rsp_id):
+    if '.PAN' in rsp_id:
+        return('PAN')
+    elif '.MS' in rsp_id:
+        return('MS')
+    elif '.PMS' in rsp_id:
+        return('PMS')
+    else:
+        return None
+
 # Returns Resurs-P datamask filename
 def get_resursp_datamask(rsp_id, get_json = True):
     datamask_name = get_resursp_filename(rsp_id, 'datamask')
@@ -139,6 +150,7 @@ def metadata(path):
         meta.quicklook = get_resursp_filename(meta.id, 'quicklook') + r'.jpg'
     except:
         print('Error writing quicklook for {}'.format(meta.id))
+    meta.type = get_resursp_type(meta.id)
 
     return meta
 

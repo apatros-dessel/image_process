@@ -2465,7 +2465,6 @@ def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None
         new_lyr.CreateField(lyr_defn.GetFieldDefn(lyr_defn.GetFieldIndex(key)))
 
     lyr_in.ResetReading()
-
     for feat in lyr_in:
 
         feat_val = feat.GetField(feat.GetFieldIndex(field))

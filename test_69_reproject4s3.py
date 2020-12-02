@@ -3,8 +3,8 @@
 from geodata import *
 from image_processor import process, scene
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1339'
-folder_out = r'd:\rks\s3\kanopus_missed\1339_MS'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_2075'
+folder_out = r'd:\rks\s3\kanopus_missed\2075_MS'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
@@ -269,8 +269,12 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, pms=True, overwrite 
             print('ERROR: PMSPATH EXISTS: %s' % id)
             return False
     else:
-        ms = folder_paths(split3(scene_dict['MS'])[0], 1, 'tif')[0]
-        mspath = fullpath(ms_folder, id.replace('.PMS', '.MS'), 'tif')
+        if 'MS' in scene_dict:
+            ms = folder_paths(split3(scene_dict['MS'])[0], 1, 'tif')[0]
+            mspath = fullpath(ms_folder, id.replace('.PMS', '.MS'), 'tif')
+        else:
+            print('ERROR: MS FILE NOT FOUND: %s' % id)
+            return False
         if os.path.exists(mspath):
             print('ERROR: MSPATH EXISTS: %s' % id)
             return False

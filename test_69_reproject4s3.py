@@ -4,12 +4,12 @@ from geodata import *
 from image_processor import process, scene
 
 folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1339'
-folder_out = r'd:\rks\s3\kanopus_missed\1339_PMS'
+folder_out = r'd:\rks\s3\kanopus_missed\1339_MS'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
 imsys_list = ['KAN']
-pms = True
+pms = False
 overwrite = False
 
 '''
@@ -391,6 +391,9 @@ reference_list = folder_paths(references_path,1,'tif')
 test_ids = open(test_ids_txt).read().split('\n')
 
 source_scenes = FindScenes(folder_in, imsys_list=imsys_list)
+if len(source_scenes)==0:
+    print('No source scenes found in %s' % folder_in)
+    sys.exit()
 s3_scenes = GetS3Scenes(folder_s3)
 matched, unmatched = GetUnmatchingScenes(source_scenes, s3_scenes)
 

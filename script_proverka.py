@@ -116,12 +116,12 @@ marks_dict = OrderedDict()
 qual_dict = {}
 error_list = []
 code_list = []
-
+'''
 if v_cover:
 	intersection_array = layers_intersection_array([v_cover], proc)
 else:
 	intersection_array = np.ones((1, len(proc.scenes))).astype(bool)
-
+'''
 scene_ids = np.array(proc.get_ids())
 
 finish = False
@@ -134,7 +134,7 @@ for i, ascene in enumerate(proc.scenes):
         if ascene.meta.type != type:
             continue
 
-    if np.sum(intersection_array[:, i]) > 0:
+    if ascene:
 
         id = ascene.meta.id
         path = ascene.fullpath

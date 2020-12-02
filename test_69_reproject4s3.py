@@ -3,12 +3,13 @@
 from geodata import *
 from image_processor import process, scene
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1276'
-folder_out = r'd:\rks\s3\kanopus_missed\1276_MS'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1339'
+folder_out = r'd:\rks\s3\kanopus_missed\1339_PMS'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
-pms = False
+imsys_list = ['KAN']
+pms = True
 overwrite = False
 
 '''
@@ -21,10 +22,10 @@ STAGES
 6. If reprojection was failed, save the source data separately
 '''
 
-def FindScenes(path_in, skip_duplicates = False):
+def FindScenes(path_in, imsys_list = None, skip_duplicates = False):
     scenes = OrderedDict()
     for folder_in in obj2list(path_in):
-        proc = process().input(folder_in, skip_duplicates = skip_duplicates)
+        proc = process().input(folder_in, imsys_list=imsys_list, skip_duplicates = skip_duplicates)
         for ascene in proc.scenes:
             id = ascene.meta.id
             if '.PAN' in id:
@@ -389,7 +390,7 @@ def CheckIdFromList(info, test_ids, pms=True):
 reference_list = folder_paths(references_path,1,'tif')
 test_ids = open(test_ids_txt).read().split('\n')
 
-source_scenes = FindScenes(folder_in)
+source_scenes = FindScenes(folder_in, imsys_list=imsys_list)
 s3_scenes = GetS3Scenes(folder_s3)
 matched, unmatched = GetUnmatchingScenes(source_scenes, s3_scenes)
 

@@ -8,6 +8,7 @@ folder_out = r'd:\rks\s3\kanopus_missed\2075_MS'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
+v_cover = r''
 imsys_list = ['KAN']
 pms = False
 overwrite = False
@@ -22,7 +23,7 @@ STAGES
 6. If reprojection was failed, save the source data separately
 '''
 
-def FindScenes(path_in, imsys_list = None, skip_duplicates = False):
+def FindScenes(path_in, imsys_list = None, skip_duplicates = False, v_cover = None):
     scenes = OrderedDict()
     for folder_in in obj2list(path_in):
         proc = process().input(folder_in, imsys_list=imsys_list, skip_duplicates = skip_duplicates)
@@ -48,7 +49,12 @@ def FindScenes(path_in, imsys_list = None, skip_duplicates = False):
                     scenes[base_id][type] = ascene.fullpath
             else:
                 scenes[base_id] = {'id': base_id, type: ascene.fullpath}
-    return scenes
+    # !!! Correct for multiple source folders!
+    if v_cover is None:
+        v_cover = fullpath(folder_in, 'v_cover.json')
+    if not os.path.exists(v_cover):
+        proc.GetCoverJSON(v_cover)
+    return scenes, v_cover
 
 def GetS3Scenes(folder_in):
     scenes = OrderedDict()
@@ -284,6 +290,7 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, pms=True, overwrite 
         if ref:
             suredir(pms_folder)
             AlignSystem(pms, ref, pmspath, align_file=pms, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder, overwrite=overwrite)
+            return pmspath
         else:
             suredir(errors_folder)
             errpath = fullpath(errors_folder, id, 'tif')
@@ -309,9 +316,8 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, pms=True, overwrite 
                 res_pan = AlignSystem(pan, ref, panpath, align_file=pan, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder, overwrite=overwrite)
                 if res_pan:
                     cmd_pansharp = r'python py2pci_pansharp.py {} {} {} -d TRUE'.format(panpath, mspath, pmspath)
-                    print(cmd_pansharp)
+                    # print(cmd_pansharp)
                     os.system(cmd_pansharp)
-                    print(cmd_pansharp)
                     if os.path.exists(pmspath):
                         print('PANSHARPENING SUCCESSFUL: %s' % id)
                     else:
@@ -320,6 +326,8 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, pms=True, overwrite 
                 else:
                     print('CANNOT MAKE PANSHARPENING: PAN ALIGN ERROR: %s' % id)
                     return False
+            elif res_ms:
+                return mspath
             elif not res_ms:
                 print('CANNOT MAKE PANSHARPENING: MS ALIGN ERROR: %s' % id)
                 return False
@@ -390,11 +398,184 @@ def CheckIdFromList(info, test_ids, pms=True):
             missed.append(test_id)
     return matched, missed
 
+def Names4S3(path_in, folder_out, id, type=None, ext='tif'):
+    if type:
+        id_type = '%s.%s' % (id, type)
+    else:
+        id_type = id
+    path_out = fullpath(folder_out, id_type, ext)
+    if not os.path.exists(path_in):
+        print('%s source not found: %s' % (type, path_in))
+        return False
+    elif os.path.exists(rgb_out):
+        print('%s error: file exists: %s' % (type, path_out))
+        return False
+    else:
+        return path_out
+
+def RGB4S3(path_in, folder_out, id, band_order=[1,2,3]):
+    rgb_out = Names4S3(path_in, folder_out, id, 'RGB')
+    if rgb_out:
+        try:
+            RasterToImage3(path_in,
+                           rgb_out,
+                           method=2,
+                           band_limits=[(0.01, 0.998), (0.01, 0.998), (0.01, 0.998)],
+                           gamma=0.80,
+                           exclude_nodata=True,
+                           enforce_nodata=0,
+                           band_order=band_order,
+                           GaussianBlur=False,
+                           # reprojectEPSG=3857,
+                           reproject_method=gdal.GRA_Bilinear,
+                           compress='DEFLATE',
+                           overwrite=False,
+                           alpha=True)
+            return True
+        except:
+            print('Error making RGB: %s' % id)
+            return False
+
+def Quick4S3fromRGB(rgb_in, folder_out, id):
+    ql_out = Names4S3(rgb_in, folder_out, id, 'QL')
+    if ql_out:
+        try:
+            MakeQuicklook(rgb_in, ql_out, 3857, pixelsize=30, overwrite=False)
+            return True
+        except:
+            print('Error making quicklook: %s' % id)
+            return False
+
+def Quick4S3(path_in, folder_out, id, band_order=[1,2,3]):
+    ql_out = Names4S3(path_in, folder_out, id, 'QL')
+    if ql_out:
+        temp_ql = tempname('tif')
+        try:
+            MakeQuicklook(path_in, temp_ql, 3857, pixelsize=30, overwrite=False, method=gdal.GRA_NearestNeighbour)
+            RasterToImage3(temp_ql,
+                           ql_out,
+                           method=2,
+                           band_limits=[(0.01, 0.998), (0.01, 0.998), (0.01, 0.998)],
+                           gamma=0.80,
+                           exclude_nodata=True,
+                           enforce_nodata=0,
+                           band_order=band_order,
+                           GaussianBlur=False,
+                           # reprojectEPSG=3857,
+                           reproject_method=gdal.GRA_Bilinear,
+                           compress='DEFLATE',
+                           overwrite=False,
+                           alpha=True)
+        except:
+            print('Error making QL: %s.QL.tif' % id)
+        finally:
+            if os.path.exists(temp_ql):
+                os.remove(temp_ql)
+
+# !!! The case of Resursp granules processing is not integrated
+def JSON4S3(path_in, folder_out, id, ms2pms=False, raster_path=None):
+    json_out = Names4S3(path_in, folder_out, id, None, 'tif')
+    if json_out:
+        if ms2pms:
+            get_pms_json(path_in, json_out, id, pms_raster_path=raster_path)
+        else:
+            filter_dataset_by_col(path_in, 'id', id, path_out=json_out)
+        if os.path.exists(json_out):
+            ds_out, lyr_out = get_lyr_by_path(json_out)
+            if lyr_out is None:
+                print('JSON metadata file not created: %s' % id)
+                ds_out = None
+                os.remove(json_out)
+                return False
+            elif len(lyr_out) == 0:
+                print('JSON metadata file is empty: %s' % id)
+                ds_out = None
+                os.remove(json_out)
+                return False
+            return True
+        else:
+            print('Error making JSON metadata: %s' % id)
+            return False
+
+def get_pms_json(path_cover, path_out, pms_id, pms_raster_path=''):
+    if os.path.exists(path_out):
+        print('FILE EXISTS: %s' % path_out)
+        return 1
+    if not os.path.exists(path_cover):
+        print('Cannot find path: {}'.format(path_cover))
+        return 1
+    ms_id = pms_id.replace('.PMS', '.MS')
+    filter_dataset_by_col(path_cover, 'id', ms_id, path_out=path_out)
+    pms_ds, pms_lyr = get_lyr_by_path(path_out, 1)
+    if pms_lyr is None:
+        print('FILE NOT FOUND: %s' % path_out)
+        return 1
+    elif len(pms_lyr)==0:
+        print('EMPTY LAYER: %s' % path_out)
+        pms_ds = None
+        os.remove(path_out)
+        return 1
+    feat = pms_lyr.GetNextFeature()
+    feat.SetField('id', pms_id)
+    feat.SetField('id_neuro', feat.GetField('id_neuro') + 'PMS')
+    feat.SetField('type', 'PMS')
+    if os.path.exists(pms_raster_path):
+        pms_data = gdal.Open(pms_raster_path)
+    else:
+        pms_data = None
+    if pms_data is not None:
+        feat.SetField('rows', int(pms_data.RasterYSize))
+        feat.SetField('cols', int(pms_data.RasterXSize))
+        trans = pms_data.GetGeoTransform()
+        if trans:
+            feat.SetField('x_size', float(trans[0]))
+            feat.SetField('y_size', -float(trans[-1]))
+        else:
+            feat.SetField('x_size', None)
+            feat.SetField('y_size', None)
+    else:
+        pan_id = pms_id.replace('.PMS', '.PAN')
+        tpan_path = filter_dataset_by_col(path_cover, 'id', pan_id)
+        pan_ds, pan_lyr = get_lyr_by_path(tpan_path)
+        pan_feat = pan_lyr.GetNextFeature()
+        feat.SetField('rows', int(pan_feat.GetField('rows')))
+        feat.SetField('cols', int(pan_feat.GetField('cols')))
+        feat.SetField('x_size', float(pan_feat.GetField('x_size')))
+        feat.SetField('y_size', float(pan_feat.GetField('y_size')))
+    # feat.SetField('area', None)
+    pms_lyr.SetFeature(feat)
+    pms_ds = None
+    # print('PMS data successfully written for for %s' % pms_id)
+    return 0
+
+def Scene4S3(raster_data_in, vector_cover_in, folder_out, id, rgb_band_order=[1,2,3], save_rgb=False, ms2pms=False):
+    if not os.path.exists(raster_data_in):
+        print('Raster data not found: %s' % raster_data_in)
+        return False
+    if not os.path.exists(vector_cover_in):
+        print('Vector cover not found: %s' % vector_cover_in)
+        return False
+    scene_folder = fullpath(folder_out, id)
+    suredir(scene_folder)
+    scene_data = fullpath(scene_folder, id, 'tif')
+    if os.path.exists(scene_data):
+        print('S3 error: data file exists: %s' % scene_data)
+        return False
+    else:
+        shutil.copyfile(raster_data_in, scene_data)
+        if save_rgb:
+            res_rgb = RGB4S3(scene_data, scene_folder, id, band_order=rgb_band_order)
+            res_ql = Quick4S3fromRGB(scene_data.replace('.tif', '.RGB.tif'), folder_out, id)
+        else:
+            res_rgb = True
+            res_ql = Quick4S3(scene_data, scene_folder, id, band_order=[1,2,3])
+        res_json = JSON4S3(vector_cover_in, scene_folder, id, ms2pms=ms2pms, raster_path=scene_data)
+        scroll({'RGB': res_rgb, 'QL': res_ql, 'JSON': res_json}, header='Report %s:' % id)
 
 reference_list = folder_paths(references_path,1,'tif')
 test_ids = open(test_ids_txt).read().split('\n')
 
-source_scenes = FindScenes(folder_in, imsys_list=imsys_list)
+source_scenes, v_cover = FindScenes(folder_in, imsys_list=imsys_list, v_cover=v_cover)
 if len(source_scenes)==0:
     print('No source scenes found in %s' % folder_in)
     sys.exit()
@@ -417,6 +598,7 @@ with open(fullpath(folder_out, name+'_missed', 'txt'), 'w') as txt:
 
 success = []
 fail = []
+s3_folder = fullpath(folder_out, 's3')
 for id in unmatched:
     # if id in match:
         # print(id)
@@ -424,6 +606,8 @@ for id in unmatched:
         res = ReprojectSystem(unmatched[id], reference_list, folder_out, pms=pms, overwrite=overwrite)
         if res:
             success.append(id)
+            if isinstance(res, str):
+                Scene4S3(res, v_cover, s3_folder, id, rgb_band_order=[1,2,3], save_rgb=False, ms2pms=False)
         else:
             # fail.append(id)
             pass

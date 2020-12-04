@@ -35,7 +35,7 @@ preserve_original = True
 make_rgb = False
 
 vector_granule_path = r'\\172.21.195.2\FTP-Share\ftp\images\granules_grid.shp'
-ms2pms = True
+ms2pms = False
 invert_red_blue = False
 
 if json_cover is None:
@@ -366,6 +366,7 @@ for i, path_in in enumerate(path_in_list):
             get_pms_json(json_in.replace('.PMS.','.MS.'), json_out, n, pms_raster_path=path_in)
         elif json_cover:
             if not os.path.exists(json_out):
+                print(json_cover)
                 if re.search(r'\.GRN\d+$', n) and vector_granule_path:
                     filter_id, granule_id = n.split('.GRN')
                     tpath = filter_dataset_by_col(vector_granule_path, 'granule', granule_id, path_out=tempname('json'))

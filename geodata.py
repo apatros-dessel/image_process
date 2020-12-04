@@ -155,8 +155,8 @@ def vec_to_crs(ogr_dataset, t_crs, export_path):
         while feat:
             geom = feat.GetGeometryRef()
             geom.Transform(coordTrans)
-            # if int(gdal.VersionInfo()[0])>=3:
-                # geom = changeXY(geom)
+            if int(gdal.VersionInfo()[0])>=3:
+                geom = changeXY(geom)
             out_feat = ogr.Feature(outLayerDefn)
             out_feat.SetGeometry(geom)
             for i in range(0, outLayerDefn.GetFieldCount()):
@@ -1789,18 +1789,16 @@ def layer_column_dict(lyr, columns=None, geom_col_name=None, lyr_defn_name=None,
 
 # Get layer from vector file
 def get_lyr_by_path(path, editable = False):
-
+    if not isinstance(path, str):
+        print('Path is not a string: {}'.format(path))
+        return None
     ds = ogr.Open(path, editable)
-
     if ds is None:
         print('Cannot open file: {}'.format(path))
         return (None, None)
-
     lyr = ds.GetLayer()
-
     if lyr is None:
         print('Cannot get layer from: {}'.format(path))
-
     return (ds, lyr)
 
 def JoinShapesByAttributes(path2shape_list,
@@ -2446,8 +2444,8 @@ def json_fix_datetime(file, datetimecol='datetime'):
         print('dtime not found for: %s' % file)
 
 def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None, unique_vals = False):
-
-    ds_in, lyr_in = get_lyr_by_path(path_in, 1)
+    ds_in, lyr_in = get_lyr_by_path(path_in)
+    print(ds_in)
     vals = obj2list(vals)
 
     if path_out is None:

@@ -441,6 +441,7 @@ class scene:
     # Returns a scene cover as a feature with standard set of attributes
     def json_feat(self, lyr_defn, add_path=True, cartesian_area = False, data_mask=False, srs=4326):
         feat = geodata.ogr.Feature(lyr_defn)
+        print(self.meta.id, self.datamask)
         ds_mask, lyr_mask = geodata.get_lyr_by_path(self.datamask())
         t_crs = geodata.get_srs(srs)
         if lyr_mask is not None:

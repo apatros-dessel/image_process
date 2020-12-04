@@ -3,8 +3,8 @@
 from geodata import *
 from image_processor import process, scene
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_2075'
-folder_out = r'd:\rks\s3\kanopus_missed\2075_MS'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_2219'
+folder_out = r'd:\rks\s3\kanopus_missed\2219_MS'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
@@ -50,9 +50,10 @@ def FindScenes(path_in, imsys_list = None, skip_duplicates = False, v_cover = No
             else:
                 scenes[base_id] = {'id': base_id, type: ascene.fullpath}
     # !!! Correct for multiple source folders!
-    if v_cover is None:
+    if not v_cover:
         v_cover = fullpath(folder_in, 'v_cover.json')
     if not os.path.exists(v_cover):
+        scroll(v_cover)
         proc.GetCoverJSON(v_cover)
     return scenes, v_cover
 
@@ -407,7 +408,7 @@ def Names4S3(path_in, folder_out, id, type=None, ext='tif'):
     if not os.path.exists(path_in):
         print('%s source not found: %s' % (type, path_in))
         return False
-    elif os.path.exists(rgb_out):
+    elif os.path.exists(path_out):
         print('%s error: file exists: %s' % (type, path_out))
         return False
     else:
@@ -466,11 +467,14 @@ def Quick4S3(path_in, folder_out, id, band_order=[1,2,3]):
                            compress='DEFLATE',
                            overwrite=False,
                            alpha=True)
+            res = True
         except:
             print('Error making QL: %s.QL.tif' % id)
+            res = False
         finally:
             if os.path.exists(temp_ql):
                 os.remove(temp_ql)
+            return res
 
 # !!! The case of Resursp granules processing is not integrated
 def JSON4S3(path_in, folder_out, id, ms2pms=False, raster_path=None):

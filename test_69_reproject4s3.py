@@ -479,6 +479,7 @@ def Quick4S3(path_in, folder_out, id, band_order=[1,2,3]):
 # !!! The case of Resursp granules processing is not integrated
 def JSON4S3(path_in, folder_out, id, ms2pms=False, raster_path=None):
     json_out = Names4S3(path_in, folder_out, id, None, 'tif')
+    print(json_out)
     if json_out:
         if ms2pms:
             get_pms_json(path_in, json_out, id, pms_raster_path=raster_path)

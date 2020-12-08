@@ -366,7 +366,7 @@ for i, path_in in enumerate(path_in_list):
             get_pms_json(json_in.replace('.PMS.','.MS.'), json_out, n, pms_raster_path=path_in)
         elif json_cover:
             if not os.path.exists(json_out):
-                print(json_cover)
+                # print(json_cover)
                 if re.search(r'\.GRN\d+$', n) and vector_granule_path:
                     filter_id, granule_id = n.split('.GRN')
                     tpath = filter_dataset_by_col(vector_granule_path, 'granule', granule_id, path_out=tempname('json'))
@@ -377,6 +377,7 @@ for i, path_in in enumerate(path_in_list):
                 elif ms2pms:
                     get_pms_json(json_cover, json_out, n, pms_raster_path=path_in)
                 else:
+                    scroll((json_cover, json_out, n))
                     filter_dataset_by_col(json_cover, 'id', n, path_out=json_out)
                 if os.path.exists(json_out):
                     ds_out, lyr_out = get_lyr_by_path(json_out)

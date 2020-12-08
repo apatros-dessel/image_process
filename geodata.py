@@ -1791,7 +1791,10 @@ def layer_column_dict(lyr, columns=None, geom_col_name=None, lyr_defn_name=None,
 def get_lyr_by_path(path, editable = False):
     if not isinstance(path, str):
         print('Path is not a string: {}'.format(path))
-        return None
+        return (None, None)
+    elif not os.path.exists(path):
+        print('Path not found: {}'.format(path))
+        return (None, None)
     ds = ogr.Open(path, editable)
     if ds is None:
         print('Cannot open file: {}'.format(path))
@@ -2445,7 +2448,7 @@ def json_fix_datetime(file, datetimecol='datetime'):
 
 def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None, unique_vals = False):
     ds_in, lyr_in = get_lyr_by_path(path_in)
-    print(ds_in)
+    print(path_in, ds_in)
     vals = obj2list(vals)
 
     if path_out is None:

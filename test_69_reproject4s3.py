@@ -3,14 +3,14 @@
 from geodata import *
 from image_processor import process, scene
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_2219'
-folder_out = r'd:\rks\s3\kanopus_missed\2219_MS'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1339'
+folder_out = r'd:\rks\s3\kanopus_missed\1339_MS'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
 v_cover = r''
 imsys_list = ['KAN']
-pms = False
+pms = True
 overwrite = False
 
 '''

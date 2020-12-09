@@ -155,8 +155,8 @@ def vec_to_crs(ogr_dataset, t_crs, export_path):
         while feat:
             geom = feat.GetGeometryRef()
             geom.Transform(coordTrans)
-            if int(gdal.VersionInfo()[0])>=3:
-                geom = changeXY(geom)
+            # if int(gdal.VersionInfo()[0])>=3:
+                # geom = changeXY(geom)
             out_feat = ogr.Feature(outLayerDefn)
             out_feat.SetGeometry(geom)
             for i in range(0, outLayerDefn.GetFieldCount()):
@@ -652,15 +652,11 @@ def save_to_shp(path2raster, path2shp, band_num = 1, dst_fieldname = None, class
 
 # Vectorize raster layers
 def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_id = 'CLASS', erode_val = 0, overwrite = True):
-
     if check_exist(path_out, ignore=overwrite):
         return 1
-
     arr = get_band_array(bandpath_in)
-
     if arr is None:
         return 1
-
     if classify_table is None:
         vals = np.unique(arr)
         if len(vals)>255:
@@ -672,12 +668,9 @@ def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_
             for v in vals:
                 if v != 0:
                     classify_table.append((v, v, v))
-
-    data_ds = ds(globals()['temp_dir_list'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
-    mask_arr = np.zeros(arr.shape).astype(bool)
+    mask_arr = np.zeros(arr.shape).astype(int)
 
     for min_val, max_val, id_val in classify_table:
-        # curr_mask = mask_arr = np.zeros(arr.shape).astype(bool)
         if min_val is not None:
             if max_val is not None:
                 if min_val == max_val:
@@ -693,32 +686,21 @@ def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_
             continue
         if erode_val > 0:
             curr_mask = erode(curr_mask, erode_val).astype(bool)
-        data_ds.GetRasterBand(1).WriteArray(curr_mask * int(id_val))
-        mask_arr[curr_mask] = True
-        curr_mask = None
-
-    # Create mask
+        if curr_mask is not None:
+            mask_arr[curr_mask] = id_val
+            curr_mask = None
+    # scroll(np.unique(mask_arr), header='%s:' % split3(bandpath_in[0])[1])
+    data_ds = ds(globals()['temp_dir_list'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
+    data_ds.GetRasterBand(1).WriteArray(mask_arr)
     mask_ds = ds(globals()['temp_dir_list'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
-    mask_ds.GetRasterBand(1).WriteArray(mask_arr)
+    mask_ds.GetRasterBand(1).WriteArray(mask_arr.astype(bool))
     mask_arr = None
-
-    # Create class field
     dst_ds = shp(path_out, 1)
-    # dst_ds = json(path_out[:-4]+'.json', 1)
     dst_layer = dst_ds.GetLayer()
     dst_layer.CreateField(ogr.FieldDefn(index_id, ogr.OFTInteger))
-    # dst_ds = None
-
-    # Polygonize value
-    # dst_ds, dst_layer = get_lyr_by_path(path_out, 1)
-    # dst_ds, dst_layer = get_lyr_by_path(path_out[:-4]+'.json', 1)
-    # gdal.Polygonize(data_ds.GetRasterBand(1), mask_ds.GetRasterBand(1), dst_layer, 0, [], callback=gdal.TermProgress_nocb)
     gdal.Polygonize(data_ds.GetRasterBand(1), mask_ds.GetRasterBand(1), dst_layer, 0)
     dst_ds = None
-
-    # Write projection
     write_prj(path_out[:-4] + '.prj', data_ds.GetProjection())
-
     return 0
 
 # Returns data on raster projection and geotransform parameters

@@ -3,8 +3,8 @@
 from geodata import *
 from image_processor import process, scene
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1339'
-folder_out = r'd:\rks\s3\kanopus_missed\1339_MS'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1913_new'
+folder_out = r'd:\rks\s3\kanopus_missed\1913new_MS'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'

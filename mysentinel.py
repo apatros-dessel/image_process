@@ -258,7 +258,7 @@ def metadata(path):
 
     # JoinShapesByAttributes([path2mask_data], fullpath2mask, attributes = ['maskType'], geom_rule = 1, attr_rule = 0)
     epsg = int(get_from_tree(msl,'HORIZONTAL_CS_CODE')[-5:])
-    Unite(path2mask_data, fullpath2mask, proj=4326, deafault_srs=epsg, overwrite=False)
+    Unite(path2mask_data, fullpath2mask, proj=4326, deafault_srs=epsg, changexy=True, overwrite=False)
 
     meta.datamask =       path2mask
     meta.cloudmask =      get_from_tree(msl, 'MASK_FILENAME', check = {'type': 'MSK_CLOUDS'})

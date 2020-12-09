@@ -137,7 +137,7 @@ def format_to_gdal(dtype_in):
     return gdal.GDT_Byte
 
 # Converts ogr dataset to a predefined projection
-def vec_to_crs(ogr_dataset, t_crs, export_path):
+def vec_to_crs(ogr_dataset, t_crs, export_path, changexy=False):
     ogr_layer = ogr_dataset.GetLayer()
     v_crs = ogr_layer.GetSpatialRef()
     if v_crs.ExportToUSGS() != t_crs.ExportToUSGS():
@@ -155,8 +155,8 @@ def vec_to_crs(ogr_dataset, t_crs, export_path):
         while feat:
             geom = feat.GetGeometryRef()
             geom.Transform(coordTrans)
-            # if int(gdal.VersionInfo()[0])>=3:
-                # geom = changeXY(geom)
+            if changexy:
+                geom = changeXY(geom)
             out_feat = ogr.Feature(outLayerDefn)
             out_feat.SetGeometry(geom)
             for i in range(0, outLayerDefn.GetFieldCount()):
@@ -1477,7 +1477,7 @@ def MultiplyRasterBand(bandpath_in, bandpath_out, multiplicator, dt = None, comp
 ''' VECTOR PROCESSING FUNCTIONS '''
 
 # Unites geometry from shapefiles
-def Unite(path2shp_list, path2export, proj=None, deafault_srs=4326, overwrite=True):
+def Unite(path2shp_list, path2export, proj=None, deafault_srs=4326, changexy=False, overwrite=True):
 
     if check_exist(path2export, ignore=overwrite):
         return 1
@@ -1521,7 +1521,7 @@ def Unite(path2shp_list, path2export, proj=None, deafault_srs=4326, overwrite=Tr
         else:
             t_path = tempname('shp')
             Geom2Shape(t_path, t_geom, proj=s_srs.ExportToWkt())
-            return ReprojectVector(t_path, path2export, t_srs, overwrite=True)
+            return ReprojectVector(t_path, path2export, t_srs, changexy=changexy, overwrite=True)
 
     # return Geom2Shape(path2export, t_geom, proj=proj)
 
@@ -2597,7 +2597,7 @@ def json_fields(path_out,
 
     ds, lyr = get_lyr_by_path(path_out)
 
-def ReprojectVector(path_in, path_out, epsg, overwrite = True):
+def ReprojectVector(path_in, path_out, epsg, changexy=False, overwrite = True):
 
     if check_exist(path_in, overwrite):
         return 1
@@ -2608,7 +2608,7 @@ def ReprojectVector(path_in, path_out, epsg, overwrite = True):
     # t_crs.ImportFromEPSG(epsg)
     t_crs = get_srs(epsg)
 
-    ds_out = vec_to_crs(ds_in, t_crs, path_out)
+    ds_out = vec_to_crs(ds_in, t_crs, path_out, changexy=changexy)
 
     ds_out = None
 

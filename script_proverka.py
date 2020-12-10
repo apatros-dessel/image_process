@@ -235,7 +235,7 @@ if saving:
             report_dict[path] = line
         else:
             print('ERROR UPDATING PATH: %s' % path)
-    suredir(dir_out)
+    suredir(dir_out, 0)
     dict_to_xls(xls, report_dict)
     print('Сохранено %i результатов' % len(report_dict))
 

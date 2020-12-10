@@ -2,6 +2,7 @@
 
 from geodata import *
 from image_processor import process, scene
+from ip2s3 import *
 
 folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1913_new'
 folder_out = r'd:\rks\s3\kanopus_missed\1913new_MS'

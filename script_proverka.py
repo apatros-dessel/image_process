@@ -112,6 +112,25 @@ def layers_intersection_array(shapes_list, proc):
                 export_array = np.vstack([export_array, result_array])
     return export_array
 
+def input_parameters(dir_out, xls, type):
+    print('Введите новый параметр проверки, с указанием индекса:\n  -o <путь к конечному файлу>\n  -x <название файла отчёта (xls)>\n  -t <тип данных (PAN, MS, PMS)>')
+    params = input('  >>>  ').strip()
+    if re.search('^-[otx] ', params):
+        type = params[1]
+        val = params[3:]
+        if type=='o':
+            dir_out = val
+        elif type=='x':
+            xls = val
+            xls = fullpath(dir_out, xls)
+        elif type=='t':
+            type = val.upper()
+        else:
+            print('Unreckognized type: %s' % type)
+    else:
+        print('Wrong parameter string: %s' % params)
+    return dir_out, xls, type
+
 marks_dict = OrderedDict()
 qual_dict = {}
 error_list = []
@@ -130,9 +149,6 @@ for i, ascene in enumerate(proc.scenes):
 
     if finish:
         break
-    if type:
-        if ascene.meta.type != type:
-            continue
 
     if ascene:
 
@@ -144,7 +160,10 @@ for i, ascene in enumerate(proc.scenes):
         while not approved:
 
             try:
-
+                if type:
+                    if ascene.meta.type != type:
+                        approved = True
+                        break
                 # p = subprocess.Popen(['display', ascene.quicklook()])
 
                 with Image.open(ascene.quicklook()) as quicklook:
@@ -176,8 +195,11 @@ for i, ascene in enumerate(proc.scenes):
             except:
 
                 try:
-                    print(u'Ошибка при оценке снимка, введите 101 чтобы пропустить сцену или 909 чтобы прервать операцию: ')
+                    print(u'Ошибка при оценке снимка, введите 100 чтобы изменить параметры, 101 чтобы пропустить сцену или 909 чтобы прервать операцию: ')
                     qualtest = int(input(' >>> '))
+
+                    if qualtest==100:
+                        dir_out, xls, type = input_parameters(dir_out, xls, type)
 
                     if qualtest==101:
                         error_list.append(id)
@@ -197,24 +219,27 @@ for i, ascene in enumerate(proc.scenes):
     else:
         print(u'Сцена за пределами области интереса: {}'.format(ascene.meta.id))
 
-report_dict = OrderedDict()
-for path in marks_dict.keys():
-    proc = process().input(path)
-    if proc:
-        ascene = proc.scenes[0]
-        id = ascene.meta.id
-        line = OrderedDict()
-        line['id'] = id
-        line['date'] = ascene.meta.name('[date]')
-        line['mark'] = marks_dict[path]
-        report_dict[path] = line
-    else:
-        print('ERROR UPDATING PATH: %s' % path)
-dict_to_xls(xls, report_dict)
-
 scroll(code_list, header=u'Использованные коды оценок')
+saving = Confirmation('Проверка окончена, сохранить результаты (y/n)?')
+if saving:
+    report_dict = OrderedDict()
+    for path in marks_dict.keys():
+        proc = process().input(path)
+        if proc:
+            ascene = proc.scenes[0]
+            id = ascene.meta.id
+            line = OrderedDict()
+            line['id'] = id
+            line['date'] = ascene.meta.name('[date]')
+            line['mark'] = marks_dict[path]
+            report_dict[path] = line
+        else:
+            print('ERROR UPDATING PATH: %s' % path)
+    suredir(dir_out)
+    dict_to_xls(xls, report_dict)
+    print('Сохранено %i результатов' % len(report_dict))
 
-input(u'  Нажмите Enter для выхода  ')
+input(u'\n  Нажмите Enter для выхода  ')
 
 if del_v_cover:
     os.remove(v_cover)

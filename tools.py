@@ -923,9 +923,26 @@ def colfromdict(dict_, key, listed=False):
         return col_dict.values()
     return col_dict
 
-def suredir(path):
+def suredir(path, confirmed=True):
     if not os.path.exists(path):
-        os.makedirs(path)
+        if confirmed:
+            os.makedirs(path)
+        elif Confirmation('Path does not exist: %s, create a new folder?' % path):
+            os.makedirs(path)
+
+def Confirmation(quest='y/n?'):
+    while True:
+        print(quest)
+        try:
+            confirm = str(input('  >>>  ')).lower()
+            if confirm == 'y':
+                return True
+            elif confirm == 'n':
+                return False
+            else:
+                print('Неверный код, введите "y" или "n"')
+        except:
+            print('Ошибка, введите "y" или "n"')
 
 def delist(obj, item = 0):
     if isinstance(obj, (list, tuple)):

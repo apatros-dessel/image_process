@@ -6,7 +6,7 @@ from image_processor import process, scene
 folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1913_new'
 folder_out = r'd:\rks\s3\kanopus_missed\1913new_MS'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
-test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
+# test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
 v_cover = r''
 imsys_list = ['KAN']
@@ -578,7 +578,7 @@ def Scene4S3(raster_data_in, vector_cover_in, folder_out, id, rgb_band_order=[1,
         scroll({'RGB': res_rgb, 'QL': res_ql, 'JSON': res_json}, header='Report %s:' % id)
 
 reference_list = folder_paths(references_path,1,'tif')
-test_ids = open(test_ids_txt).read().split('\n')
+# test_ids = open(test_ids_txt).read().split('\n')
 
 source_scenes, v_cover = FindScenes(folder_in, imsys_list=imsys_list, v_cover=v_cover)
 if len(source_scenes)==0:

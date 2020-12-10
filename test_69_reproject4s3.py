@@ -22,7 +22,7 @@ STAGES
 5. Prepare PMS data for S3
 6. If reprojection was failed, save the source data separately
 '''
-
+'''
 def FindScenes(path_in, imsys_list = None, skip_duplicates = False, v_cover = None):
     scenes = OrderedDict()
     for folder_in in obj2list(path_in):
@@ -576,7 +576,7 @@ def Scene4S3(raster_data_in, vector_cover_in, folder_out, id, rgb_band_order=[1,
             res_ql = Quick4S3(scene_data, scene_folder, id, band_order=[1,2,3])
         res_json = JSON4S3(vector_cover_in, scene_folder, id, ms2pms=ms2pms, raster_path=scene_data)
         scroll({'RGB': res_rgb, 'QL': res_ql, 'JSON': res_json}, header='Report %s:' % id)
-
+'''
 reference_list = folder_paths(references_path,1,'tif')
 # test_ids = open(test_ids_txt).read().split('\n')
 

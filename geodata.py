@@ -2430,17 +2430,16 @@ def json_fix_datetime(file, datetimecol='datetime'):
 
 def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None, unique_vals = False):
     ds_in, lyr_in = get_lyr_by_path(path_in)
-    print(path_in, ds_in)
+    if lyr_in is None:
+        print('Input layer is None: %s' % path_in)
+        return None
     vals = obj2list(vals)
-
     if path_out is None:
         path_out = tempname('json')
-
-    if path_out.endswith('.json'):
+    if path_out.lower().endswith('.json'):
         new_ds = json(path_out, srs=lyr_in.GetSpatialRef())
     else:
         new_ds = shp(path_out)
-
     new_ds, new_lyr = get_lyr_by_path(path_out, 1)
     lyr_defn = lyr_in.GetLayerDefn()
 
@@ -2448,10 +2447,9 @@ def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None
         new_lyr.CreateField(lyr_defn.GetFieldDefn(lyr_defn.GetFieldIndex(key)))
 
     lyr_in.ResetReading()
+
     for feat in lyr_in:
-
         feat_val = feat.GetField(feat.GetFieldIndex(field))
-
         if function is not None:
             try:
                 test = function(feat_val) in vals
@@ -2459,7 +2457,6 @@ def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None
                 test = False
         else:
             test = feat_val in vals
-
         if test:
             new_lyr.CreateFeature(feat)
             if unique_vals:
@@ -2467,7 +2464,6 @@ def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None
 
     if path_out.endswith('.shp'):
         write_prj(path_out[:-4] + '.prj', lyr_in.GetSpatialRef().ExportToWkt())
-
     new_ds = None
 
     return path_out

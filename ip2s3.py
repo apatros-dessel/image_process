@@ -140,6 +140,7 @@ def AlignSystem(pin, ref, pout, tempdir=None, align_file=None, reproject_method=
     match = ds_match(srs_in, srs_ref)
     if not match:
         repr_raster = tempname('tif')
+        scroll([pin, repr_raster], header='ReprojectRaster source:')
         ReprojectRaster(pin, repr_raster, int(srs_ref.GetAttrValue('AUTHORITY',1)), method=reproject_method)
         pin = repr_raster
     if align_file is None:
@@ -183,6 +184,8 @@ def AlignSystem(pin, ref, pout, tempdir=None, align_file=None, reproject_method=
     if not match:
         if os.path.exists(repr_raster):
             os.remove(repr_raster)
+        else:
+            print('File not found: %s' % repr_raster)
     return res
 
 def ReprojectRasterByAlign(pin, ref, pout, tempdir=None, align_file=None, reproject_method=gdal.GRA_NearestNeighbour):

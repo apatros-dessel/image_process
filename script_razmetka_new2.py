@@ -30,11 +30,13 @@ satellite_types = {
     'Kanopus': {'tmpt': r'KV[1-6I]', 'folder': 'kanopus'},
     'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs'},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet'},
+    'Landsat': {'tmpt': r'LST.+', 'folder': 'landsat'},
 }
 
 composite_types = {
-    'Sentinel-Sentinel': {'sources': ('Sentinel', 'Sentinel'), 'folder': 'sentinel_sentinel'},
-    'Sentinel-Kanopus': {'sources': ('Sentinel', 'Kanopus'), 'folder': 'sentinel_kanopus'},
+    'Sentinel-Sentinel': {'sources': ('Sentinel', 'Sentinel'), 'folder': 'sentinel-sentinel'},
+    'Sentinel-Kanopus': {'sources': ('Sentinel', 'Kanopus'), 'folder': 'sentinel-kanopus'},
+    'Sentinel-Landsat': {'sources': ('Sentinel', 'Landsat'), 'folder': 'sentinel-landsat'},
 }
 
 mask_types = {

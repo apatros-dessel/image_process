@@ -8,13 +8,14 @@ import geodata
 
 # import mylandsat
 import myplanet, mykanopus, mysentinel, myresursp, mydg, myskysat, myrapideye, mypleiades
+import mylandsat2 as mylandsat
 
 # Constants
 
 default_output = os.getcwd() # default output directory for a process
 
 metalib = {
-    # 'LST': mylandsat,
+    'LST': mylandsat,
     'SNT': mysentinel,
     'PLN': myplanet,
     'KAN': mykanopus,

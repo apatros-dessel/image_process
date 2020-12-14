@@ -17,6 +17,7 @@ import xml.etree.ElementTree as et
 import datetime as dtime
 
 from tools import *
+from geodata import *
 
 templates = (
     r'LC08_L1TP_\d{6}_\d{8}_\d{8}_01_T1_MTL.txt',
@@ -105,7 +106,7 @@ def mtl2orderdict(path):
     return orderdict
 
 # Gets Landsat metadata value by key
-def get_meta_landsat(mtl_list, call):
+def get_meta_landsat(mtl_list, call, floatnum=True):
     #mtl_list = mtl2list(path)
     val = ''
     for i in range(len(mtl_list)):
@@ -115,11 +116,12 @@ def get_meta_landsat(mtl_list, call):
                 continue
             if key == call:
                 val = re.search('= .+', mtl_list[i]).group()[2:]
-                try:
-                    val = float(val)
-                except:
-                    if (val.startswith('"') and val.endswith('"')):
-                        val = val[1:-1]
+                if floatnum:
+                    try:
+                        val = float(val)
+                    except:
+                        if (val.startswith('"') and val.endswith('"')):
+                            val = val[1:-1]
     return val
 
 
@@ -190,7 +192,6 @@ def metadata(path):
     #meta.filepaths = slice_orderdict(meta.mtl, 'FILE_NAME_BAND_', delete_call=True) #номер бенда
     meta.filepaths = getlandsatfiles(landsat_data) #имя бенда
 
-
     meta.bandpaths = globals()['landsat_bandpaths'] # get bandpaths as tuple of files_id and band numbers
     meta.location = meta.id[10:16]   # get scene location id
     meta.datetime = getlandsatdatetime(get_meta_landsat(landsat_data, "FILE_DATE"))    # get image datetime as datetime.datetime
@@ -205,10 +206,15 @@ def metadata(path):
         }
     )
 
-    meta.write_time_codes(meta.datetime)
+    meta.write_time_codes()
 
     # Optional:
-    # meta.datamsk =        # path to vector data
+    folder = os.path.split(path)[0]
+    datamask = folder + r'\ip\datamask.shp'
+    if not os.path.exists(datamask):
+        red = fullpath(folder, meta.filepaths['band_red'])
+        VectorizeBand((red, 1), datamask, classify_table=[(0, None, 1)], index_id='CLASS', erode_val=0, overwrite=True)
+    meta.datamask =       r'\ip\datamask.shp'
     # meta.cloudmask =      # path to vector data
 
     return meta
@@ -221,7 +227,7 @@ def set_cover_meta(feat, meta):
         feat.SetField('id_s', meta.name('[location]'))
         feat.SetField('id_neuro', meta.name('[fullsat]-[date]-[location]-[lvl]'))
         feat.SetField('datetime', get_meta_landsat(metadata, "FILE_DATE"))
-        feat.SetField('clouds', float(get_meta_landsat(metadata, 'CLOUD_COVER ')))
+        feat.SetField('clouds', float(get_meta_landsat(metadata, 'CLOUD_COVER')))
         feat.SetField('sat_id', meta.name('[fullsat]'))
         feat.SetField('sun_elev', get_meta_landsat(metadata, 'SUN_ELEVATION'))
         feat.SetField('sun_azim', get_meta_landsat(metadata, 'SUN_AZIMUTH '))
@@ -230,18 +236,15 @@ def set_cover_meta(feat, meta):
         feat.SetField('u_size', 'meter')
         feat.SetField('level', meta.name('[lvl]'))
         feat.SetField('sat_view', get_meta_landsat(metadata, 'ROLL_ANGLE'))
-
         feat.SetField('type', 'MS')
         feat.SetField('sat_azim', None)
         feat.SetField('rows', get_meta_landsat(metadata, 'REFLECTIVE_LINES'))
         feat.SetField('cols', get_meta_landsat(metadata, 'REFLECTIVE_SAMPLES'))
-        feat.SetField('epsg_dat', int('326' + get_meta_landsat(metadata, 'UTM_ZONE')))
-
-        feat.SetField('x_size', )
-        feat.SetField('y_size', )
+        feat.SetField('epsg_dat', int('326' + str(get_meta_landsat(metadata, 'UTM_ZONE', floatnum=False))))
+        feat.SetField('x_size', get_meta_landsat(metadata, 'GRID_CELL_SIZE_REFLECTIVE'))
+        feat.SetField('y_size', get_meta_landsat(metadata, 'GRID_CELL_SIZE_REFLECTIVE'))
         feat.SetField('area', None)
     return feat
-
 
 
 

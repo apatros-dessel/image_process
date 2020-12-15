@@ -3,9 +3,9 @@
 
 from geodata import *
 
-pin = [r'\\172.21.195.2\FTP-Share\ftp\Change_detection\Landsat-Sentinel\Europe_Ilvira\training']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
+pin = [r'\\172.21.195.2\FTP-Share\ftp\Change_detection\Landsat-Sentinel\fin']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
 vin = None     # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
-pout = r'e:\rks\razmetka\lsat_ilvira'                  # Путь для сохранения конечных файлов
+pout = r'e:\rks\razmetka\fin'                  # Путь для сохранения конечных файлов
 imgid = 'IMCH8'                   # Индекс изображений (управляет числом каналов в конечном растре)
 maskid = u'изменения'                # Индекс масок (MWT, MFS и т.д.)
 split_vector = False        # Если True, то исходный вектор разбивается по колонке image_col, в противном случае будут использованы маски для всех векторных объектов
@@ -111,6 +111,10 @@ def parse_landsat8(id):
         return '', '', '', ''
     if satid=='LC08':
         satid = 'LS8'
+    if not (bool(re.search(r'\d{6}', loc)) and bool(re.search(r'\d{8}', date))):
+        loc_ = date
+        date = loc
+        loc = loc_
     return satid, date, loc, lvl
 
 # Расширенная функция расчёта neuroid, учитывающая готовые neuroid и названия разновременных композитов
@@ -118,13 +122,17 @@ def neuroid_extended(id):
     if re.search(r'^IM\d+-.+-\d+-.+-.+$', id):
         return id
     elif re.search(r'IMCH\d+__.+__.+', id):
-        vals = id.split('__')
-        for i in (1, 2):
-            part_neuroid = neuroid_extended(vals[i])
-            vals[i] = part_neuroid[part_neuroid.index('-')+1:]
-        return '__'.join(vals)
+        parts = id.split('__')[1:3]
+    elif len(id.split('__'))==2:
+        parts = id.split('__')
     else:
         return get_neuroid(id)
+    vals = [globals()['imgid']]
+    scroll(parts)
+    for part_id in parts:
+        part_neuroid = neuroid_extended(part_id)
+        vals.append(part_neuroid[part_neuroid.index('-')+1:])
+    return '__'.join(vals)
 
 # Получить neuroid из исходного имени файла (для 4-х канального RGBN)
 def get_neuroid(id):

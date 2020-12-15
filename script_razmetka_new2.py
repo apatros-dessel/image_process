@@ -128,7 +128,7 @@ def neuroid_extended(id):
     else:
         return get_neuroid(id)
     vals = [globals()['imgid']]
-    scroll(parts)
+    # scroll(parts)
     for part_id in parts:
         part_neuroid = neuroid_extended(part_id)
         vals.append(part_neuroid[part_neuroid.index('-')+1:])
@@ -461,6 +461,7 @@ else:
 
 # Создать пути для размещения изображений и масок
 suredir(pout)
+scroll(input, header='\nTotal input:')
 
 # Создавать маски из найденных пар
 t = datetime.now()
@@ -522,7 +523,11 @@ try:
     if not (re.search('^IMCH\d+$', imgid) or re.search('^IM\d+$', imgid)):
         raise Exception('\n  WRONG imgid: {}, "IM\d+" or "IMCH\d+" is needed\n'.format(imgid))
     for i, neuroid in enumerate(input):
-        if (neuroid is None) or input[neuroid]['pairing']==False:
+        if (neuroid is None):
+            print('  %i -- NEUROID ERROR: %s\n' % (i, str(neuroid)))
+            continue
+        elif input[neuroid]['pairing']==False:
+            print('  %i -- PAIRING ERROR: %s\n' % (i, str(neuroid)))
             continue
         paths = get_paths(pout, neuroid, maskid, imgid)
         if paths:

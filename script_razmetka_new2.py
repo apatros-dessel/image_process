@@ -3,18 +3,18 @@
 
 from geodata import *
 
-pin = [r'\\172.21.195.2\FTP-Share\ftp\landcover\change_detection\sbor_change_detection_sentinel']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
+pin = [r'\\172.21.195.2\FTP-Share\ftp\Change_detection\Landsat-Sentinel\Europe_Ilvira\training']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
 vin = None     # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
-pout = r'\\172.21.195.215\thematic\products\razmetka\set004__sentinel_change'                  # Путь для сохранения конечных файлов
+pout = r'e:\rks\razmetka\lsat_ilvira'                  # Путь для сохранения конечных файлов
 imgid = 'IMCH8'                   # Индекс изображений (управляет числом каналов в конечном растре)
 maskid = u'изменения'                # Индекс масок (MWT, MFS и т.д.)
 split_vector = False        # Если True, то исходный вектор разбивается по колонке image_col, в противном случае будут использованы маски для всех векторных объектов
 image_col = 'path'              # Название колонки идентификатора растровой сцены (если vin != 0)
-code_col = 'Code'               # Название колонки с кодовыми значениями
+code_col = 'gridcode'               # Название колонки с кодовыми значениями
 compress = 'DEFLATE'        # Алгоритм сжатия растровых данных
 overwrite = False          # Заменять существующие файлы
 pms = False                  # Использовать паншарпы
-replace_vals = {1:141, 12:142, 13:143, 2:105, 3:151, 4:152, 5:101, 6:106, 14:201}         # Изменить значения в конечной маске в соответствии со словарём, если None, то замены не производится
+replace_vals = {7:100}         # Изменить значения в конечной маске в соответствии со словарём, если None, то замены не производится
 
 input_from_report = None  # Путь к таблице xls с путями к источникам данных, если None, то пары снимок-вектор строятся заново
 # Менять источники можно вручную, формат xlsx не читает
@@ -30,13 +30,14 @@ satellite_types = {
     'Kanopus': {'tmpt': r'KV[1-6I]', 'folder': 'kanopus'},
     'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs'},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet'},
-    'Landsat': {'tmpt': r'LST.+', 'folder': 'landsat'},
+    'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat'},
 }
 
 composite_types = {
     'Sentinel-Sentinel': {'sources': ('Sentinel', 'Sentinel'), 'folder': 'sentinel-sentinel'},
     'Sentinel-Kanopus': {'sources': ('Sentinel', 'Kanopus'), 'folder': 'sentinel-kanopus'},
     'Sentinel-Landsat': {'sources': ('Sentinel', 'Landsat'), 'folder': 'sentinel-landsat'},
+    'Landsat-Sentinel': {'sources': ('Landsat', 'Sentinel'), 'folder': 'landsat-sentinel'},
 }
 
 mask_types = {
@@ -59,7 +60,6 @@ def parse_kanopus(id):
     num2, scn, type, lvl = ending.split('.')
     return satid, loc1, loc2, sentnum, date, num1, num2, scn, type, lvl
 
-
 # Parse Resurs name
 def parse_resurs(id):
     satid, loc1, sentnum, geoton, date, num1, ending = id.split('_')
@@ -73,7 +73,6 @@ def parse_resurs(id):
     else:
         raise Exception('Wrong ending length for %s' % id)
 
-
 # Parse Sentinel name
 def parse_sentinel(id):
     # S2B_MSIL1C_20190828T043709_N0208_R033_T48VUP_20190828T082130
@@ -85,6 +84,8 @@ def parse_sentinel(id):
     elif len(vals) == 8:
         satid, lvl, datetime, col, row, tile, datetime2, cutid = id.split('_')
         tile += cutid
+    elif len(vals) == 6:
+        satid, lvl, datetime, col, row, tile = id.split('_')
     elif len(vals) == 4:
         satid, lvl, datetime, tile = id.split('_')
     else:
@@ -97,6 +98,20 @@ def parse_sentinel(id):
         date = dt[0]
         time = ''
     return satid, date, time, tile, lvl
+
+# Parse Landsat-8 name
+def parse_landsat8(id):
+    vals = id.split('_')
+    # LC08_L1TP_133019_20160830_20170321_01_T1
+    if len(vals)==4:
+        satid, lvl, date, loc = vals
+    elif len(vals)==7:
+        satid, lvl, loc, date, date2, lvl1, lvl2 = vals
+    else:
+        return '', '', '', ''
+    if satid=='LC08':
+        satid = 'LS8'
+    return satid, date, loc, lvl
 
 # Расширенная функция расчёта neuroid, учитывающая готовые neuroid и названия разновременных композитов
 def neuroid_extended(id):
@@ -128,14 +143,14 @@ def get_neuroid(id):
             lvl += type
     elif re.search(r'^S2[AB]', id) or re.search(r'^S2.+cut\d+$', id):
         satid, date, time, loc, lvl = parse_sentinel(id)
+    elif re.search(r'^LC08_', id):
+        satid, date, loc, lvl = parse_landsat8(id)
     else:
         print('Unknown imsys for: %s' % id)
         return None
     neuroid = imgid+'-%s-%s-%s-%s' % (satid, date, loc, lvl)
-
     # IM4 в начале -- условность, его можно будет изменить на этапе обработки изображения, если в нём больше 4 каналов
     return neuroid
-
 
 # Получить список значений колонки векторного файла
 def get_col_keys(vec, colname):
@@ -149,7 +164,6 @@ def get_col_keys(vec, colname):
             if (key is not None) and (key not in keys):
                 keys.append(key)
         return keys
-
 
 # Обработать искажённые индексы растровых файлов с тем, чтобы получить правильное название растра
 # Работает только в случае, когда нужно извлекать хитро выебанные названия файлов из атрибутов вектора
@@ -176,11 +190,9 @@ def filter_id(id, pms=False):
                 # report = get_neuroid(report)
             return report
 
-
 def check_nonzeros(path):
     l = len(np.unique(gdal.Open(path),GetRasterBand(1).ReadAsArray()))
     return bool(l)
-
 
 def get_raster_paths(raster_path):
     raster_path = obj2list(raster_path)
@@ -198,7 +210,6 @@ def get_raster_paths(raster_path):
         print('Written source paths to: %s' % globals()['source_paths'])
     return export
 
-
 # Checks if name must be excluded as pansharpened or not pansharpened
 def pms_exit(id, pms = False):
     if re.search('KV.+SCN\d+.+', id):
@@ -209,7 +220,6 @@ def pms_exit(id, pms = False):
             if pms:
                 return True
     return False
-
 
 # Получить пути к исходным данным для масок для разделённых векторных файлов (shp, json, geojson) и растровых снимков (tif)
 def get_pair_paths(pin, pms = False):
@@ -239,7 +249,6 @@ def get_pair_paths(pin, pms = False):
         else:
             export[id]['pairing'] = False
     return export
-
 
 # Получить пути к исходным данным для масок для цельных векторных файлов
 def get_pairs(raster_paths, vin, img_colname, vecids=None, split_vector=True, pms=False):
@@ -278,6 +287,7 @@ def get_paths(pout, id, maskid, imgid):
     if re.search(r'IMCH\d+__.+__.+', id) and re.search('^IMCH\d+$', imgid):
         composite_types = globals()['composite_types']
         nameparts = id.split('__')
+        # scroll(nameparts)
         name1, name2 = nameparts[1:3]
         for compid in composite_types:
             sat1 = satellite_types[composite_types[compid]['sources'][0]]['tmpt']
@@ -321,7 +331,6 @@ def get_paths(pout, id, maskid, imgid):
         msk_path = fullpath(msk_folder, msk_type['id'] + id[4:], 'tif')
     return (img_path, msk_path)
 
-
 # Check if the image needs repair
 def check_image(img_in, neuro):
     raster = gdal.Open(img_in)
@@ -344,7 +353,6 @@ def check_image(img_in, neuro):
         if band.DataType != 3 or band.GetNoDataValue() != 0:
             return True, counter
     return False, counter
-
 
 # Записать изображение, проверяя корректность его формата
 # Если overwrite==False, то изображения в корректном формате пропускаются
@@ -377,7 +385,6 @@ def repair_img(img_in, img_out, count, band_order=None):
         new_raster.GetRasterBand(bout).WriteArray(arr_)
     raster = new_raster = None
     return img_out
-
 
 # Создать растровую маску на основе вектора
 def set_mask(img_in, vec_in, msk_out, overwrite=False):
@@ -424,7 +431,6 @@ def check_type(codes):
             type_dict[u"гари"] += 1
     return type_dict
 
-
 ###################################################################################
 
 t = datetime.now()
@@ -450,7 +456,7 @@ suredir(pout)
 
 # Создавать маски из найденных пар
 t = datetime.now()
-
+'''
 if not (re.search('^IMCH\d+$', imgid) or re.search('^IM\d+$', imgid)):
     raise Exception('\n  WRONG imgid: {}, "IM\d+" or "IMCH\d+" is needed\n'.format(imgid))
 for i, neuroid in enumerate(input):
@@ -503,6 +509,7 @@ for i, neuroid in enumerate(input):
     else:
         input[neuroid]['report'] = 'ERROR: Source paths not found'
         print('  %i -- ERROR: Source paths not found for %s\n' % (i + 1, neuroid))
+'''
 try:
     if not (re.search('^IMCH\d+$', imgid) or re.search('^IM\d+$', imgid)):
         raise Exception('\n  WRONG imgid: {}, "IM\d+" or "IMCH\d+" is needed\n'.format(imgid))

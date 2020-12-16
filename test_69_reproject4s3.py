@@ -47,7 +47,6 @@ scroll(unmatched_list, lower=len(unmatched_list))
 with open(fullpath(folder_out, name+'_missed', 'txt'), 'w') as txt:
     txt.write('\n'.join(unmatched_list))
 
-
 success = []
 fail = []
 s3_folder = fullpath(folder_out, 's3')
@@ -63,6 +62,10 @@ for id in unmatched:
         else:
             # fail.append(id)
             pass
+        print('EMPTY TDIR')
+        globals()['temp_dir_list'].empty()
+        print('EMPTY TDIR_GEO')
+        globals()['temp_dir_list_geo'].empty()
 sys.exit()
 
 scroll(success, header='SUCCESS', lower=len(success))

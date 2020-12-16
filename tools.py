@@ -15,7 +15,6 @@ silent = False
 if not os.path.exists(default_temp):
     os.makedirs(default_temp)
 
-
 # Class to make endless counter
 class counter:
     def __init__(self, startfrom = 0, step = 1):
@@ -515,9 +514,11 @@ class tdir():
         try:
             if cleardir(self.paths[i]):
                 os.rmdir(self.paths[i])
+                print('DELETED: %s' % self.paths[i])
                 self.paths.pop(i)
                 return True
             else:
+                print('ERROR: %s' % self.paths[i])
                 return False
         except:
             return False
@@ -985,4 +986,3 @@ def find_parts(list_, start, fin):
             results.append(list_[i_start:i])
             passingby = True
     return results
-

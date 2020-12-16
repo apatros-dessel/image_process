@@ -18,7 +18,7 @@ from tools import *
 from raster_data import RasterData, MultiRasterData
 from calc import *
 
-temp_dir_list = tdir(default_temp)
+temp_dir_list_geo = tdir(default_temp)
 
 tiff_compress_list = [
     'JPEG',
@@ -296,7 +296,7 @@ def clip_raster(path2raster, path2vector, export_path = None, byfeatures = True,
         raster_array.append(raster_ds.GetRasterBand(int(band)).ReadAsArray())
     raster_array = np.array(raster_array)
     if path2newshp is None:
-        path2newshp = newname(temp_dir_list.create(), 'shp')
+        path2newshp = tempname('shp')
     outDataSet = vec_to_crs(vector_ds, crs, path2newshp)
     outLayer = outDataSet.GetLayer()
     extent = outLayer.GetExtent()
@@ -308,7 +308,7 @@ def clip_raster(path2raster, path2vector, export_path = None, byfeatures = True,
         raster_array[:, mask_vector == exclude] = nodata
     param = raster_array, crs_wkt, tuple(geotrans), raster_array.dtype, nodata
     if export_path is None:
-        export_path = newname(temp_dir_list.create(), 'tif')
+        export_path = tempname('tif')
     res = save_raster(export_path, raster_array, proj = crs_wkt, trans = tuple(geotrans), nodata = nodata, compress = compress, overwrite=overwrite)
     return res
 
@@ -565,9 +565,9 @@ def Changes(old_bandpaths, new_bandpaths, export_path,
     segmentize = not ((lower_lims is None) and (upper_lims is None))
 
     if segmentize:
-        calc_path = r'{}\calc.tif'.format(globals()['temp_dir_list'].create())
+        calc_path = r'{}\calc.tif'.format(globals()['temp_dir_list_geo'].create())
     elif calc_path is None:
-        calc_path = r'{}\calc.tif'.format(globals()['temp_dir_list'].create())
+        calc_path = r'{}\calc.tif'.format(globals()['temp_dir_list_geo'].create())
 
     calc_ds = ds(calc_path, copypath=new_bandpaths[0][0], options={'dt': 6}, editable=True)
 
@@ -690,9 +690,9 @@ def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_
             mask_arr[curr_mask] = id_val
             curr_mask = None
     # scroll(np.unique(mask_arr), header='%s:' % split3(bandpath_in[0])[1])
-    data_ds = ds(globals()['temp_dir_list'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
+    data_ds = ds(globals()['temp_dir_list_geo'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
     data_ds.GetRasterBand(1).WriteArray(mask_arr)
-    mask_ds = ds(globals()['temp_dir_list'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
+    mask_ds = ds(globals()['temp_dir_list_geo'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
     mask_ds.GetRasterBand(1).WriteArray(mask_arr.astype(bool))
     mask_arr = None
     dst_ds = shp(path_out, 1)
@@ -982,7 +982,7 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
         srs_out = osr.SpatialReference()
         srs_out.ImportFromEPSG(reprojectEPSG)
         if srs_in.ExportToProj4() != srs_out.ExportToProj4():
-            path2rgb = newname(globals()['temp_dir_list'].create(), 'tif')
+            path2rgb = newname(globals()['temp_dir_list_geo'].create(), 'tif')
             reproject = True
 
     t_ds = ds(path=path2rgb, copypath=path2raster, options=options, editable=True, overwrite=overwrite)
@@ -1237,7 +1237,7 @@ def Mosaic(path2raster_list, export_path, band_num=1, band_order=None, copyraste
             options_['bandnum'] = band_num
         t_ds = ds(export_path, copypath=copyraster, options=options_, editable=True)
     else:
-        tfolder = globals()['temp_dir_list'].create()
+        tfolder = globals()['temp_dir_list_geo'].create()
         tpath = newname(tfolder, 'tif')
         vrt = gdal.BuildVRT(tpath, path2raster_list)
         driver = gdal.GetDriverByName('GTiff')
@@ -1340,7 +1340,7 @@ def RasterDataMask(path2raster, path2export, use_nodata = True, enforce_nodata =
         path2export0 = path2export
         path2export = tempname('shp')
 
-    tfolder = globals()['temp_dir_list'].create()
+    tfolder = globals()['temp_dir_list_geo'].create()
     tpath = newname(tfolder, 'tif')
 
     options = {

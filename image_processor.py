@@ -89,7 +89,7 @@ def get_product_generation_function(imsys, prodid):
         print('"{}" product function not found for "{}"'.format(prodid, imsys))
         return None
 
-temp_dir_list = tdir(default_temp) # tdir object for working with temporary files
+temp_dir_list_ip = tdir(default_temp) # tdir object for working with temporary files
 
 # Class containing image processing parameters and procedures
 class process(object):
@@ -386,7 +386,7 @@ class scene:
                 return None
 
             if set_product_path is None:
-                set_product_path = globals()['temp_dir_list'].create()
+                set_product_path = globals()['temp_dir_list_ip'].create()
 
             if set_name is None:
                 prod_name = r'[id]_{}_{}.tif'.format(band_id, prod_id)
@@ -407,7 +407,7 @@ class scene:
     def clip(self, path2vector, export_path = None, byfeatures = True, exclude = False, nodata = 0, save_files = False, compress = None):
 
         if export_path is None:
-            export_path = temp_dir_list.create()
+            export_path = temp_dir_list_ip.create()
 
         self.filepath = export_path
         self.files = []

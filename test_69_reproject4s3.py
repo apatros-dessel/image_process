@@ -4,14 +4,14 @@ from geodata import *
 from image_processor import process, scene
 from ip2s3 import *
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1913_new'
-folder_out = r'd:\rks\s3\kanopus_missed\1913new_MS'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\__selected\region16'
+folder_out = r'd:\rks\s3\kanopus_missed\region16_MS'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 # test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
 v_cover = r''
 imsys_list = ['KAN']
-pms = True
+pms = False
 overwrite = False
 
 '''
@@ -40,6 +40,7 @@ scroll(unmatched, lower=len(unmatched))
 name = os.path.split(folder_in)[1]
 matched_list = list(matched.keys())
 scroll(matched_list, lower=len(matched_list))
+suredir(folder_out)
 with open(fullpath(folder_out, name+'_matched', 'txt'), 'w') as txt:
     txt.write('\n'.join(matched_list))
 unmatched_list = list(unmatched.keys())
@@ -55,6 +56,8 @@ for id in unmatched:
         # print(id)
         # continue
         res = ReprojectSystem(unmatched[id], reference_list, folder_out, pms=pms, overwrite=overwrite)
+        if not pms:
+            id = id.replace('.PMS', '.MS')
         if res:
             success.append(id)
             if isinstance(res, str):

@@ -2428,11 +2428,17 @@ def json_fix_datetime(file, datetimecol='datetime'):
     else:
         print('dtime not found for: %s' % file)
 
-def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None, unique_vals = False):
+def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None, unique_vals = False, raster_match = None):
     ds_in, lyr_in = get_lyr_by_path(path_in)
     if lyr_in is None:
         print('Input layer is None: %s' % path_in)
         return None
+    if raster_match:
+        if  os.path.exists(raster_match):
+            raster = gdal.Open(raster_match)
+        else:
+            print('Raster match path does not exist: %s' % raster_match)
+            raster = None
     vals = obj2list(vals)
     if path_out is None:
         path_out = tempname('json')
@@ -2458,6 +2464,14 @@ def filter_dataset_by_col(path_in, field, vals, function = None, path_out = None
         else:
             test = feat_val in vals
         if test:
+            if raster_match:
+                raster_geom = RasterGeometry(raster, reference=lyr_in.GetSpatialRef())
+                vector_geom = feat.GetGeometryRef()
+                if not raster_geom.Intersects(vector_geom):
+                    print('Raster geometry mismatch: %s vs %s' % (feat_val, raster_match))
+                    continue
+                else:
+                    print('Raster geometry mismatch: %s vs %s' % (feat_val, raster_match))
             new_lyr.CreateFeature(feat)
             if unique_vals:
                 vals.pop(vals.index(feat_val))
@@ -2966,7 +2980,9 @@ def RasterGeometry(ds_, reference=None):
         geom = ogr.Geometry(wkt=wkt)
     else:
         geom = ogr.CreateGeometryFromWkt(wkt, reference)
-    if srs!=reference:
+    if reference is None:
+        print('Raster geometry reference not found, using raster projection data')
+    elif srs!=reference:
         trans = osr.CoordinateTransformation(srs, reference)
         geom.Transform(trans)
         if sys.version.startswith('3'):

@@ -14,6 +14,7 @@ parser.add_argument('-o', default=None, dest='dir_out', help='Output folder')
 parser.add_argument('-x', default='report.xls', dest='xls', help='Excel report table')
 parser.add_argument('-v', default=None, dest='v_cover', help='Vector cover path')
 parser.add_argument('-t', default=None, dest='type', help='Scene type')
+parser.add_argument('-i', default=None, dest='imsys', help='image systems separated by space')
 args = parser.parse_args()
 if args.dir_in is None:
     dir_in = 'None'
@@ -36,6 +37,13 @@ type = None
 if args.type is not None:
     if args.type.upper() in ['PAN', 'MS', 'PMS']:
         type = args.type.upper()
+if args.imsys is not None:
+    imsys_list = []
+    for isId in args.imsys.upper().split(' '):
+        if isId in metalib.keys():
+            imsys_list.append(isId)
+else:
+    imsys_list = list(metalib.keys())
 
 '''
 # Пути к сценам
@@ -58,7 +66,7 @@ vector_cover_path_list = [
 
 print(u'Исходные данные загружены')
 
-proc = process().input(dir_in, skip_duplicates=False)
+proc = process().input(dir_in, skip_duplicates=False, imsys_list=imsys_list)
 
 if v_cover is None:
     v_cover = tempname('json')

@@ -399,6 +399,15 @@ def cleardir(path):
             errors.append(file)
     return not bool(errors)
 
+# Copy directory and all files in it
+def copydir(path_in, dir_out):
+    dir_in, folder_name = os.path.split(path_in)
+    folders, files = folder_paths(path_in)
+    for folder in folders:
+        suredir(fullpath(dir_out, folder[len(dir_in):]))
+    for file in files:
+        shutil.copyfile(file, fullpath(dir_out, file[len(dir_in):]))
+
 # Completely destroys dir with all contained files and folders
 def destroydir(path, preserve_path = False):
     folders, files = folder_paths(path)

@@ -3,18 +3,20 @@
 
 from geodata import *
 
-pin = [r'\\172.21.195.2\FTP-Share\ftp\Change_detection\Landsat-Sentinel\fin']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
+pin = [r'\\172.21.195.2\FTP-Share\ftp\landcover\Sentinel_Sentinel\clouds']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
 vin = None     # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
-pout = r'e:\rks\razmetka\fin'                  # Путь для сохранения конечных файлов
+pout = r'e:\rks\razmetka\sentinel_sentinel_cloud_change'                  # Путь для сохранения конечных файлов
 imgid = 'IMCH8'                   # Индекс изображений (управляет числом каналов в конечном растре)
 maskid = u'изменения'                # Индекс масок (MWT, MFS и т.д.)
 split_vector = False        # Если True, то исходный вектор разбивается по колонке image_col, в противном случае будут использованы маски для всех векторных объектов
 image_col = 'path'              # Название колонки идентификатора растровой сцены (если vin != 0)
 code_col = 'gridcode'               # Название колонки с кодовыми значениями
+code_col_sec = 'type'
 compress = 'DEFLATE'        # Алгоритм сжатия растровых данных
 overwrite = False          # Заменять существующие файлы
 pms = False                  # Использовать паншарпы
-replace_vals = {7:100}         # Изменить значения в конечной маске в соответствии со словарём, если None, то замены не производится
+replace_vals = {7:100, 1:9, 2:9, 54:152}         # Изменить значения в конечной маске в соответствии со словарём, если None, то замены не производится
+band_reposition = None    # Изменить порядок каналов в конечном растре, если None, то порядок сохраняется
 
 input_from_report = None  # Путь к таблице xls с путями к источникам данных, если None, то пары снимок-вектор строятся заново
 # Менять источники можно вручную, формат xlsx не читает
@@ -404,10 +406,10 @@ def set_mask(img_in, vec_in, msk_out, overwrite=False):
     if not os.path.exists(vec_reprojected):
         vec_reprojected = vec_in
     try:
-        RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2,
-                    value_colname=code_col, compress=compress, overwrite=overwrite)
+        RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
         return msk_out
     except:
+        # RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
         print('Rasterizing error: %s %s' % (img_in, vec_in))
         return 'ERROR: Rasterizing error'
 
@@ -534,7 +536,7 @@ try:
             img_out, msk_out = paths
             img_in = input[neuroid]['r']
             vec_in = input[neuroid]['v']
-            img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=None)
+            img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=band_reposition)
             input[neuroid]['img_out'] = img_out
             msk_out = set_mask(img_in, vec_in, msk_out, overwrite=overwrite)
             input[neuroid]['msk_out'] = msk_out

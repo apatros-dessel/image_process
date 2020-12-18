@@ -2294,7 +2294,7 @@ def RandomLinesRectangle(path_in, path_out,
 
 # Rasterize vector layer
 # Returns a mask as np.array of np.bool
-def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, data_type = 1, value_colname = None, filter_nodata = True, compress = None, overwrite=True):
+def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, data_type = 1, value_colname = None, value_colname_sec = None, filter_nodata = True, compress = None, overwrite=True):
 
     if check_exist(path_out, ignore=overwrite):
         return 1
@@ -2317,15 +2317,31 @@ def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, da
         rasterize_options = None
     else:
         rasterize_options = [r'ATTRIBUTE={}'.format(value_colname)]
-
+    if value_colname_sec is not None:
+        rasterize_options_sec = [r'ATTRIBUTE={}'.format(value_colname_sec)]
+        try:
+            s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, burn_values=[burn_value], options=rasterize_options_sec)
+            arr_sec = t_ds.GetRasterBand(1).ReadAsArray()
+        except:
+            print('RASTERIZING ERROR SEC: %s' % path_out)
+            arr_sec = None
     try:
         # s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, burn_values=[burn_value], options = ['attribute = gridcode']) # This code raises warning if the layer does not have a projection definition
         s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, burn_values = [burn_value], options = rasterize_options)
-
     except:
         # s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, options=['gridcode', '', ''])
-        print('Rasterizing error')
+        print('RASTERIZING ERROR: %s' % path_out)
         return 1
+    if value_colname_sec is not None:
+        if arr_sec is not None:
+            try:
+                arr_prim = t_ds.GetRasterBand(1).ReadAsArray()
+                arr_mask = arr_sec != 0
+                arr_prim[arr_mask] = arr_sec[arr_mask]
+                t_ds.GetRasterBand(1).WriteArray(arr_prim)
+                del arr_sec, arr_mask
+            except:
+                print('APPENDIND SECONDARY DATA ERROR: %s' % path_out)
 
     if filter_nodata:
         ds_in = gdal.Open(path_in_raster)

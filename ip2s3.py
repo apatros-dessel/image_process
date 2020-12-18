@@ -481,7 +481,7 @@ def JSON4S3(path_in, folder_out, id, ms2pms=False, raster_path=None):
         if ms2pms:
             get_pms_json(path_in, json_out, id, pms_raster_path=raster_path)
         else:
-            filter_dataset_by_col(path_in, 'id', id, path_out=json_out)
+            filter_dataset_by_col(path_in, 'id', id, path_out=json_out, raster_match=raster_path)
         if os.path.exists(json_out):
             ds_out, lyr_out = get_lyr_by_path(json_out)
             if lyr_out is None:
@@ -509,7 +509,7 @@ def get_pms_json(path_cover, path_out, pms_id, pms_raster_path=''):
         print('Cannot find path: {}'.format(path_cover))
         return 1
     ms_id = pms_id.replace('.PMS', '.MS')
-    filter_dataset_by_col(path_cover, 'id', ms_id, path_out=path_out)
+    filter_dataset_by_col(path_cover, 'id', ms_id, path_out=path_out, raster_match=pms_raster_path)
     pms_ds, pms_lyr = get_lyr_by_path(path_out, 1)
     if pms_lyr is None:
         print('FILE NOT FOUND: %s' % path_out)

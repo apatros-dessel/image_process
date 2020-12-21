@@ -3,9 +3,9 @@
 
 from geodata import *
 
-pin = [r'\\172.21.195.2\FTP-Share\ftp\landcover\Sentinel_Sentinel\clouds']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
+pin = [r'\\172.21.195.2\FTP-Share\ftp\Change_detection\Sentinel-Sentinel_difficult\fin\winter']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
 vin = None     # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
-pout = r'e:\rks\razmetka\sentinel_sentinel_cloud_change'                  # Путь для сохранения конечных файлов
+pout = r'e:\rks\razmetka\sentinel_sentinel_difficult_winter'                  # Путь для сохранения конечных файлов
 imgid = 'IMCH8'                   # Индекс изображений (управляет числом каналов в конечном растре)
 maskid = u'изменения'                # Индекс масок (MWT, MFS и т.д.)
 split_vector = False        # Если True, то исходный вектор разбивается по колонке image_col, в противном случае будут использованы маски для всех векторных объектов
@@ -121,6 +121,13 @@ def parse_landsat8(id):
 
 # Расширенная функция расчёта neuroid, учитывающая готовые neuroid и названия разновременных композитов
 def neuroid_extended(id):
+    cutsearch = re.search('__cut\d+$', id)
+    if cutsearch is not None:
+        cut = cutsearch.group()
+        id = id[:-len(cut)]
+    else:
+        print('NoCut: %s' % id)
+        cut = ''
     if re.search(r'^IM\d+-.+-\d+-.+-.+$', id):
         return id
     elif re.search(r'IMCH\d+__.+__.+', id):
@@ -134,7 +141,7 @@ def neuroid_extended(id):
     for part_id in parts:
         part_neuroid = neuroid_extended(part_id)
         vals.append(part_neuroid[part_neuroid.index('-')+1:])
-    return '__'.join(vals)
+    return '__'.join(vals) + cut
 
 # Получить neuroid из исходного имени файла (для 4-х канального RGBN)
 def get_neuroid(id):

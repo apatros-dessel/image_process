@@ -40,7 +40,7 @@ def FindScenes(path_in, imsys_list = None, skip_duplicates = False, v_cover = No
     if not v_cover:
         v_cover = fullpath(folder_in, 'v_cover.json')
     if not os.path.exists(v_cover):
-        scroll(v_cover)
+        # scroll(v_cover)
         proc.GetCoverJSON(v_cover)
     return scenes, v_cover
 
@@ -117,7 +117,7 @@ def GetQuicklookCheck(source_scenes, xls_quicklook_dict, type=['MS', 'PAN', 'PMS
     type_list = obj2list(type)
     if xls_quicklook_dict is None:
         print('QUICKLOOK DICT is None, cannot check by quicklook')
-        return source_scenes, {}
+        return source_scenes, None
     else:
         keys = list(xls_quicklook_dict.keys())
     for id in source_scenes:

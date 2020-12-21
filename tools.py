@@ -697,17 +697,21 @@ def get_from_tree(xml_tree, call, check=None, data='text', attrib=None, sing_to_
 
 # Import data from xls
 def xls_to_dict(path2xls, sheetnum=0):
-    rb = xlrd.open_workbook(path2xls)
-    sheet = rb.sheet_by_index(sheetnum)
-    keys = sheet.row_values(0)[1:]
-    xls_dict = OrderedDict()
-    for rownum in range(1, sheet.nrows):
-        rowdata = OrderedDict()
-        row = sheet.row_values(rownum)
-        for key, val in zip(keys, row[1:]):
-            rowdata[key] = val
-        xls_dict[row[0]] = rowdata
-    return xls_dict
+    if path2xls:
+        if os.path.exists(path2xls):
+            rb = xlrd.open_workbook(path2xls)
+            sheet = rb.sheet_by_index(sheetnum)
+            keys = sheet.row_values(0)[1:]
+            xls_dict = OrderedDict()
+            for rownum in range(1, sheet.nrows):
+                rowdata = OrderedDict()
+                row = sheet.row_values(rownum)
+                for key, val in zip(keys, row[1:]):
+                    rowdata[key] = val
+                xls_dict[row[0]] = rowdata
+            return xls_dict
+    print('PATH NOT FOUND: %s' % path2xls)
+    return None
 
 
 # Export data to xls

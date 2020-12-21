@@ -4,7 +4,7 @@ from geodata import *
 from image_processor import process, scene
 from ip2s3 import *
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_107'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1339'
 folder_out = r'd:\rks\s3\kanopus_check'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 # test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
@@ -35,7 +35,7 @@ if report_path is None:
             break
 xls_quicklook_dict = xls_to_dict(report_path)
 
-source_scenes, v_cover = FindScenes(folder_in, imsys_list=imsys_list, v_cover=v_cover)
+source_scenes, v_cover = FindScenes(folder_in, imsys_list=imsys_list, v_cover=v_cover, skip_duplicates=False)
 if len(source_scenes)==0:
     print('No source scenes found in %s' % folder_in)
     sys.exit()
@@ -48,17 +48,21 @@ unmatched, errored = GetQuicklookCheck(unmatched, xls_quicklook_dict, type=['MS'
 # scroll(unmatched, lower=len(unmatched))
 name = os.path.split(folder_in)[1]
 matched_list = list(matched.keys())
-errored_list = list(errored.keys())
 # scroll(matched_list, lower=len(matched_list))
 suredir(folder_out)
 with open(fullpath(folder_out, 'DONE__'+name, 'txt'), 'w') as txt:
     txt.write('\n'.join(matched_list))
 unmatched_list = list(unmatched.keys())
 # scroll(unmatched_list, lower=len(unmatched_list))
-with open(fullpath(folder_out, 'IN_PROCESS__'+name, 'txt'), 'w') as txt:
-    txt.write('\n'.join(unmatched_list))
-with open(fullpath(folder_out, 'SKIPPED__'+name, 'txt'), 'w') as txt:
-    txt.write('\n'.join(errored_list))
+if errored is None:
+    with open(fullpath(folder_out, 'NOT_CHECKED__'+name, 'txt'), 'w') as txt:
+        txt.write('\n'.join(unmatched_list))
+else:
+    with open(fullpath(folder_out, 'IN_PROCESS__'+name, 'txt'), 'w') as txt:
+        txt.write('\n'.join(unmatched_list))
+    errored_list = list(errored.keys())
+    with open(fullpath(folder_out, 'SKIPPED__'+name, 'txt'), 'w') as txt:
+        txt.write('\n'.join(errored_list))
 
 sys.exit()
 success = []

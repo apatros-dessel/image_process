@@ -72,11 +72,14 @@ def CoverMatch(feat1, feat2, field_list = None):
                 return False
     return True
 
-def GetSceneFullpath(scene_dict):
-    for type in ['PMS', 'MS', 'PAN']:
+def GetSceneFullpath(scene_dict, type_list = ['PMS', 'MS', 'PAN']):
+    type_list = obj2list(type_list)
+    for type in type_list:
         scene_fullpath = scene_dict.get(type)
         if scene_fullpath:
             return scene_fullpath
+    print('Scene fullpath not found: %s with %s' % (scene_dict.get('id'), ' '.join(list(scene_dict.keys())).strip().replace('id', '').replace('  ',' ')))
+    return None
 
 def GetUnmatchingScenes(source_scenes, s3_scenes):
     unmatched = OrderedDict()
@@ -106,6 +109,29 @@ def GetUnmatchingScenes(source_scenes, s3_scenes):
                 else:
                     print('CANNOT OPEN SCENE: %s' % id)
         unmatched[id] = source_scenes[id]
+    return matched, unmatched
+
+def GetQuicklookCheck(source_scenes, xls_quicklook_dict, type=['MS', 'PAN', 'PMS']):
+    unmatched = OrderedDict()
+    matched = OrderedDict()
+    type_list = obj2list(type)
+    if xls_quicklook_dict is None:
+        print('QUICKLOOK DICT is None, cannot check by quicklook')
+        return source_scenes, {}
+    else:
+        keys = list(xls_quicklook_dict.keys())
+    for id in source_scenes:
+        scene_fullpath = GetSceneFullpath(source_scenes[id], type_list = type_list)
+        scroll(scene_fullpath)
+        if scene_fullpath is not None:
+            if scene_fullpath in keys:
+                if xls_quicklook_dict[scene_fullpath]['mark'] == '1':
+                    matched[id] = source_scenes[id]
+                    print('QUICKLOOK MATCH: %s' % id)
+                    continue
+        unmatched[id] = source_scenes[id]
+        print('QUICKLOOK MISMATCH: %s' % id)
+    # scroll(keys)
     return matched, unmatched
 
 def GetReference(file, ref_list):

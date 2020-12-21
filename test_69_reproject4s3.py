@@ -4,15 +4,16 @@ from geodata import *
 from image_processor import process, scene
 from ip2s3 import *
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\__selected\region16'
-folder_out = r'd:\rks\s3\kanopus_missed\region16_MS'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_107'
+folder_out = r'd:\rks\s3\kanopus_check'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 # test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'
 folder_s3 = r'\\172.21.195.215\thematic\products\s3\kanopus'
 v_cover = r''
-imsys_list = ['KAN']
+imsys_list = ['KAN', 'RSP']
 pms = False
 overwrite = False
+report_path = None
 
 '''
 STAGES
@@ -27,27 +28,39 @@ STAGES
 reference_list = folder_paths(references_path,1,'tif')
 # test_ids = open(test_ids_txt).read().split('\n')
 
+if report_path is None:
+    for report_ in ('report', 'report_alex', 'report_serg'):
+        if os.path.exists(fullpath(folder_in, report_, 'xls')):
+            report_path = fullpath(folder_in, report_, 'xls')
+            break
+xls_quicklook_dict = xls_to_dict(report_path)
+
 source_scenes, v_cover = FindScenes(folder_in, imsys_list=imsys_list, v_cover=v_cover)
 if len(source_scenes)==0:
     print('No source scenes found in %s' % folder_in)
     sys.exit()
 s3_scenes = GetS3Scenes(folder_s3)
 matched, unmatched = GetUnmatchingScenes(source_scenes, s3_scenes)
+unmatched, errored = GetQuicklookCheck(unmatched, xls_quicklook_dict, type=['MS'])
 
 # match, miss = CheckIdFromList(unmatched, test_ids, pms=True)
 
-scroll(unmatched, lower=len(unmatched))
+# scroll(unmatched, lower=len(unmatched))
 name = os.path.split(folder_in)[1]
 matched_list = list(matched.keys())
-scroll(matched_list, lower=len(matched_list))
+errored_list = list(errored.keys())
+# scroll(matched_list, lower=len(matched_list))
 suredir(folder_out)
-with open(fullpath(folder_out, name+'_matched', 'txt'), 'w') as txt:
+with open(fullpath(folder_out, 'DONE__'+name, 'txt'), 'w') as txt:
     txt.write('\n'.join(matched_list))
 unmatched_list = list(unmatched.keys())
-scroll(unmatched_list, lower=len(unmatched_list))
-with open(fullpath(folder_out, name+'_missed', 'txt'), 'w') as txt:
+# scroll(unmatched_list, lower=len(unmatched_list))
+with open(fullpath(folder_out, 'IN_PROCESS__'+name, 'txt'), 'w') as txt:
     txt.write('\n'.join(unmatched_list))
+with open(fullpath(folder_out, 'SKIPPED__'+name, 'txt'), 'w') as txt:
+    txt.write('\n'.join(errored_list))
 
+sys.exit()
 success = []
 fail = []
 s3_folder = fullpath(folder_out, 's3')

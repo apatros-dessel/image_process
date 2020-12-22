@@ -4,7 +4,7 @@ from geodata import *
 from image_processor import process, scene
 from ip2s3 import *
 
-folder_in = r'\\172.21.195.215\thematic\source\ntzomz\__selected\region82'
+folder_in = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_107'
 folder_out = r'd:\rks\s3\kanopus_check'
 references_path = r'\\172.21.195.215\thematic\products\ref\_reference'
 # test_ids_txt = r'\\172.21.195.215\thematic\products\s3\kanopus\missed_pms.txt'

@@ -61,7 +61,8 @@ def GetS3Scenes(folder_in):
 
 def CoverMatch(feat1, feat2, field_list = None):
     if field_list is None:
-        field_list = ['id', 'id_s', 'id_neuro', 'datetime', 'sun_elev', 'sun_azim', 'sat_id', 'sat_view', 'sat_azim', 'channels', 'type', 'format', 'rows', 'cols', 'epsg_dat', 'u_size', 'x_size', 'y_size', 'level']
+        field_list = ['id']
+        # field_list = ['id', 'id_s', 'id_neuro', 'datetime', 'sun_elev', 'sun_azim', 'sat_id', 'sat_view', 'sat_azim', 'channels', 'type', 'format', 'rows', 'cols', 'epsg_dat', 'u_size', 'x_size', 'y_size', 'level']
     else:
         field_list = obj2list(field_list)
     geom1 = feat1.GetGeometryRef()

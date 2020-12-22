@@ -5,7 +5,7 @@ proc_path = r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1913'
 xls_dict = xls_to_dict(r'\\172.21.195.215\thematic\source\ntzomz\102_2020_1913\cloud_rsp.xls')
 path_out = r'\\172.21.195.2\FTP-Share\ftp\image_exchange\rsp_cloud'
 imsys = 'RSP'
-save_pms = False
+save_pms = True
 
 proc = process().input(proc_path, imsys_list=[imsys], skip_duplicates=False)
 

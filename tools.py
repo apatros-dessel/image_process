@@ -701,15 +701,20 @@ def xls_to_dict(path2xls, sheetnum=0):
         if os.path.exists(path2xls):
             rb = xlrd.open_workbook(path2xls)
             sheet = rb.sheet_by_index(sheetnum)
-            keys = sheet.row_values(0)[1:]
-            xls_dict = OrderedDict()
-            for rownum in range(1, sheet.nrows):
-                rowdata = OrderedDict()
-                row = sheet.row_values(rownum)
-                for key, val in zip(keys, row[1:]):
-                    rowdata[key] = val
-                xls_dict[row[0]] = rowdata
-            return xls_dict
+            keys = sheet.row_values(0)
+            if len(keys)>1:
+                keys = keys[1:]
+                xls_dict = OrderedDict()
+                for rownum in range(1, sheet.nrows):
+                    rowdata = OrderedDict()
+                    row = sheet.row_values(rownum)
+                    for key, val in zip(keys, row[1:]):
+                        rowdata[key] = val
+                    xls_dict[row[0]] = rowdata
+                return xls_dict
+            else:
+                print('Empty xls: %s' % path2xls)
+                return None
     print('PATH NOT FOUND: %s' % path2xls)
     return None
 

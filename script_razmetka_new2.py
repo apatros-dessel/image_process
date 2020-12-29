@@ -3,9 +3,9 @@
 
 from geodata import *
 
-pin = [r'\\172.21.195.2\FTP-Share\ftp\Change_detection\Sentinel-Sentinel_difficult\fin\winter']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
+pin = [r'e:\rks\razmetka_source\sentinel_radar_winter']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
 vin = None     # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
-pout = r'e:\rks\razmetka\sentinel_sentinel_difficult_winter'                  # Путь для сохранения конечных файлов
+pout = r'e:\rks\razmetka\set007__20201228__landsat_sentinel'                  # Путь для сохранения конечных файлов
 imgid = 'IMCH8'                   # Индекс изображений (управляет числом каналов в конечном растре)
 maskid = u'изменения'                # Индекс масок (MWT, MFS и т.д.)
 split_vector = False        # Если True, то исходный вектор разбивается по колонке image_col, в противном случае будут использованы маски для всех векторных объектов
@@ -28,7 +28,8 @@ source_paths = r'%s\image_processor\raster_paths.txt' % os.environ['TMP']       
 # При отличии списка корневых директорий от pin файл будет перезаписан!
 
 satellite_types = {
-    'Sentinel': {'tmpt': r'S2[AB]', 'folder': 'sentinel'},
+    'Sentinel-2': {'tmpt': r'S2[AB]', 'folder': 'sentinel'},
+    'Sentinel-1': {'tmpt': r'S2[AB]', 'folder': 'sentinel-1'},
     'Kanopus': {'tmpt': r'KV[1-6I]', 'folder': 'kanopus'},
     'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs'},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet'},
@@ -36,10 +37,11 @@ satellite_types = {
 }
 
 composite_types = {
-    'Sentinel-Sentinel': {'sources': ('Sentinel', 'Sentinel'), 'folder': 'sentinel-sentinel'},
-    'Sentinel-Kanopus': {'sources': ('Sentinel', 'Kanopus'), 'folder': 'sentinel-kanopus'},
-    'Sentinel-Landsat': {'sources': ('Sentinel', 'Landsat'), 'folder': 'sentinel-landsat'},
-    'Landsat-Sentinel': {'sources': ('Landsat', 'Sentinel'), 'folder': 'landsat-sentinel'},
+    'Sentinel-Sentinel': {'sources': ('Sentinel-2', 'Sentinel-2'), 'folder': 'sentinel-sentinel'},
+    'Sentinel-Kanopus': {'sources': ('Sentinel-2', 'Kanopus'), 'folder': 'sentinel-kanopus'},
+    'Sentinel-Landsat': {'sources': ('Sentinel-2', 'Landsat'), 'folder': 'sentinel-landsat'},
+    'Landsat-Sentinel': {'sources': ('Landsat', 'Sentinel-2'), 'folder': 'landsat-sentinel'},
+    'Sentinel-radar': {'sources': ('Sentinel-2', 'Sentinel-1'), 'folder': 'sentinel-radar'},
 }
 
 mask_types = {

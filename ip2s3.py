@@ -59,7 +59,7 @@ def GetS3Scenes(folder_in):
             print('Cannot find metadata: %s' % s3id)
     return scenes
 
-def CoverMatch(feat1, feat2, field_list = None):
+def CoverMatch(feat1, feat2, field_list = None, pms = False):
     if field_list is None:
         field_list = ['id']
         # field_list = ['id', 'id_s', 'id_neuro', 'datetime', 'sun_elev', 'sun_azim', 'sat_id', 'sat_view', 'sat_azim', 'channels', 'type', 'format', 'rows', 'cols', 'epsg_dat', 'u_size', 'x_size', 'y_size', 'level']
@@ -69,7 +69,14 @@ def CoverMatch(feat1, feat2, field_list = None):
     geom2 = feat2.GetGeometryRef()
     if geom1.Intersects(geom2):
         for field_id in field_list:
-            if feat1.GetField(field_id)!=feat2.GetField(field_id):
+            if pms:
+                id1 = feat1.GetField(field_id).replace('.MS', '.PMS')
+                id2 = feat2.GetField(field_id)#.replace('.MS', '.PMS')
+            else:
+                id1 = feat1.GetField(field_id).replace('.PMS', '.MS')
+                id2 = feat1.GetField(field_id)#.replace('.PMS', '.MS')
+            if id1!=id2:
+                print(id1, id2)
                 return False
     return True
 
@@ -82,7 +89,7 @@ def GetSceneFullpath(scene_dict, type_list = ['PMS', 'MS', 'PAN']):
     print('Scene fullpath not found: %s with %s' % (scene_dict.get('id'), ' '.join(list(scene_dict.keys())).strip().replace('id', '').replace('  ',' ')))
     return None
 
-def GetUnmatchingScenes(source_scenes, s3_scenes):
+def GetUnmatchingScenes(source_scenes, s3_scenes, pms = False):
     unmatched = OrderedDict()
     matched = OrderedDict()
     for id in source_scenes:
@@ -100,7 +107,7 @@ def GetUnmatchingScenes(source_scenes, s3_scenes):
                     if source_lyr and s3_lyr:
                         source_feat = source_lyr.GetNextFeature()
                         s3_feat = s3_lyr.GetNextFeature()
-                        match = CoverMatch(source_feat, s3_feat)
+                        match = CoverMatch(source_feat, s3_feat, pms = pms)
                         if match:
                             print('SCENE ALREADY EXIST: %s' % s3id)
                             matched[id] = source_scenes[id]

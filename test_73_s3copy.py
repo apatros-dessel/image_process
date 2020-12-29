@@ -1,8 +1,8 @@
 from geodata import *
 
-path_in = r'\\172.21.195.215\thematic\products\s3\kanopus_ms'
-area_vec = r'C:/Users/admin/Desktop/000.shp'
-path_out = r'd:\rks\s3\kanopus_filtered'
+path_in = r'\\172.21.195.215\thematic\products\s3\resursp'
+area_vec = r'C:/Users/admin/Desktop/region52.shp'
+path_out = r'\\172.21.195.215\thematic\ЦЗ_диск\Нижегородская область\Космические снимки\Ресурс П\PMS'
 copy_ = True
 
 area_ds, area_lyr = get_lyr_by_path(area_vec)
@@ -18,6 +18,8 @@ for folder in folders:
         meta_ds, meta_lyr = get_lyr_by_path(json_path)
         if meta_lyr:
             meta_feat = meta_lyr.GetNextFeature()
+            if meta_feat is None:
+                continue
             meta_geom = meta_feat.GetGeometryRef()
             meta_srs = meta_lyr.GetSpatialRef()
             if meta_srs!=area_srs:

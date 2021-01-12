@@ -1016,3 +1016,47 @@ def dict_max_key(dict_):
             fin_key = key_
             fin_val = dict_[key_]
     return fin_key
+
+def boolstr(val):
+    if val:
+        if val.lower() == 'false':
+            val = False
+        else:
+            val = True
+    return val
+
+def liststr(str_, start='[', fin=']', spliter=',', toint=False):
+    if str_ is None:
+        return None
+    if start and str_.startswith(start):
+        str_ = str_[len(start):]
+    if fin and str_.startswith(fin):
+        str_ = str_[:-len(fin)]
+    result = str_.split(spliter)
+    if toint:
+        result = flist(result, int)
+    return result
+
+def dictstr(str_, start='{', fin='}', spliter=',', joiner=':', ordered=False, toint=False):
+    if str_ is None:
+        return None
+    if start and str_.startswith(start):
+        str_ = str_[len(start):]
+    if fin and str_.startswith(fin):
+        str_ = str_[:-len(fin)]
+    if ordered:
+        result = OrderedDict()
+    else:
+        result = {}
+    for keyval in str_.split(spliter):
+        keyvallist = keyval.split(joiner)
+        if len(keyvallist)!=2:
+            print('Wrong dict input data: %s' % keyval)
+            if len(keyvallist)<2:
+                continue
+        key, val = keyvallist[:2]
+        if toint:
+            result[int(key)] = int(val)
+        else:
+            result[key] = val
+    return result

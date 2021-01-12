@@ -30,7 +30,7 @@ imgid = args.imgid
 vin = args.vin
 image_col = args.image_col
 code_col_sec = args.code_col_sec
-compress = args.compress
+compress = args.compress.upper()
 overwrite = boolstr(args.overwrite)
 pms = boolstr(args.pms)
 replace_vals = dictstr(args.replace_vals, toint=True)

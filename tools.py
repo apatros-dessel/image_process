@@ -1004,3 +1004,15 @@ def find_parts(list_, start, fin):
             results.append(list_[i_start:i])
             passingby = True
     return results
+
+def dict_max_key(dict_):
+    fin_key = None
+    fin_val = None
+    for key_ in dict_:
+        if (fin_val is None):
+            fin_key = key_
+            fin_val = dict_[key_]
+        elif dict_[key_]>fin_val:
+            fin_key = key_
+            fin_val = dict_[key_]
+    return fin_key

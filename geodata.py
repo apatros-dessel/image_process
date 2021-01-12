@@ -448,6 +448,7 @@ def create_virtual_dataset(proj, geotrans, shape_, num_bands):
     return ds
 
 def reproject_band(band, s_proj, s_trans, t_proj, t_trans, t_shape, dtype, method=gdal.GRA_Bilinear):
+    scroll([s_proj, s_trans, t_proj, t_trans])
     y_size, x_size = band.shape
     driver = gdal.GetDriverByName('MEM')
     s_ds = driver.Create('', x_size, y_size, 0)
@@ -465,10 +466,11 @@ def reproject_band(band, s_proj, s_trans, t_proj, t_trans, t_shape, dtype, metho
 def band2raster(bandpath, t_raster, method, exclude_nodata = True, enforce_nodata = None, t_band_num = None, make_mask = False):
 
     s_raster_path, s_band_num = bandpath
-
+    # print(s_raster_path)
     s_raster = gdal.Open(s_raster_path)
     s_proj = s_raster.GetProjection()
     s_trans = s_raster.GetGeoTransform()
+    print(s_trans)
     t_proj = t_raster.GetProjection()
     t_trans = t_raster.GetGeoTransform()
     t_shape = (t_raster.RasterYSize, t_raster.RasterXSize)
@@ -481,6 +483,7 @@ def band2raster(bandpath, t_raster, method, exclude_nodata = True, enforce_nodat
         dtype = s_raster.GetRasterBand(s_band_num).DataType
     else:
         dtype = t_raster.GetRasterBand(1).DataType
+    print('SRC_METHOD=NO_GEOTRANSFORM')
     if make_mask:
         mask_array = reproject_band((s_band_array != 0).astype(np.int8), s_proj, s_trans, t_proj, t_trans, t_shape, dtype, method).astype(bool)
     t_band_array = reproject_band(s_band_array, s_proj, s_trans,t_proj, t_trans, t_shape, dtype, method)

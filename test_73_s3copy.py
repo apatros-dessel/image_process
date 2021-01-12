@@ -1,8 +1,8 @@
 from geodata import *
 
 path_in = r'\\172.21.195.215\thematic\products\s3\resursp'
-area_vec = r'C:/Users/admin/Desktop/region52.shp'
-path_out = r'\\172.21.195.215\thematic\ЦЗ_диск\Нижегородская область\Космические снимки\Ресурс П\PMS'
+area_vec = r'C:/Users/admin/Desktop/region69.shp'
+path_out = r'\\172.21.195.215\thematic\ЦЗ_диск\Тверская область\Космические снимки\Ресурс П\PMS'
 copy_ = True
 
 area_ds, area_lyr = get_lyr_by_path(area_vec)

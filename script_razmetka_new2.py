@@ -3,20 +3,26 @@
 
 from geodata import *
 
-pin = [r'e:\rks\razmetka_source\sentinel_radar_winter']                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
+pin = [
+    r'e:\rks\razmetka_source\sentinel_radar_clouds',
+    r'e:\rks\razmetka_source\sentinel_radar_siberia',
+    r'e:\rks\razmetka_source\sentinel_radar_winter',
+    r'e:\rks\razmetka_source\sentinel_radar_tver',
+       ]                  # Путь к исходным файлам (растровым или растровым и векторным), можно указать список из нескольких директорий
 vin = None     # Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)
-pout = r'e:\rks\razmetka\set007__20201228__landsat_sentinel'                  # Путь для сохранения конечных файлов
-imgid = 'IMCH8'                   # Индекс изображений (управляет числом каналов в конечном растре)
+pout = r'e:\rks\razmetka\sentinel_radar'                  # Путь для сохранения конечных файлов
+imgid = 'IMCH6'                   # Индекс изображений (управляет числом каналов в конечном растре)
 maskid = u'изменения'                # Индекс масок (MWT, MFS и т.д.)
 split_vector = False        # Если True, то исходный вектор разбивается по колонке image_col, в противном случае будут использованы маски для всех векторных объектов
 image_col = 'path'              # Название колонки идентификатора растровой сцены (если vin != 0)
 code_col = 'gridcode'               # Название колонки с кодовыми значениями
-code_col_sec = 'type'
+code_col_sec = None
 compress = 'DEFLATE'        # Алгоритм сжатия растровых данных
 overwrite = False          # Заменять существующие файлы
 pms = False                  # Использовать паншарпы
 replace_vals = {7:100, 1:9, 2:9, 54:152}         # Изменить значения в конечной маске в соответствии со словарём, если None, то замены не производится
-band_reposition = None    # Изменить порядок каналов в конечном растре, если None, то порядок сохраняется
+band_reposition = [3,2,1,4,5,6]    # Изменить порядок каналов в конечном растре, если None, то порядок сохраняется
+multiply_band = {5: 100000, 6: 100000}
 
 input_from_report = None  # Путь к таблице xls с путями к источникам данных, если None, то пары снимок-вектор строятся заново
 # Менять источники можно вручную, формат xlsx не читает
@@ -29,7 +35,7 @@ source_paths = r'%s\image_processor\raster_paths.txt' % os.environ['TMP']       
 
 satellite_types = {
     'Sentinel-2': {'tmpt': r'S2[AB]', 'folder': 'sentinel'},
-    'Sentinel-1': {'tmpt': r'S2[AB]', 'folder': 'sentinel-1'},
+    'Sentinel-1': {'tmpt': r'S1[AB]', 'folder': 'sentinel-1'},
     'Kanopus': {'tmpt': r'KV[1-6I]', 'folder': 'kanopus'},
     'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs'},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet'},
@@ -103,6 +109,23 @@ def parse_sentinel(id):
         time = ''
     return satid, date, time, tile, lvl
 
+# Parse Sentinel-1 name
+def parse_sentinel1(id):
+    # S1B_IW_GRDH_1SDV_20190108T231417_20190108T231442_014409_01AD29_1DD8.SAFE
+    vals = id.split('_')
+    if len(vals) == 9:
+        satid, mode, typeclass, lvl, datetime1, datetime2, orbit, ad, dd = vals
+        lvl = mode+lvl+typeclass
+    else:
+        return '', '', '', '', ''
+    dt = datetime1.upper().split('T')
+    if len(dt)==2:
+        date, time = dt
+    else:
+        date = dt[0]
+        time = ''
+    return satid, date, time, orbit, lvl
+
 # Parse Landsat-8 name
 def parse_landsat8(id):
     vals = id.split('_')
@@ -128,10 +151,12 @@ def neuroid_extended(id):
         cut = cutsearch.group()
         id = id[:-len(cut)]
     else:
-        print('NoCut: %s' % id)
+        # print('NoCut: %s' % id)
         cut = ''
     if re.search(r'^IM\d+-.+-\d+-.+-.+$', id):
         return id
+    elif re.search(r'^S[12][AB]-\d+-.+-.+$', id):
+        return 'IM4-'+id
     elif re.search(r'IMCH\d+__.+__.+', id):
         parts = id.split('__')[1:3]
     elif len(id.split('__'))==2:
@@ -162,6 +187,8 @@ def get_neuroid(id):
             lvl += type
     elif re.search(r'^S2[AB]', id) or re.search(r'^S2.+cut\d+$', id):
         satid, date, time, loc, lvl = parse_sentinel(id)
+    elif re.search(r'^S1[AB]', id) or re.search(r'^S2.+cut\d+$', id):
+        satid, date, time, loc, lvl = parse_sentinel1(id)
     elif re.search(r'^LC08_', id):
         satid, date, loc, lvl = parse_landsat8(id)
     else:
@@ -351,7 +378,7 @@ def get_paths(pout, id, maskid, imgid):
     return (img_path, msk_path)
 
 # Check if the image needs repair
-def check_image(img_in, neuro):
+def check_image(img_in, neuro, multiply = None):
     raster = gdal.Open(img_in)
     realBandNum = raster.RasterCount
     img_type = neuro.split('__')[0].split('-')[0]
@@ -360,6 +387,8 @@ def check_image(img_in, neuro):
     elif re.search(r'IMCH\d+$', img_type):
         metaBandNum = int(img_type[4:])
     counter = min((metaBandNum, realBandNum))
+    if multiply is not None:
+        return True, counter
     if metaBandNum > realBandNum:
         print('Not enough bands for: %s - got %i, need %i' % (img_in, realBandNum, metaBandNum))
         raise Exception
@@ -375,24 +404,24 @@ def check_image(img_in, neuro):
 
 # Записать изображение, проверяя корректность его формата
 # Если overwrite==False, то изображения в корректном формате пропускаются
-def set_image(img_in, img_out, overwrite = False, band_reposition = None):
+def set_image(img_in, img_out, overwrite = False, band_reposition = None, multiply = None):
     if os.path.exists(img_out):
         repair, counter = check_image(img_out, split3(img_out)[1])
         if not (repair or overwrite):
             return img_out
     if os.path.exists(img_in):
-        repair, counter = check_image(img_in, split3(img_out)[1])
+        repair, counter = check_image(img_in, split3(img_out)[1], multiply=multiply)
     else:
         print('Path not found: %s' % img_in)
         return 'ERROR: Source file not found'
     if repair:
-        return repair_img(img_in, img_out, counter, band_order = band_reposition)
+        return repair_img(img_in, img_out, counter, band_order = band_reposition, multiply = multiply)
     else:
         shutil.copyfile(img_in, img_out)
         return img_out
 
 # Записать растр снимка в установленном формате
-def repair_img(img_in, img_out, count, band_order=None):
+def repair_img(img_in, img_out, count, band_order=None, multiply = None):
     if band_order is None:
         band_order = range(1, count+1)
     raster = gdal.Open(img_in)
@@ -401,6 +430,10 @@ def repair_img(img_in, img_out, count, band_order=None):
         arr_ = raster.GetRasterBand(bin).ReadAsArray()
         o = np.unique(arr_)[0]
         arr_[arr_ == o] = 0
+        if multiply is not None:
+            if bin in multiply.keys():
+                arr_ = arr_ * multiply[bin]
+                print('Multiplied band %i by %i' % (bin, multiply[bin]))
         new_raster.GetRasterBand(bout).WriteArray(arr_)
     raster = new_raster = None
     return img_out
@@ -545,7 +578,7 @@ try:
             img_out, msk_out = paths
             img_in = input[neuroid]['r']
             vec_in = input[neuroid]['v']
-            img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=band_reposition)
+            img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=band_reposition, multiply=multiply_band)
             input[neuroid]['img_out'] = img_out
             msk_out = set_mask(img_in, vec_in, msk_out, overwrite=overwrite)
             input[neuroid]['msk_out'] = msk_out

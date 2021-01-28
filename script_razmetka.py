@@ -74,6 +74,7 @@ mask_types = {
     u'TBO':     {'id': 'MWS', 'folder': 'wastes'},
     u'roads':  {'id': 'MRD', 'folder': 'roads'},
     u'gari':    {'id': 'MFR', 'folder': 'gari'},
+    'clouds': {'id': 'MCL', 'folder': 'clouds'},
 }
 
 while not maskid in mask_types.keys():
@@ -485,8 +486,8 @@ def check_type(codes):
             type_dict[u"forest"] += 1
         elif c in range(100, 200) or c == 7:
             type_dict[u"change"] += 1
-        # elif :
-        #     type_dict["full"] += 1
+        elif c in range(200, 209):
+            type_dict["clouds"] += 1
         elif c == 24:
             type_dict[u"svalki"] += 1
         elif str(c)[0] == 8:

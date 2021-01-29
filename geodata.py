@@ -3066,3 +3066,19 @@ def RasterMatch(path1, path2):
         geom1.TransformTo(srs2)
     result = 2 * int(geom1.Intersects(geom2)) + crs_match
     return result
+
+def IntersectRaster(raster_path, vector_path):
+    ds_in, lyr_in = get_lyr_by_path(vector_path)
+    r_srs, r_geom = RasterParams(raster_path)
+    if (lyr_in and r_srs) and r_geom:
+        v_srs = lyr_in.GetSpatialRef()
+        if v_srs:
+            crs_match = r_srs.GetAttrValue('AUTHORITY', 1) == v_srs.GetAttrValue('AUTHORITY', 1)
+            if not crs_match:
+                r_geom.TransformTo(v_srs)
+            for feat in lyr_in:
+                v_geom = feat.GetGeometryRef()
+                result = 2 * int(r_geom.Intersects(v_geom)) + crs_match
+                if result:
+                    return True
+    return False

@@ -2,7 +2,7 @@
 
 # Auxilliary functions for image processor
 
-import sys, os, re, shutil, xlrd, xlwt
+import sys, os, re, shutil, xlrd, xlwt, csv
 import numpy as np
 import xml.etree.ElementTree as et
 from collections import OrderedDict
@@ -1060,3 +1060,9 @@ def dictstr(str_, start='{', fin='}', spliter=',', joiner=':', ordered=False, to
         else:
             result[key] = val
     return result
+
+def dict_to_csv(csv_path, csv_dict):
+    with open(csv_path, 'w', newline='') as csvfile:
+        dictwriter = csv.writer(csvfile, delimiter=';')
+        for key in csv_dict:
+            dictwriter.writerow([str(key), str(csv_dict[key])])

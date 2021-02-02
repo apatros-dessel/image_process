@@ -2317,7 +2317,7 @@ def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, da
     t_ds = ds(path=path_out, copypath=path_in_raster, options=options, editable=True, overwrite=overwrite)
 
     if value_colname is None:
-        rasterize_options = None
+        rasterize_options = ['BURN_VALUES=1']
     else:
         rasterize_options = [r'ATTRIBUTE={}'.format(value_colname)]
     if value_colname_sec is not None:
@@ -3082,3 +3082,41 @@ def IntersectRaster(raster_path, vector_path):
                 if result:
                     return True
     return False
+
+def MaskRaster(raster_in, mask_in, raster_out, bandnum = 1, include = True, nodata = 0, compress = 'DEFLATE', overwrite=True):
+    raster = gdal.Open(raster_in)
+    if raster is None:
+        print('FILE NOT FOUND: %s' % raster_in)
+        return 1
+    ext = split3(mask_in)[2].lower()
+    if ext in ('tif', 'tiff', 'jpg', 'img'):
+        mask = RasterMask(raster_in, mask_in, bandnum=bandnum, nodata=nodata)
+    elif ext in ('shp', 'json'):
+        mask = VectorMask(raster_in, mask_in)
+    if mask is None:
+        print('ERROR CREATING MASK: %s' % mask_in)
+        return 1
+    if include:
+        mask = ~mask
+    raster_fin = ds(raster_out, copypath=raster_in, options={'nodata': nodata, 'compress': compress}, editable=True, overwrite=overwrite)
+    for i in range(1, raster.RasterCount+1):
+        arr = raster.GetRasterBand(i).ReadAsArray()
+        arr[mask] = nodata
+        raster_fin.GetRasterBand(i).WriteArray(arr)
+    raster_fin = None
+    return 0
+
+def RasterMask(raster_in, mask_in, bandnum=1, nodata=0):
+    mask_path = tempname('tif')
+    mask_ds = ds(mask_path, copypath=raster_in, options={'bandnum': 1, 'compress': 'DEFLATE'}, editable=True)
+    bandnum = int(bandnum)
+    band2raster((mask_in, bandnum), mask_ds, exclude_nodata=False)
+    mask_ds = mask_ds.GetRasterBand(1).ReadAsArray()==nodata
+    return mask_ds
+
+def VectorMask(raster_in, mask_in, colname=None):
+    mask_path = tempname('tif')
+    mask_ds, mask_lyr = get_lyr_by_path(mask_in)
+    RasterizeVector(mask_in, raster_in, mask_path, value_colname=colname, filter_nodata=True, compress='DEFLATE')
+    mask_ds = gdal.Open(mask_ds).GetRasterBand(1).ReadAsArray()==0
+    return mask_ds

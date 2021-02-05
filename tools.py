@@ -1066,3 +1066,10 @@ def dict_to_csv(csv_path, csv_dict):
         dictwriter = csv.writer(csvfile, delimiter=';')
         for key in csv_dict:
             dictwriter.writerow([str(key), str(csv_dict[key])])
+
+def delete(path):
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except:
+            print('CANNOT DELETE: %s' % path)

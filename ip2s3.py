@@ -341,7 +341,8 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, pms=True, overwrite 
                 res_pan = AlignSystem(pan, ref, panpath, align_file=pan, reproject_method=gdal.GRA_Bilinear, errors_folder=errors_folder, overwrite=overwrite)
                 if res_pan:
                     cmd_pansharp = r'python py2pci_pansharp.py {} {} {} -d TRUE'.format(panpath, mspath, pmspath)
-                    # print(cmd_pansharp)
+                    os.system(cmd_pansharp)
+                    print(cmd_pansharp)
                     os.system(cmd_pansharp)
                     if os.path.exists(pmspath):
                         print('PANSHARPENING SUCCESSFUL: %s' % id)
@@ -377,6 +378,7 @@ def ReprojectSystem(scene_dict, reference_list, folder_out, pms=True, overwrite 
                         return False
                     else:
                         cmd_pansharp = r'python py2pci_pansharp.py {} {} {} -d TRUE'.format(mserrpath, mserrpath, pmserrpath)
+                        os.system(cmd_pansharp)
                         print(cmd_pansharp)
                         if os.path.exists(pmserrpath):
                             print('ERROR PANSHARPENING SUCCESSFUL: %s' % id)

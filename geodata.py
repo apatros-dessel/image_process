@@ -12,7 +12,6 @@ except:
 import numpy as np
 import math
 import cv2
-# import json
 
 from tools import *
 from raster_data import RasterData, MultiRasterData
@@ -3093,6 +3092,9 @@ def MaskRaster(raster_in, mask_in, raster_out, bandnum = 1, include = True, noda
         mask = RasterMask(raster_in, mask_in, bandnum=bandnum, nodata=nodata)
     elif ext in ('shp', 'json'):
         mask = VectorMask(raster_in, mask_in)
+    else:
+        print('UNKNOWN MASK TYPE: %s' % ext)
+        return 1
     if mask is None:
         print('ERROR CREATING MASK: %s' % mask_in)
         return 1
@@ -3111,12 +3113,14 @@ def RasterMask(raster_in, mask_in, bandnum=1, nodata=0):
     mask_ds = ds(mask_path, copypath=raster_in, options={'bandnum': 1, 'compress': 'DEFLATE'}, editable=True)
     bandnum = int(bandnum)
     band2raster((mask_in, bandnum), mask_ds, exclude_nodata=False)
-    mask_ds = mask_ds.GetRasterBand(1).ReadAsArray()==nodata
-    return mask_ds
+    mask_arr = mask_ds.GetRasterBand(1).ReadAsArray()==nodata
+    delete(mask_path)
+    return mask_arr
 
 def VectorMask(raster_in, mask_in, colname=None):
     mask_path = tempname('tif')
-    mask_ds, mask_lyr = get_lyr_by_path(mask_in)
     RasterizeVector(mask_in, raster_in, mask_path, value_colname=colname, filter_nodata=True, compress='DEFLATE')
-    mask_ds = gdal.Open(mask_ds).GetRasterBand(1).ReadAsArray()==0
-    return mask_ds
+    mask_ds = gdal.Open(mask_path)
+    mask_arr = mask_ds.GetRasterBand(1).ReadAsArray()==0
+    delete(mask_path)
+    return mask_arr

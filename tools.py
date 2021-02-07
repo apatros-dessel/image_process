@@ -1025,7 +1025,7 @@ def boolstr(val):
             val = True
     return val
 
-def liststr(str_, start='[', fin=']', spliter=',', toint=False):
+def liststr(str_, start='[', fin=']', spliter=',', toint=False, tofloat=False):
     if str_ is None:
         return None
     if start and str_.startswith(start):
@@ -1033,11 +1033,13 @@ def liststr(str_, start='[', fin=']', spliter=',', toint=False):
     if fin and str_.startswith(fin):
         str_ = str_[:-len(fin)]
     result = str_.split(spliter)
-    if toint:
+    if tofloat:
+        result = flist(result, float)
+    elif toint:
         result = flist(result, int)
     return result
 
-def dictstr(str_, start='{', fin='}', spliter=',', joiner=':', ordered=False, toint=False):
+def dictstr(str_, start='{', fin='}', spliter=',', joiner=':', ordered=False, tofloat=False, toint=False):
     if str_ is None:
         return None
     if start and str_.startswith(start):
@@ -1055,7 +1057,9 @@ def dictstr(str_, start='{', fin='}', spliter=',', joiner=':', ordered=False, to
             if len(keyvallist)<2:
                 continue
         key, val = keyvallist[:2]
-        if toint:
+        if tofloat:
+            result[float(key)] = float(val)
+        elif toint:
             result[int(key)] = int(val)
         else:
             result[key] = val

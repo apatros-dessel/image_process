@@ -8,6 +8,7 @@ parser = argparse.ArgumentParser(description='Razmetka creation options')
 parser.add_argument('-v', default=None, dest='vin',  help='Путь к векторному файлу масок (если None или '', то ведётся поиск векторных файлов в директории pin)')
 parser.add_argument('-i', default='IM4', dest='imgid', help='Индекс изображений (управляет числом каналов в конечном растре)')
 parser.add_argument('-p', default=False, dest='pms', help='Использовать паншарпы')
+parser.add_argument('-q', default=None, dest='quicksizes', help='Создать маски квиклуков заданных размеров')
 parser.add_argument('--image_col', default=None, dest='image_col', help='Название колонки идентификатора растровой сцены (если vin != 0)')
 parser.add_argument('--code_col_sec', default=None, dest='code_col_sec', help='Дополнительная колонка с кодовыми значениями')
 parser.add_argument('--compress', default='DEFLATE', dest='compress', help='Алгоритм сжатия растровых данных')
@@ -33,6 +34,7 @@ code_col_sec = args.code_col_sec
 compress = args.compress.upper()
 overwrite = boolstr(args.overwrite)
 pms = boolstr(args.pms)
+quicksizes = liststr(args.quicksizes, tofloat=True)
 replace_vals = dictstr(args.replace_vals, toint=True)
 band_reposition = liststr(args.band_reposition, toint=True)
 multiply_band = dictstr(args.multiply_band, toint=True)
@@ -435,7 +437,7 @@ def get_pairs(raster_paths, vin, img_colname, vecids=None, split_vector=True, pm
     return export
 
 # Получить полные пути к растрам в разметке (автоматически создаётся нужная директория)
-def get_paths(pout, id, maskid, imgid):
+def get_paths(pout, id, maskid, imgid, quicksizes):
     satellite_types = globals()['satellite_types']
     fail = True
     if re.search(r'IMCH\d+__.+__.+', id) and re.search('^IMCH\d+$', imgid):
@@ -483,7 +485,20 @@ def get_paths(pout, id, maskid, imgid):
         msk_path = fullpath(msk_folder, msk_type['id']+id[3:], 'tif')
     else:
         msk_path = fullpath(msk_folder, msk_type['id'] + id[4:], 'tif')
-    return (img_path, msk_path)
+    if quicksizes:
+        quickpaths = OrderedDict()
+        for size in quicksizes:
+            strsize = str_size(size).strip(' 0')
+            ql_img_folder = r'%s\quicklook\%s\images\%s' % (pout, strsize, sat_folder)
+            suredir(ql_img_folder)
+            ql_img_path = r'%s\%s__QL%s.tif' % (ql_img_folder, imgname, strsize)
+            ql_msk_folder = r'%s\quicklook\%s\masks\%s\%s' % (pout, strsize, msk_type['folder'], sat_folder)
+            suredir(ql_msk_folder)
+            ql_msk_path = r'%s\%s__QL%s.tif' % (ql_img_folder, msk_type['id']+id[4:], strsize)
+            quickpaths[size] = (ql_img_path, ql_msk_path)
+    else:
+        quickpaths = None
+    return (img_path, msk_path, quickpaths)
 
 # Check if the image needs repair
 def check_image(img_in, neuro, multiply = None):
@@ -562,6 +577,11 @@ def set_mask(img_in, vec_in, msk_out, overwrite=False):
         print('Rasterizing error: %s %s' % (img_in, vec_in))
         return 'ERROR: Rasterizing error'
 
+# Создать загрублённые снимки и растровые маски на основе вектора
+def set_quicklook(img_in, vec_in, ql_out, msk_out, pixelsize=None, method=gdal.GRA_Average, overwrite=True):
+    MakeQuicklook(img_in, ql_out, epsg=None, pixelsize=pixelsize, method=method, overwrite=overwrite)
+    set_mask(ql_out, vec_in, msk_out, overwrite=overwrite)
+
 def check_type(codes):
     type_dict = {a: 0 for a in mask_types}
     mines = list(range(1,4)) + list(range(10,14)) + list(range(20,24)) + list(range(26,27)) + list(range(30,34))
@@ -617,60 +637,6 @@ scroll(input, header='\nTotal input:')
 # Создавать маски из найденных пар
 t = datetime.now()
 msk_end_values = {}
-'''
-if not (re.search('^IMCH\d+$', imgid) or re.search('^IM\d+$', imgid)):
-    raise Exception('\n  WRONG imgid: {}, "IM\d+" or "IMCH\d+" is needed\n'.format(imgid))
-for i, neuroid in enumerate(input):
-    if neuroid is None:
-        continue
-    paths = get_paths(pout, neuroid, maskid, imgid)
-    if paths:
-        img_out, msk_out = paths
-        img_in = input[neuroid].get('r')
-        vec_in = input[neuroid].get('v')
-        if None in (img_in, vec_in):
-            scroll(input[neuroid], header='ERROR INPUT DATA:')
-            continue
-        img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=None)
-        input[neuroid]['img_out'] = img_out
-        msk_out = set_mask(img_in, vec_in, msk_out, overwrite=overwrite)
-        input[neuroid]['msk_out'] = msk_out
-        if not msk_out.startswith('ERROR'):
-            if replace_vals:
-                try:
-                    ReplaceValues(msk_out, replace_vals)
-                    input[neuroid]['report'] = 'SUCCESS'
-                except:
-                    print('Error replacing values: %s' % neuroid)
-                    input[neuroid]['report'] = 'ERROR: Mask names not replaced'
-            else:
-                input[neuroid]['report'] = 'SUCCESS'
-            vals = list(np.unique(gdal.Open(msk_out).ReadAsArray()))
-
-            all_codes = check_type(vals)
-            max_type = max(all_codes, key=lambda key: all_codes[key])
-            if max_type != maskid:
-                print("Warning: masktype %s mismatch maskid %s" % (max_type, maskid))
-            msk_values = ' '.join(flist(vals, str))
-            try:
-                vals = list(np.unique(gdal.Open(msk_out).ReadAsArray()))
-
-                all_codes = check_type(vals)
-                max_type = max(all_codes, key=lambda key: all_codes[key])
-                if max_type != maskid:
-                    print("Warning: masktype %s mismatch maskid %s" % (max_type, maskid))
-                msk_values = ' '.join(flist(vals, str))
-            except:
-                print('Cannot get mask values for: %s' % neuroid)
-                msk_values = ''
-            input[neuroid]['msk_values'] = msk_values
-            print('  %i -- MASKED: %s with %s\n' % (i + 1, neuroid, msk_values))
-        else:
-            print('  %i -- ERROR: %s\n' % (i + 1, neuroid))
-    else:
-        input[neuroid]['report'] = 'ERROR: Source paths not found'
-        print('  %i -- ERROR: Source paths not found for %s\n' % (i + 1, neuroid))
-'''
 try:
     if not (re.search('^IMCH\d+$', imgid) or re.search('^IM\d+$', imgid)):
         raise Exception('\n  WRONG imgid: {}, "IM\d+" or "IMCH\d+" is needed\n'.format(imgid))
@@ -683,13 +649,18 @@ try:
             continue
         paths = get_paths(pout, neuroid, maskid, imgid)
         if paths:
-            img_out, msk_out = paths
+            img_out, msk_out, quickpaths = paths
             img_in = input[neuroid]['r']
             vec_in = input[neuroid]['v']
             img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=band_reposition, multiply=multiply_band)
             input[neuroid]['img_out'] = img_out
             msk_out = set_mask(img_in, vec_in, msk_out, overwrite=overwrite)
             input[neuroid]['msk_out'] = msk_out
+            if quickpaths:
+                for size in quickpaths:
+                    ql_img_out, ql_msk_out = quickpaths[size]
+                    set_quicklook(img_out, vec_in, ql_img_out, ql_msk_out, pixelsize=size, method=gdal.GRA_Average,
+                                  overwrite=overwrite)
             if not msk_out.startswith('ERROR'):
                 if replace_vals:
                     try:
@@ -700,14 +671,6 @@ try:
                         input[neuroid]['report'] = 'ERROR: Mask names not replaced'
                 else:
                     input[neuroid]['report'] = 'SUCCESS'
-                '''
-                vals = list(np.unique(gdal.Open(msk_out).ReadAsArray()))
-                all_codes = check_type(vals)
-                max_type = max(all_codes, key=lambda key: all_codes[key])
-                if max_type != maskid:
-                    print("Warning: masktype %s mismatch maskid %s" % (max_type, maskid))
-                msk_values = ' '.join(flist(vals, str))
-                '''
                 try:
                     vals = list(np.unique(gdal.Open(msk_out).ReadAsArray()))
                     all_codes = check_type(vals)

@@ -1077,3 +1077,12 @@ def delete(path):
             os.remove(path)
         except:
             print('CANNOT DELETE: %s' % path)
+
+def Do(func, *args, **kwargs):
+    if globals().get('_test', False):
+        return func(*args, **kwargs)
+    else:
+        try:
+            return func(*args, **kwargs)
+        except:
+            print('Do() ERROR')

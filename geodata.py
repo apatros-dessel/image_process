@@ -150,9 +150,11 @@ def vec_to_crs(ogr_dataset, t_crs, export_path, changexy=False):
         for i in range(0, lyr_defn.GetFieldCount()):
             outLayer.CreateField(lyr_defn.GetFieldDefn(i))
         outLayerDefn = outLayer.GetLayerDefn()
-        feat = ogr_layer.GetNextFeature()
-        while feat:
+        for feat in ogr_layer:
             geom = feat.GetGeometryRef()
+            if geom is None:
+                print('GEOM NOT FOUND: {}'.format(feat.GetFID()))
+                continue
             geom.Transform(coordTrans)
             if changexy:
                 geom = changeXY(geom)
@@ -162,7 +164,6 @@ def vec_to_crs(ogr_dataset, t_crs, export_path, changexy=False):
                 out_feat.SetField(outLayerDefn.GetFieldDefn(i).GetNameRef(), feat.GetField(i))
             outLayer.CreateFeature(out_feat)
             out_feat = None
-            feat = ogr_layer.GetNextFeature()
     else:
         outDataSet = ogr_dataset
     return outDataSet
@@ -1412,7 +1413,10 @@ def MakeQuicklook(path_in, path_out, epsg = None, pixelsize = None, method = gda
         return 1
 
     srs_in = get_srs(ds_in)
-    srs_out = get_srs(epsg)
+    if epsg is None:
+        srs_out = srs_in
+    else:
+        srs_out = get_srs(epsg)
 
     if srs_out.IsGeographic():
         pixelsize = pixelsize / 50000
@@ -1436,6 +1440,11 @@ def MakeQuicklook(path_in, path_out, epsg = None, pixelsize = None, method = gda
         'ysize':    newYcount,
         'compress': 'DEFLATE',
     }
+
+    if ds_in.RasterCount>0:
+        nodata = ds_in.GetRasterBand(1).GetNoDataValue()
+        if nodata is not None:
+            options['nodata'] = nodata
 
     ds_out = ds(path_out, options=options, editable=True)
 

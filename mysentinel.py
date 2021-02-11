@@ -224,7 +224,7 @@ def metadata(path):
     filepaths_list = get_from_tree(manifest, 'fileLocation', attrib='href')
     for i in range(len(filepaths_list) - 1, -1, -1):
         if 'IMG_DATA' in filepaths_list[i]:
-            filepaths_list[i] = filepaths_list[i][1:]
+            filepaths_list[i] = filepaths_list[i].strip('.')
         else:
             filepaths_list.pop(i)
 

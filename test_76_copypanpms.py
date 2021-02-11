@@ -1,7 +1,7 @@
 from geodata import *
 from image_processor import process, scene
 
-source_folder = r'\\172.21.195.2\thematic\Sadkov_SA\kanopus_dymka\102_2020_1275'
+source_folder = r'\\172.21.195.2\thematic\Sadkov_SA\kanopus_dymka\102_2020_1339'
 ms_folder = r'\\172.21.195.2\thematic\!razmetka\Kanopus\Kanopus_clouds\MS\img\img_cloud'
 out_folder = r'd:\rks\kanopus_cloud_test\pan'
 out_pms = r'd:\rks\kanopus_cloud_test\pms'
@@ -41,7 +41,7 @@ for ms, id in zip(ms_paths, ms_ids):
     pan_test = id.replace('.MS','.PAN').strip()
     for pan, pan_id in zip(pan_paths, pan_ids):
         if pan_test==pan_id:
-            if RasterMatch(pan, ms) in (1,3):
+            if RasterMatch(pan, ms)==3:
                 endpath = fullpath(out_folder, pan_id, 'tif')
                 if not os.path.exists(endpath):
                     shutil.copyfile(pan, endpath)

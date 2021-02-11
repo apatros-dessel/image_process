@@ -9,6 +9,7 @@ parser.add_argument('-v', default=None, dest='vin',  help='Путь к вект�
 parser.add_argument('-i', default='IM4', dest='imgid', help='Индекс изображений (управляет числом каналов в конечном растре)')
 parser.add_argument('-p', default=False, dest='pms', help='Использовать паншарпы')
 parser.add_argument('-q', default=None, dest='quicksizes', help='Создать маски квиклуков заданных размеров')
+parser.add_argument('-e', default=False, dest='empty', help='Создавать пустые маски при отсутствии вектора')
 parser.add_argument('--image_col', default=None, dest='image_col', help='Название колонки идентификатора растровой сцены (если vin != 0)')
 parser.add_argument('--code_col_sec', default=None, dest='code_col_sec', help='Дополнительная колонка с кодовыми значениями')
 parser.add_argument('--compress', default='DEFLATE', dest='compress', help='Алгоритм сжатия растровых данных')
@@ -39,6 +40,7 @@ replace_vals = dictstr(args.replace_vals, toint=True)
 band_reposition = liststr(args.band_reposition, toint=True)
 multiply_band = dictstr(args.multiply_band, toint=True)
 input_from_report = args.input_from_report
+empty_mask = boolstr(args.empty)
 
 split_vector = False
 if vin:
@@ -77,6 +79,7 @@ mask_types = {
     u'roads':  {'id': 'MRD', 'folder': 'roads'},
     u'gari':    {'id': 'MFR', 'folder': 'gari'},
     'clouds': {'id': 'MCL', 'folder': 'clouds'},
+    'mist': {'id': 'MMI', 'folder': 'mist'},
 }
 
 codes = {
@@ -165,6 +168,9 @@ codes = {
     201:'облака',
     202:'тень облаков',
     203:'дымка',
+    2031:'прозрачная дымка',
+    2032:'плотная дымка',
+    2033:'радужная дымка (несведение каналов)',
 }
 
 while not maskid in mask_types.keys():
@@ -482,19 +488,20 @@ def get_paths(pout, id, maskid, imgid, quicksizes):
         suredir(folder)
     img_path = fullpath(img_folder, imgname, 'tif')
     if len(imgid) == 3:
-        msk_path = fullpath(msk_folder, msk_type['id']+id[3:], 'tif')
+        msk_name = msk_type['id']+id[3:]
     else:
-        msk_path = fullpath(msk_folder, msk_type['id'] + id[4:], 'tif')
+        msk_name = msk_type['id'] + id[4:]
+    msk_path = fullpath(msk_folder, msk_name, 'tif')
     if quicksizes:
         quickpaths = OrderedDict()
         for size in quicksizes:
-            strsize = str_size(size).strip(' 0')
+            strsize = size2str(size)
             ql_img_folder = r'%s\quicklook\%s\images\%s' % (pout, strsize, sat_folder)
             suredir(ql_img_folder)
             ql_img_path = r'%s\%s__QL%s.tif' % (ql_img_folder, imgname, strsize)
             ql_msk_folder = r'%s\quicklook\%s\masks\%s\%s' % (pout, strsize, msk_type['folder'], sat_folder)
             suredir(ql_msk_folder)
-            ql_msk_path = r'%s\%s__QL%s.tif' % (ql_img_folder, msk_type['id']+id[4:], strsize)
+            ql_msk_path = r'%s\%s__QL%s.tif' % (ql_msk_folder, msk_name, strsize)
             quickpaths[size] = (ql_img_path, ql_msk_path)
     else:
         quickpaths = None
@@ -564,23 +571,82 @@ def repair_img(img_in, img_out, count, band_order=None, multiply = None):
 def set_mask(img_in, vec_in, msk_out, overwrite=False):
     if check_exist(msk_out, ignore=overwrite):
         return msk_out
-    crs = get_srs(gdal.Open(img_in))
-    vec_reprojected = tempname('shp')
-    vec_to_crs(ogr.Open(vec_in), crs, vec_reprojected)
-    if not os.path.exists(vec_reprojected):
-        vec_reprojected = vec_in
-    try:
-        RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
-        return msk_out
-    except:
-        # RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
-        print('Rasterizing error: %s %s' % (img_in, vec_in))
-        return 'ERROR: Rasterizing error'
+    if os.path.exists(vec_in):
+        crs = get_srs(gdal.Open(img_in))
+        vec_reprojected = tempname('shp')
+        vec_to_crs(ogr.Open(vec_in), crs, vec_reprojected)
+        if not os.path.exists(vec_reprojected):
+            vec_reprojected = vec_in
+        try:
+            RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
+            return msk_out
+        except:
+            # RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
+            print('Rasterizing error: %s %s' % (img_in, vec_in))
+            return 'ERROR: Rasterizing error'
+    else:
+        try:
+            ds(msk_out, copypath=img_in, options={'bandnum': 1, 'dt': 1, 'compress': 'DEFLATE'}, overwrite=overwrite)
+            return msk_out
+        except:
+            print('Rasterizing error: %s %s' % (img_in, vec_in))
+            return 'ERROR: Rasterizing error'
 
 # Создать загрублённые снимки и растровые маски на основе вектора
 def set_quicklook(img_in, vec_in, ql_out, msk_out, pixelsize=None, method=gdal.GRA_Average, overwrite=True):
     MakeQuicklook(img_in, ql_out, epsg=None, pixelsize=pixelsize, method=method, overwrite=overwrite)
     set_mask(ql_out, vec_in, msk_out, overwrite=overwrite)
+
+def size2str(size):
+    strsize = str(size).strip(' 0')
+    if strsize.endswith('.'):
+        strsize = strsize[:-1]
+    return strsize
+
+def QlPathStr(str0, ql_add):
+    if str0 is None:
+        return None
+    else:
+        for spliter in [r'\images', '\masks']:
+            pathparts = str0.split(spliter)
+            if len(pathparts)==2:
+                pout, partpath = pathparts
+                return '%s\quicklook\%s%s%s__QL%s.tif' % (pout, ql_add, spliter, partpath[:-4], ql_add)
+
+def qlReport(folder, input, size):
+    ql_input = OrderedDict()
+    strsize = size2str(size)
+    codes = globals()['codes']
+    msk_end_values = OrderedDict()
+    for line in input:
+        _dict = input[line]
+        new_line = '%s__QL%s' % (line, strsize)
+        new_dict = OrderedDict()
+        new_dict['r'] = _dict.get('r')
+        new_dict['v'] = _dict.get('v')
+        new_dict['pairing'] = _dict.get('pairing')
+        new_dict['img_out'] = QlPathStr(_dict.get('img_out'), strsize)
+        new_dict['msk_out'] = msk_out = QlPathStr(_dict.get('msk_out'), strsize)
+        if os.path.exists(str(msk_out)):
+            vals = list(np.unique(gdal.Open(msk_out).ReadAsArray()))
+            for val in vals:
+                if val and (not val in msk_end_values):
+                    if val in codes:
+                        msk_end_values[val] = codes[val]
+                    else:
+                        print('Unknown code: %i' % val)
+                        msk_end_values[val] = 'UNKNOWN'
+            msk_values = ' '.join(flist(vals, str))
+            new_dict['report'] = 'SUCCESS'
+            new_dict['msk_values'] = msk_values
+        else:
+            new_dict['report'] = 'FAILURE'
+            new_dict['msk_values'] = ''
+        ql_input[new_line] = new_dict
+    dict_to_csv(fullpath(folder, 'mask_values.csv'), msk_end_values)
+    report_name = 'report_{}.xls'.format(datetime.now()).replace(' ', '_').replace(':', '-')
+    report_path = fullpath(folder, report_name)
+    dict_to_xls(report_path, ql_input)
 
 def check_type(codes):
     type_dict = {a: 0 for a in mask_types}
@@ -645,13 +711,16 @@ try:
             print('  %i -- NEUROID ERROR: %s\n' % (i, str(neuroid)))
             continue
         elif input[neuroid]['pairing']==False:
-            print('  %i -- PAIRING ERROR: %s\n' % (i, str(neuroid)))
-            continue
-        paths = get_paths(pout, neuroid, maskid, imgid)
+            if empty_mask and os.path.exists(str(input[neuroid].get('r'))):
+                print('  %i -- VECTOR NOT FOUND, CREATING EMPTY MASK: %s\n' % (i, str(neuroid)))
+            else:
+                print('  %i -- PAIRING ERROR: %s\n' % (i, str(neuroid)))
+                continue
+        paths = get_paths(pout, neuroid, maskid, imgid, quicksizes)
         if paths:
             img_out, msk_out, quickpaths = paths
             img_in = input[neuroid]['r']
-            vec_in = input[neuroid]['v']
+            vec_in = input[neuroid].get('v', '')
             img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=band_reposition, multiply=multiply_band)
             input[neuroid]['img_out'] = img_out
             msk_out = set_mask(img_in, vec_in, msk_out, overwrite=overwrite)
@@ -666,6 +735,9 @@ try:
                     try:
                         ReplaceValues(msk_out, replace_vals)
                         input[neuroid]['report'] = 'SUCCESS'
+                        if quickpaths:
+                            for size in quickpaths:
+                                ReplaceValues(quickpaths[size][1], replace_vals)
                     except:
                         print('Error replacing values: %s' % neuroid)
                         input[neuroid]['report'] = 'ERROR: Mask names not replaced'
@@ -704,4 +776,7 @@ finally:
     scroll(msk_end_values, header='CODES USED:')
     dict_to_csv(fullpath(pout, 'mask_values.csv'), msk_end_values)
     print('FINISHED -- REPORT SAVED TO %s' % report_path)
+    if quicksizes:
+        for size in quicksizes:
+            ql_report = qlReport(r'%s\quicklook\%s' % (pout, size2str(size)), input, size)
 print(datetime.now()-t)

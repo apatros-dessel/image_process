@@ -389,6 +389,8 @@ for i, path_in in enumerate(path_in_list):
                         print('JSON metadata file is empty: %s' % n)
                         ds_out = None
                         os.remove(json_out)
+                    else:
+                        json_fix_datetime(json_out)
             else:
                 print('%i -- file exists -- %s.json' % (i, n))
 

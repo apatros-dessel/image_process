@@ -19,7 +19,7 @@ dir_in = args.dir_in
 dir_out = args.dir_out
 txt_ids = args.txt_ids
 preserve_original = args.preserve_original
-make_rgb = args.make_rgb
+make_rgb = boolstr(args.make_rgb)
 json_cover = args.json_cover
 vector_granule_path = args.vector_granule_path
 ms2pms = args.ms2pms
@@ -389,6 +389,8 @@ for i, path_in in enumerate(path_in_list):
                         print('JSON metadata file is empty: %s' % n)
                         ds_out = None
                         os.remove(json_out)
+                    else:
+                        json_fix_datetime(json_out)
             else:
                 print('%i -- file exists -- %s.json' % (i, n))
 

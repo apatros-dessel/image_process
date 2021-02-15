@@ -1071,9 +1071,27 @@ def dict_to_csv(csv_path, csv_dict):
         for key in csv_dict:
             dictwriter.writerow([str(key), str(csv_dict[key])])
 
+def dict_from_csv(csv_path):
+    dict_ = OrderedDict()
+    with open(csv_path, newline='', delimiter=';') as csvfile:
+        dictreader = csv.reader(csvfile, delimiter=';')
+        for row in dictreader:
+            if len(row)>1:
+                dict_[row[0]] = ';'.join(row[1:])
+        return dict_
+
 def delete(path):
     if os.path.exists(path):
         try:
             os.remove(path)
         except:
             print('CANNOT DELETE: %s' % path)
+
+def Do(func, *args, **kwargs):
+    if globals().get('_test', False):
+        return func(*args, **kwargs)
+    else:
+        try:
+            return func(*args, **kwargs)
+        except:
+            print('Do() ERROR')

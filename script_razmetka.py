@@ -578,7 +578,7 @@ def set_mask(img_in, vec_in, msk_out, overwrite=False):
         if not os.path.exists(vec_reprojected):
             vec_reprojected = vec_in
         try:
-            RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
+            RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
             return msk_out
         except:
             # RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
@@ -712,7 +712,8 @@ try:
             continue
         elif input[neuroid]['pairing']==False:
             if empty_mask and os.path.exists(str(input[neuroid].get('r'))):
-                print('  %i -- VECTOR NOT FOUND, CREATING EMPTY MASK: %s\n' % (i, str(neuroid)))
+                # print('  %i -- VECTOR NOT FOUND, CREATING EMPTY MASK: %s\n' % (i, str(neuroid)))
+                pass
             else:
                 print('  %i -- PAIRING ERROR: %s\n' % (i, str(neuroid)))
                 continue

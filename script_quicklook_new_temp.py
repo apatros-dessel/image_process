@@ -2,6 +2,7 @@
 
 from geodata import *
 from image_processor import process
+from razmetka import RepairImage
 import argparse
 
 parser = argparse.ArgumentParser(description='Path to vector file')
@@ -46,9 +47,9 @@ if json_cover is None:
 names_tmpt = {
     'sentinel': ('^S2[AB]_MSI.+\d$', [3,2,1]),
     'sentinel_rgbn': ('^S2[AB].+RGBN$', [1,2,3]),
-    'planet': ('.*AnalyticMS(_SR)?$', [3,2,1]),
+    'planet': ('.*Analytic(MS)?(_SR)?$', [3,2,1]),
     'planet_neuro': ('IM4-PLN.*', [1,2,3]),
-    'kanopus': ('KV.+PMS.+L2$', [1,2,3]),
+    'kanopus': ('KV.+MS.+L2', [1,2,3]),
     # 'resursp': ('RP.+L2$', [1,2,3]),
     'resursp-grn': ('RP.+PMS\.L2\.GRN\d+$', [1,2,3]),
     'resursp-grn_new': ('\d_+RP.+PMS\.L2$', [1,2,3]),
@@ -226,13 +227,13 @@ else:
 
 report = []
 export_data = []
-
+scroll(path_in_list)
 for i, path_in in enumerate(path_in_list):
 
     f, n, e = split3(path_in)
 
     band_order = valid_str(n, names_tmpt)
-
+    print(band_order)
     if band_order:
         if ids:
             if n not in ids:
@@ -246,7 +247,14 @@ for i, path_in in enumerate(path_in_list):
         suredir(id_dir_out)
         raster_out = fullpath(id_dir_out, n, e)
         if not os.path.exists(raster_out):
-            copymove(path_in, raster_out, preserve_original)
+            # copymove(path_in, raster_out, preserve_original)
+            count = gdal.Open(path_in).RasterCount
+            bands = list(range(1,count+1))
+            bands[0] = band_order[0]
+            bands[2] = band_order[2]
+
+            RepairImage(path_in, raster_out, count, band_order=bands)
+            StripRaster(raster_out, compress='DEFLATE')
             if invert_red_blue:
                 if band_order==[3,2,1]:
                     InvertRedBlueBands(raster_out)
@@ -254,7 +262,7 @@ for i, path_in in enumerate(path_in_list):
                     print('Inverted RED/BLUE: %s' % n)
         report.append(n)
         export_data.append(raster_out)
-
+        band_order = [1,2,3]
         # if make_rgb:
         if make_rgb:
             # Add RGB

@@ -268,7 +268,10 @@ def set_cover_meta(feat, meta):
                 feat.SetField('type', 'PMS')
             feat.SetField('rows', get_from_tree(metadata, 'rowCount')[1])
             feat.SetField('cols', get_from_tree(metadata, 'columnCount')[1])
-            feat.SetField('epsg_dat', int('326' + re.search(r'WGS 84 / UTM zone \d+N', get_from_tree(metadata, 'wktString')).group()[18:-1]))
+            try:
+                feat.SetField('epsg_dat', int('326' + re.search(r'WGS 84 / UTM zone \d+N', get_from_tree(metadata, 'wktString')).group()[18:-1]))
+            except:
+                feat.SetField('epsg_dat', 32637)
             feat.SetField('u_size', 'meter')
             feat.SetField('x_size', get_from_tree(metadata, 'productResolution'))
             feat.SetField('y_size', get_from_tree(metadata, 'productResolution'))

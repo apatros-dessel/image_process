@@ -6,13 +6,15 @@ parser.add_argument('corner', help='Корневой путь к хранили�
 args = parser.parse_args()
 corner = args.corner
 
-bandclasses = ('MS','PAN','PMS','BANDS','BANDS_nir')
-datacats = {'img': ('tif'),
-            'mask': ('tif'),
-            'shp_auto': ('shp','json','geojson'),
-            'shp_hand': ('shp', 'json','geojson'),
-            'test_result': ('shp','json','geojson'),
-            }
+
+def WriteLog(path, logstring):
+    datestring = str(datetime.now()).rstrip('0123456789').replace(' ','_').replace(':','-')
+    datelogstring = '%s %s\n' % (datestring, logstring)
+    style = ('w','a')[os.path.exists(path)]
+    with open(path,style) as txt:
+        txt.write(datelogstring)
+
+
 
 class FolderDirs(dict):
 
@@ -53,9 +55,9 @@ class MaskSubtypeFolderIndex(dict):
         self.subtype = subtype
         datacats = globals()['datacats']
         for datacat in datacats:
-            self.Update(datacat)
+            self.Fill(datacat)
 
-    def Update(self, datacat):
+    def Fill(self, datacat):
         datacats = globals()['datacats']
         if datacat in datacats:
             datacatpath = r'%s/%s/%s' % (self.corner, datacat, self.subtype).rstrip(r'\/')
@@ -74,8 +76,8 @@ class MaskTypeFolderIndex:
 
     def __init__(self, corner):
         self.corner = corner
-        self.UpdateMaskBandclasses()
-        self.UpdateMaskSubtypes()
+        self.FillMaskBandclasses()
+        self.FillMaskSubtypes()
 
         mask_type_dirs = FolderDirs(corner)
         for datacat in globals()['datacats']:
@@ -83,7 +85,7 @@ class MaskTypeFolderIndex:
                 print('WRONG DATACAT: %s' % datacat)
                 return None
 
-    def UpdateMaskBandclasses(self):
+    def FillMaskBandclasses(self):
         self.bandclasses = {}
         bandclasses = globals()['bandclasses']
         for bandclass in bandclasses:
@@ -91,7 +93,7 @@ class MaskTypeFolderIndex:
             if os.path.exists(bandclasspath):
                 self.bandclasses[bandclass] = bandclasspath
 
-    def UpdateMaskSubtypes(self):
+    def FillMaskSubtypes(self):
         datacats = globals()['datacats']
         subtypes = {'': None}
         for bandclass in self.bandclasses:

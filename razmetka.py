@@ -128,6 +128,8 @@ class MaskTypeFolderIndex:
             if subtype_index:
                 self.subtypes[subtype] = subtype_index
 
+    def
+
 
 # Записать растр снимка в установленном формате
 def RepairImage(img_in, img_out, count, band_order=None, multiply = None):

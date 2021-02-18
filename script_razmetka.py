@@ -42,6 +42,9 @@ multiply_band = dictstr(args.multiply_band, toint=True)
 input_from_report = args.input_from_report
 empty_mask = boolstr(args.empty)
 
+if re.search('^IM[RGBN]$', imgid) and (band_reposition is None):
+    band_reposition = {'R':[1],'G':[2],'B':[3],'N':[4]}[imgid[-1]]
+
 split_vector = False
 if vin:
     if os.path.exists(vin) and image_col:
@@ -310,6 +313,7 @@ def get_neuroid(id):
     else:
         print('Unknown imsys for: %s' % id)
         return None
+    imgid = globals()['imgid']
     neuroid = imgid+'-%s-%s-%s-%s' % (satid, date, loc, lvl)
     # IM4 в начале -- условность, его можно будет изменить на этапе обработки изображения, если в нём больше 4 каналов
     return neuroid
@@ -514,6 +518,8 @@ def check_image(img_in, neuro, multiply = None):
     img_type = neuro.split('__')[0].split('-')[0]
     if re.search(r'^IM\d+$', img_type):
         metaBandNum = int(img_type[2:])
+    elif re.search(r'IM[RGBN]$', img_type):
+        metaBandNum = 1
     elif re.search(r'IMCH\d+$', img_type):
         metaBandNum = int(img_type[4:])
     counter = min((metaBandNum, realBandNum))
@@ -704,8 +710,8 @@ scroll(input, header='\nTotal input:')
 t = datetime.now()
 msk_end_values = {}
 try:
-    if not (re.search('^IMCH\d+$', imgid) or re.search('^IM\d+$', imgid)):
-        raise Exception('\n  WRONG imgid: {}, "IM\d+" or "IMCH\d+" is needed\n'.format(imgid))
+    if not (re.search('^IMCH\d+$', imgid) or re.search('^IM[0-9RGBN]+$', imgid)):
+        raise Exception('\n  WRONG imgid: {}, "IM[0-9RGBN]+" or "IMCH\d+" is needed\n'.format(imgid))
     for i, neuroid in enumerate(input):
         if (neuroid is None):
             print('  %i -- NEUROID ERROR: %s\n' % (i, str(neuroid)))

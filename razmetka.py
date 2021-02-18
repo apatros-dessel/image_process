@@ -95,6 +95,8 @@ class MaskTypeFolderIndex:
 
     def __init__(self, corner):
         self.corner = corner
+        self.bandclasses = {}
+        self.subtypes = {}
         self.FillMaskBandclasses()
         self.FillMaskSubtypes()
 
@@ -105,12 +107,12 @@ class MaskTypeFolderIndex:
                 return None
 
     def FillMaskBandclasses(self):
-        self.bandclasses = {}
         bandclasses = globals()['bandclasses']
         for bandclass in bandclasses:
             bandclasspath = r'%s/%s' % (self.corner, bandclass)
             if os.path.exists(bandclasspath):
                 self.bandclasses[bandclass] = bandclasspath
+                self.subtypes[bandclass] = {}
 
     def FillMaskSubtypes(self):
         datacats = globals()['datacats']
@@ -122,11 +124,11 @@ class MaskTypeFolderIndex:
                 subtypedirs = FolderDirs(datacatpath, miss_tmpt='&')
                 if subtypedirs is not None:
                     subtypes.update(subtypedirs)
-        self.subtypes = {}
-        for subtype in subtypes.keys():
-            subtype_index = MaskSubtypeFolderIndex(self.corner, subtype)
-            if subtype_index:
-                self.subtypes[subtype] = subtype_index
+        for bandclass in self.bandclasses:
+            for subtype in subtypes.keys():
+                subtype_index = MaskSubtypeFolderIndex(self.corner, subtype)
+                if subtype_index:
+                    self.subtypes[bandclass][subtype] = subtype_index
 
 # Записать растр снимка в установленном формате
 def RepairImage(img_in, img_out, count, band_order=None, multiply = None):

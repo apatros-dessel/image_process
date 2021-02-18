@@ -467,7 +467,7 @@ def get_paths(pout, id, maskid, imgid, quicksizes):
         if fail:
             print('Unknown time composite for %s')
             return None
-    elif re.search(r'^IM\d+-.+-\d+-.+-.+$', id) and re.search('^IM\d+$', imgid):
+    elif re.search(r'^IM[0-9RGBN]+-.+-\d+-.+-.+$', id) and re.search('^IM[0-9RGBN]+$', imgid):
         for satid in satellite_types:
             if re.search(satellite_types[satid]['tmpt'], id.split('-')[1]):
                 sat_folder = satellite_types[satid]['folder']
@@ -563,9 +563,18 @@ def repair_img(img_in, img_out, count, band_order=None, multiply = None):
     raster = gdal.Open(img_in)
     new_raster = ds(img_out, copypath=img_in, options={'bandnum':count, 'dt':3, 'compress':'DEFLATE', 'nodata':0}, editable=True)
     for bin, bout in zip(band_order, range(1, count+1)):
-        arr_ = raster.GetRasterBand(bin).ReadAsArray()
-        o = np.unique(arr_)[0]
-        arr_[arr_ == o] = 0
+        init_band = raster.GetRasterBand(bin)
+        arr_ = init_band.ReadAsArray()
+        init_nodata = init_band.GetNoDataValue()
+        if init_nodata is None:
+            init_nodata=0
+            uniques, counts = np.unique(arr_, return_counts=True)
+            total_sum = np.sum(counts)
+            if counts[0]/total_sum>0.01:
+                init_nodata=uniques[0]
+            elif counts[-1]/total_sum>0.01:
+                init_nodata=uniques[-1]
+        arr_[arr_==init_nodata] = 0
         if multiply is not None:
             if bin in multiply.keys():
                 arr_ = arr_ * multiply[bin]

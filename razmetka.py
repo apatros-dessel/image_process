@@ -166,11 +166,12 @@ class MaskTypeFolderIndex:
     def SavePanData(self, subtype=''):
         ms_imgs = self.Images(subtype, 'MS')
         if ms_imgs:
-            suredir(r'%s\PAN\img\%s' % (self.corner, subtype))
+            pan_folder = r'%s\PAN\img\%s' % (self.corner, subtype)
+            suredir(pan_folder)
             for name in ms_imgs:
                 ms_id =  os.path.splitext(name)[0]
                 pan_id = ms_id.replace('.MS','.PAN')
-
+                UploadKanopusFromS3(pan_id, pan_folder)
 
 # Записать изображение, проверяя корректность его формата
 # Если overwrite==False, то изображения в корректном формате пропускаются
@@ -243,3 +244,20 @@ def RepairImage(img_in, img_out, count, band_order=None, multiply = None):
         new_raster.GetRasterBand(bout).WriteArray(arr_)
     raster = new_raster = None
     return img_out
+
+def UploadKanopusFromS3(kan_id, pout):
+    folder = tempname()
+    command = r'''gu_db_query -w "source='kanopus' and hashless_id='%s'" -d %s''' % (kan_id, folder)
+    os.system(command)
+    files = folder_paths(folder, 1, 'tif')
+    l = len(files)
+    if l == 1:
+        shutil.copyfile(files[0], fullpath(pout, kan_id, 'tif'))
+        print('WRITTEN: %s' % kan_id)
+    elif l == 0:
+        print('SCENE DATA NOT FOUND: %s' % kan_id)
+    else:
+        print('MULTIPLE SCENES FOUND FOR: %s - %i scenes' % (kan_id, l))
+        for i, file in enumerate(files):
+            shutil.copyfile(files[0], fullpath(pout, '%s_%i' % (kan_id, i+1), 'tif'))
+    destroydir(folder)

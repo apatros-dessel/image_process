@@ -25,7 +25,7 @@ class FolderDirs(dict):
 
     def __init__(self, folder, miss_tmpt=None):
         for name in os.listdir(folder):
-            path = folder_paths(folder, name)
+            path = fullpath(folder, name)
             if os.path.isdir(path):
                 if miss_tmpt:
                     if re.search(miss_tmpt, name):
@@ -41,7 +41,7 @@ class FolderFiles(dict):
         else:
             typelist = None
         for name in os.listdir(folder):
-            path = folder_paths(folder, name)
+            path = fullpath(folder, name)
             if os.path.isfile(path):
                 if typelist is not None:
                     for _type in typelist:
@@ -68,24 +68,29 @@ class MaskSubtypeFolderIndex(dict):
         datacats = globals()['datacats']
         for datacat in datacats:
             self.Fill(datacat)
+        return self
 
     def Fill(self, datacat):
         datacats = globals()['datacats']
         if datacat in datacats:
-            datacatpath = r'%s/%s/%s' % (self.corner, datacat, self.subtype).rstrip(r'\/')
+            datacatpath = (r'%s/%s/%s' % (self.corner, datacat, self.subtype)).rstrip(r'\/')
             if os.path.exists(datacatpath):
                 self[datacat] = {}
                 WriteLog('NEW SubtypeIndex %s %s %s' % (self.corner, self.subtype, datacat))
-                for name in FolderFiles(datacatpath, miss_tmpt='&', type=datacats[datacat]):
+                files = FolderFiles(datacatpath, miss_tmpt='&', type=datacats[datacat])
+                for name in files:
                     if not name in self[datacat]:
-                        datapath = datacatpath[name]
+                        datapath = files[name]
                         self[datacat][name] = datapath
-                        WriteLog('NEW SubtypeIndex %s %s %s' % (self.corner, self.subtype, datacat, name, datapath))
+                        WriteLog('NEW SubtypeIndex %s %s %s %s %s' % (self.corner, self.subtype, datacat, name, datapath))
         else:
             print('WRONG DATACAT: %s' % datacat)
 
     def __len__(self):
-        return max(flist(self.values(), len))
+        val = 0
+        for datacat in self:
+            val = max(val, len(self[datacat]))
+        return val
 
     def __bool__(self):
         return bool(len(self))
@@ -100,12 +105,6 @@ class MaskTypeFolderIndex:
         self.FillMaskBandclasses()
         self.FillMaskSubtypes()
 
-        mask_type_dirs = FolderDirs(corner)
-        for datacat in globals()['datacats']:
-            if not datacat in mask_type_dirs:
-                print('WRONG DATACAT: %s' % datacat)
-                return None
-
     def FillMaskBandclasses(self):
         bandclasses = globals()['bandclasses']
         for bandclass in bandclasses:
@@ -118,15 +117,14 @@ class MaskTypeFolderIndex:
         subtypes = {'': None}
         for bandclass in self.bandclasses:
             bandclasspath = self.bandclasses[bandclass]
-            for datacat in datacats:
-                datacatpath = r'%s/%s' % (bandclasspath, datacat)
-                subtypedirs = FolderDirs(datacatpath, miss_tmpt='&')
-                if subtypedirs is not None:
-                    subtypes.update(subtypedirs)
+            datacatpath = r'%s/%s' % (bandclasspath, 'img')
+            subtypedirs = FolderDirs(datacatpath, miss_tmpt='&')
+            if subtypedirs is not None:
+                subtypes.update(subtypedirs)
         for subtype in subtypes.keys():
             self.subtypes[subtype] = {}
             for bandclass in self.bandclasses:
-                subtype_index = MaskSubtypeFolderIndex(self.bandclasses[bandclass], subtype)
+                subtype_index = MaskSubtypeFolderIndex().FillFromDisk(self.bandclasses[bandclass], subtype)
                 if subtype_index:
                     self.subtypes[subtype][bandclass] = subtype_index
 
@@ -149,16 +147,30 @@ class MaskTypeFolderIndex:
 
     def SaveBandsSeparated(self, subtype=''):
         full_imgs = self.Images(subtype, 'MS')
+        # scroll(full_imgs, header=subtype)
         if full_imgs:
+            suredir(r'%s\BANDS\img\%s' % (self.corner, subtype))
+            suredir(r'%s\BANDS_nir\img\%s' % (self.corner, subtype))
             for name in full_imgs:
                 file = full_imgs[name]
-                for num, channel in zip((1,2,3),('red','blue','nir')):
-                    img_out = r'%s\BANDS\%s\%s_%s.tif' % (self.corner, subtype, name, channel)
+                id = os.path.splitext(name)[0]
+                for num, channel in zip((1,2,3),('red','green','blue')):
+                    img_out = r'%s\BANDS\img\%s\%s_%s.tif' % (self.corner, subtype, id, channel)
                     SetImage(file, img_out, band_num=1, band_reposition=[num], overwrite=False)
-                nir_out = r'%s\BANDS_nir\%s\%s_nir.tif' % (self.corner, subtype, name)
+                nir_out = r'%s\BANDS_nir\img\%s\%s_nir.tif' % (self.corner, subtype, id)
                 SetImage(file, nir_out, band_num=1, band_reposition=[4], overwrite=False)
+                print('BANDS WRITTEN: %s' % id)
         else:
             print('FULL IMAGE DATA NOT FOUND: %s' % subtype)
+
+    def SavePanData(self, subtype=''):
+        ms_imgs = self.Images(subtype, 'MS')
+        if ms_imgs:
+            suredir(r'%s\PAN\img\%s' % (self.corner, subtype))
+            for name in ms_imgs:
+                ms_id =  os.path.splitext(name)[0]
+                pan_id = ms_id.replace('.MS','.PAN')
+
 
 # Записать изображение, проверяя корректность его формата
 # Если overwrite==False, то изображения в корректном формате пропускаются
@@ -194,19 +206,17 @@ def CheckImage(img_in, neuro = None, band_num = 1):
             band_num = 1
         elif re.search(r'IMCH\d+$', img_type):
             band_num = int(img_type[4:])
-    counter = min((band_num, realBandNum))
     if band_num > realBandNum:
         print('Not enough bands for: %s - got %i, need %i' % (img_in, realBandNum, band_num))
         raise Exception
     elif band_num < realBandNum:
-        print('Band count mismatch for: %s - got %i, need %i' % (img_in, realBandNum, band_num))
-        return True, counter
-    counter = min((band_num, realBandNum))
-    for i in range(1, counter + 1):
-        band = raster.GetRasterBand(i)
-        if band.DataType != 3 or band.GetNoDataValue() != 0:
-            return True, counter
-    return False, counter
+        return True, band_num
+    else:
+        for i in range(1, band_num + 1):
+            band = raster.GetRasterBand(i)
+            if (band.DataType!=3) or (band.GetNoDataValue()!=0):
+                return True, band_num
+        return False, band_num
 
 # Записать растр снимка в установленном формате
 def RepairImage(img_in, img_out, count, band_order=None, multiply = None):

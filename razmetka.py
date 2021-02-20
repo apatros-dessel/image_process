@@ -7,6 +7,12 @@ datacats = {'img': ('tif'),
             'shp_hand': ('shp', 'json','geojson'),
             'test_result': ('shp','json','geojson'),
             }
+band_params = {
+    'red': [1, 'BAND'],
+    'green': [2, 'BAND'],
+    'blue': [3, 'BAND'],
+    'nir': [4, 'BAND_nir'],
+}
 objidval = 0
 
 def WriteLog(logstring, logpath = None):
@@ -148,31 +154,33 @@ class MaskTypeFolderIndex:
     def SaveBandsSeparated(self, subtype=''):
         full_imgs = self.Images(subtype, 'MS')
         # scroll(full_imgs, header=subtype)
+        band_params = globals()['band_params']
         if full_imgs:
             suredir(r'%s\BANDS\img\%s' % (self.corner, subtype))
             suredir(r'%s\BANDS_nir\img\%s' % (self.corner, subtype))
-            for name in full_imgs:
-                file = full_imgs[name]
-                id = os.path.splitext(name)[0]
-                for num, channel in zip((1,2,3),('red','green','blue')):
-                    img_out = r'%s\BANDS\img\%s\%s_%s.tif' % (self.corner, subtype, id, channel)
-                    SetImage(file, img_out, band_num=1, band_reposition=[num], overwrite=False)
-                nir_out = r'%s\BANDS_nir\img\%s\%s_nir.tif' % (self.corner, subtype, id)
-                SetImage(file, nir_out, band_num=1, band_reposition=[4], overwrite=False)
-                print('BANDS WRITTEN: %s' % id)
+            for ms_name in full_imgs:
+                ms_path = full_imgs[ms_name]
+                for channel in band_params:
+                    band_num, bandclass = band_params[channel]
+                    band_name = ms_name.replace('.tif', '_%s.tif' % channel)
+                    band_path = r'%s\%s\img\%s\%s' % (self.corner, bandclass, subtype, band_name)
+                    SetImage(ms_path, band_path, band_num=1, band_reposition=[band_num], overwrite=False)
+                print('BANDS WRITTEN: %s' % ms_name)
         else:
             print('FULL IMAGE DATA NOT FOUND: %s' % subtype)
 
     def SavePanData(self, subtype=''):
         ms_imgs = self.Images(subtype, 'MS')
         if ms_imgs:
-            for name in ms_imgs:
-                pan_name = name.replace('.MS', '.PAN')
+            for ms_name in ms_imgs:
+                pan_name = ms_name.replace('.MS', '.PAN')
                 pan_path = r'%s\PAN\img\%s\%s' % (self.corner, subtype, pan_name)
                 pan_folder, pan_id, tif = split3(pan_path)
                 suredir(pan_folder)
                 # continue
-                UploadKanopusFromS3(pan_id, pan_folder)
+                vector_path = tempname('json')
+                RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=vector_path)
+                UploadKanopusFromS3(pan_id, pan_folder, vector_path)
 
     def SavePmsData(self, subtype=''):
         ms_imgs = self.Images(subtype, 'MS')
@@ -306,9 +314,11 @@ def RepairImage(img_in, img_out, count, band_order=None, multiply = None):
     raster = new_raster = None
     return img_out
 
-def UploadKanopusFromS3(kan_id, pout):
+def UploadKanopusFromS3(kan_id, pout, geom_path = None):
     folder = tempname()
     command = r'''gu_db_query -w "source='kanopus' and hashless_id='%s'" -d %s''' % (kan_id, folder)
+    if geom_path is not None:
+        command += '-v %s' % geom_path
     os.system(command)
     files = folder_paths(folder, 1, 'tif')
     l = len(files)

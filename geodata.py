@@ -3133,3 +3133,16 @@ def VectorMask(raster_in, mask_in, colname=None):
     mask_arr = mask_ds.GetRasterBand(1).ReadAsArray()==0
     delete(mask_path)
     return mask_arr
+
+def RasterCentralPoint(ds_, reference=None, vector_path=None):
+    if ds_:
+        geom = RasterGeometry(ds_, reference)
+        center_geom = geom.Centroid()
+        ds_out = json(vector_path, True, reference)
+        lyr_out = ds_out.GetLayer()
+        feat_defn = lyr_out.GetLayerDefn()
+        feat = ogr.Feature(feat_defn)
+        feat.SetGeometry(center_geom)
+        lyr_out.SetFeature(feat)
+        ds_out = None
+        return center_geom

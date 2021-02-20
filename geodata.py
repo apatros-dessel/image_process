@@ -3121,7 +3121,7 @@ def RasterMask(raster_in, mask_in, bandnum=1, nodata=0):
     mask_path = tempname('tif')
     mask_ds = ds(mask_path, copypath=raster_in, options={'bandnum': 1, 'compress': 'DEFLATE'}, editable=True)
     bandnum = int(bandnum)
-    band2raster((mask_in, bandnum), mask_ds, exclude_nodata=False)
+    band2raster((mask_in, bandnum), mask_ds, gdal.GRA_NearestNeighbour, exclude_nodata=False)
     mask_arr = mask_ds.GetRasterBand(1).ReadAsArray()==nodata
     delete(mask_path)
     return mask_arr
@@ -3138,11 +3138,14 @@ def RasterCentralPoint(ds_, reference=None, vector_path=None):
     if ds_:
         geom = RasterGeometry(ds_, reference)
         center_geom = geom.Centroid()
-        ds_out = json(vector_path, True, reference)
-        lyr_out = ds_out.GetLayer()
-        feat_defn = lyr_out.GetLayerDefn()
-        feat = ogr.Feature(feat_defn)
-        feat.SetGeometry(center_geom)
-        lyr_out.SetFeature(feat)
-        ds_out = None
+        if vector_path:
+            if reference is None:
+                reference = get_srs(ds_)
+            json(vector_path, srs = reference)
+            ds_out, lyr_out = get_lyr_by_path(vector_path, True)
+            feat_defn = lyr_out.GetLayerDefn()
+            feat = ogr.Feature(feat_defn)
+            feat.SetGeometry(center_geom)
+            lyr_out.SetFeature(feat)
+            ds_out = None
         return center_geom

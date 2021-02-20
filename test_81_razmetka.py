@@ -4,6 +4,6 @@ path = r'e:\rks\kantest'
 
 folder_index = MaskTypeFolderIndex(path)
 
-# scroll(folder_index.subtypes)
+# scroll(folder_index.subtypes['img_cloud']['MS']['img'])
 
-folder_index.SavePanData('img_cloud_mist_shadow')
+folder_index.SavePanData('img_cloud')

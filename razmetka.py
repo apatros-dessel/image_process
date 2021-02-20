@@ -32,28 +32,27 @@ class FolderDirs(dict):
                         continue
                 self[name] = path
 
-
-class FolderFiles(dict):
-
-    def __init__(self, folder, miss_tmpt=None, type=None):
-        if type is not None:
-            typelist = obj2list(type)
-        else:
-            typelist = None
-        for name in os.listdir(folder):
-            path = fullpath(folder, name)
-            if os.path.isfile(path):
-                if typelist is not None:
-                    for _type in typelist:
-                        if name.lower().endswith(_type):
-                            self[name] = path
-            elif miss_tmpt:
-                if re.search(miss_tmpt, name):
-                    new_paths = FolderFiles(path)
-                    if new_paths:
-                        for new_name in new_paths:
-                            self[r'%s/%s' % (name, new_name)] = new_paths[new_name]
-
+def FolderFiles(folder, miss_tmpt=None, type=None):
+    dict_ = {}
+    if type is not None:
+        typelist = obj2list(type)
+    else:
+        typelist = None
+    for name in os.listdir(folder):
+        path = fullpath(folder, name)
+        if os.path.isfile(path):
+            if typelist is not None:
+                for _type in typelist:
+                    if name.lower().endswith(_type):
+                        dict_[name] = path
+        elif miss_tmpt:
+            if re.search(miss_tmpt, name):
+                new_paths = FolderFiles(path, type=type)
+                if new_paths is not None:
+                    scroll(new_paths)
+                    for new_name in new_paths:
+                        dict_[r'%s/%s' % (name, new_name)] = new_paths[new_name]
+    return dict_
 
 class MaskSubtypeFolderIndex(dict):
 
@@ -78,6 +77,7 @@ class MaskSubtypeFolderIndex(dict):
                 self[datacat] = {}
                 WriteLog('NEW SubtypeIndex %s %s %s' % (self.corner, self.subtype, datacat))
                 files = FolderFiles(datacatpath, miss_tmpt='&', type=datacats[datacat])
+                # scroll(files)
                 for name in files:
                     if not name in self[datacat]:
                         datapath = files[name]
@@ -166,11 +166,12 @@ class MaskTypeFolderIndex:
     def SavePanData(self, subtype=''):
         ms_imgs = self.Images(subtype, 'MS')
         if ms_imgs:
-            pan_folder = r'%s\PAN\img\%s' % (self.corner, subtype)
-            suredir(pan_folder)
             for name in ms_imgs:
-                ms_id =  os.path.splitext(name)[0]
-                pan_id = ms_id.replace('.MS','.PAN')
+                pan_name = name.replace('.MS', '.PAN')
+                pan_path = r'%s\PAN\img\%s\%s' % (self.corner, subtype, pan_name)
+                pan_folder, pan_id, tif = split3(pan_path)
+                suredir(pan_folder)
+                # continue
                 UploadKanopusFromS3(pan_id, pan_folder)
 
     def SavePmsData(self, subtype=''):
@@ -181,36 +182,47 @@ class MaskTypeFolderIndex:
             for name in ms_imgs:
                 ms_id = os.path.splitext(name)[0]
                 pms_id = ms_id.replace('.MS', '.PMS')
+                pms_path = self.GetScenePathFromID(subtype, ms_id.replace('.MS', '.PMS'))
+                continue
                 l = UploadKanopusFromS3(pms_id, pms_folder)
                 if l==0:
-                    # self.Pansharp(subtype, pms_id)
-                    print('SCENE NOT FOUND: %s' % pms_id)
+                    if not self.Pansharp(subtype, pms_id):
+                        print('SCENE NOT FOUND: %s' % pms_id)
 
     def GetScenePathFromID(self, subtype, kan_id):
         type = GetKanTypeFromID(kan_id)
         kan_path = r'%s\%s\img\%s\%s.tif' % (self.corner, type, subtype, kan_id)
         if os.path.exists(kan_path):
+            print('FOUND: %s' % kan_id)
             return kan_path
         else:
+            suredir(r'%s\%s\img\%s' % (self.corner, type, subtype))
             l = UploadKanopusFromS3(kan_id, os.path.dirname(kan_path))
             if l==1:
                 return kan_path
             elif l>1:
                 return r'%s\%s\img\%s\%s_1.tif' % (self.corner, type, subtype, kan_id)
             else:
-                # print('SCENE NOT FOUND: %s' % kan_id)
+                if type=='PMS':
+                    pms_path = self.Pansharp(subtype, kan_id)
+                    if pms_path:
+                        return pms_path
+                print('SCENE NOT FOUND: %s' % kan_id)
                 pass
 
     def Pansharp(self, subtype, pms_id):
-        pms_path = self.GetScenePathFromID(subtype, pms_id)
-        if pms_path:
+        pms_path = r'%s\PMS\img\%s\%s.tif' % (self.corner, subtype, pms_id)
+        if os.path.exists(pms_path):
             return pms_path
         ms_path = self.GetScenePathFromID(subtype, pms_id.replace('.PMS','.MS'))
         pan_path = self.GetScenePathFromID(subtype, pms_id.replace('.PMS','.PAN'))
         if ms_path and pan_path:
-            command = r'python py2pci_pansharp.py %s $s %s -d TRUE' % (pan_path, ms_path, pms_path)
+            command = r'python py2pci_pansharp.py %s %s %s -d TRUE' % (pan_path, ms_path, pms_path)
             os.system(command)
-            return self.GetScenePathFromID(subtype, pms_id)
+            if os.path.exists(pms_path):
+                return pms_path
+            else:
+                print('PANSHARPENING ERROR: %s' % pms_id)
         else:
             print('CANNOT GET SOURCE DATA FOR PANSHARPENING: %s' % pms_id)
 

@@ -173,6 +173,55 @@ class MaskTypeFolderIndex:
                 pan_id = ms_id.replace('.MS','.PAN')
                 UploadKanopusFromS3(pan_id, pan_folder)
 
+    def SavePmsData(self, subtype=''):
+        ms_imgs = self.Images(subtype, 'MS')
+        if ms_imgs:
+            pms_folder = r'%s\PMS\img\%s' % (self.corner, subtype)
+            suredir(pms_folder)
+            for name in ms_imgs:
+                ms_id = os.path.splitext(name)[0]
+                pms_id = ms_id.replace('.MS', '.PMS')
+                l = UploadKanopusFromS3(pms_id, pms_folder)
+                if l==0:
+                    # self.Pansharp(subtype, pms_id)
+                    print('SCENE NOT FOUND: %s' % pms_id)
+
+    def GetScenePathFromID(self, subtype, kan_id):
+        type = GetKanTypeFromID(kan_id)
+        kan_path = r'%s\%s\img\%s\%s.tif' % (self.corner, type, subtype, kan_id)
+        if os.path.exists(kan_path):
+            return kan_path
+        else:
+            l = UploadKanopusFromS3(kan_id, os.path.dirname(kan_path))
+            if l==1:
+                return kan_path
+            elif l>1:
+                return r'%s\%s\img\%s\%s_1.tif' % (self.corner, type, subtype, kan_id)
+            else:
+                # print('SCENE NOT FOUND: %s' % kan_id)
+                pass
+
+    def Pansharp(self, subtype, pms_id):
+        pms_path = self.GetScenePathFromID(subtype, pms_id)
+        if pms_path:
+            return pms_path
+        ms_path = self.GetScenePathFromID(subtype, pms_id.replace('.PMS','.MS'))
+        pan_path = self.GetScenePathFromID(subtype, pms_id.replace('.PMS','.PAN'))
+        if ms_path and pan_path:
+            command = r'python py2pci_pansharp.py %s $s %s -d TRUE' % (pan_path, ms_path, pms_path)
+            os.system(command)
+            return self.GetScenePathFromID(subtype, pms_id)
+        else:
+            print('CANNOT GET SOURCE DATA FOR PANSHARPENING: %s' % pms_id)
+
+def GetKanTypeFromID(kan_id):
+    if '.MS' in kan_id:
+        return 'MS'
+    elif '.PAN' in kan_id:
+        return 'PAN'
+    elif '.PMS' in kan_id:
+        return 'PMS'
+
 # Записать изображение, проверяя корректность его формата
 # Если overwrite==False, то изображения в корректном формате пропускаются
 def SetImage(img_in, img_out, band_num=1, band_reposition=None, multiply=None, neuro_check=False, overwrite = False):
@@ -261,3 +310,4 @@ def UploadKanopusFromS3(kan_id, pout):
         for i, file in enumerate(files):
             shutil.copyfile(files[0], fullpath(pout, '%s_%i' % (kan_id, i+1), 'tif'))
     destroydir(folder)
+    return l

@@ -169,6 +169,39 @@ class MaskTypeFolderIndex:
         else:
             print('FULL IMAGE DATA NOT FOUND: %s' % subtype)
 
+    def GetKanPath(self, kan_name, subtype='', type=None, geom_path=None):
+        if type is None:
+            type = GetKanTypeFromID(kan_name)
+        kan_path = r'%s\%s\img\%s\%s' % (self.corner, type, subtype, kan_name)
+        if os.path.exists(kan_path):
+            return kan_path
+        else:
+            kan_folder, kan_id, tif = split3(kan_path)
+            kan_id = DownloadKanopusFromS3(kan_id, kan_folder, type=type, geom_path=geom_path)
+            if kan_id:
+                return kan_path
+            elif type=='PMS':
+                ms_path = self.GetKanPath(kan_name.replace('.PMS','.MS'), subtype=subtype, type=type, geom_path=geom_path)
+                pan_path = self.GetKanPath(kan_name.replace('.PMS','.PAN'), subtype=subtype, type=type, geom_path=geom_path)
+                if ms_path and pan_path:
+                    pms_path = Pansharp(pan_path, ms_path, kan_path)
+                    if pms_path:
+                        return pms_path
+
+    def UpdateFromMS(self, bandclass='PMS', subtype=''):
+        ms_imgs = self.Images(subtype, 'MS')
+        if ms_imgs:
+            errors = []
+            for ms_name in ms_imgs:
+                pan_name = ms_name.replace('.MS','.%s' % bandclass)
+                geom_path = RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=tempname('json'))
+                kan_path = self.GetKanPath(pan_name, subtype=subtype, type=bandclass, geom_path=geom_path)
+                delete(geom_path)
+                if not kan_path:
+                    errors.append(ms_name)
+            if errors:
+                scroll(errors, header='\nFAILED TO SAVE FILES:')
+
     def SavePanData(self, subtype=''):
         ms_imgs = self.Images(subtype, 'MS')
         errors = []
@@ -181,9 +214,9 @@ class MaskTypeFolderIndex:
                     suredir(pan_folder)
                     vector_path = tempname('json')
                     RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=vector_path)
-                    l = UploadKanopusFromS3(pan_id, pan_folder, type='PAN', geom_path=vector_path)
+                    kan_id = DownloadKanopusFromS3(pan_id, pan_folder, type='PAN', geom_path=vector_path)
                     delete(vector_path)
-                    if not l:
+                    if kan_id is None:
                         errors.append(pan_id)
             if errors:
                 scroll(errors, header='\nFAILED TO SAVE FILES:')
@@ -191,14 +224,14 @@ class MaskTypeFolderIndex:
     def SavePmsData(self, subtype=''):
         ms_imgs = self.Images(subtype, 'MS')
         if ms_imgs:
-            pms_name = ms_name.replace('.MS', '.PMS')
+            pms_name = pms_name.replace('.MS', '.PMS')
             pms_path = r'%s\PMS\img\%s\%s' % (self.corner, subtype, pms_name)
             if not os.path.exists(pms_path):
                 pms_folder, pms_id, tif = split3(pms_path)
                 suredir(pms_folder)
                 vector_path = tempname('json')
                 RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=vector_path)
-                UploadKanopusFromS3(pms_id, pms_folder, vector_path)
+                DownloadKanopusFromS3(pms_id, pms_folder, vector_path)
                 if not os.path.exists(pms_path):
                     self.Pansharp(subtype, pms_id)
                 delete(vector_path)
@@ -211,7 +244,7 @@ class MaskTypeFolderIndex:
             return kan_path
         else:
             suredir(r'%s\%s\img\%s' % (self.corner, type, subtype))
-            l = UploadKanopusFromS3(kan_id, os.path.dirname(kan_path))
+            l = DownloadKanopusFromS3(kan_id, os.path.dirname(kan_path))
             if l==1:
                 return kan_path
             elif l>1:
@@ -247,6 +280,17 @@ def GetKanTypeFromID(kan_id):
         return 'PAN'
     elif '.PMS' in kan_id:
         return 'PMS'
+
+def KanCallSQL(kan_id, type=False):
+    if re.search('IM4-.+-.+', kan_id):
+        if type:
+            date = kan_id.split('-')[2]
+            kan_date = '%s-%s-%s' % (date[:4], date[4:6], date[6:])
+            return "source='kanopus' and date(datetime)='%s' and type=%s" % (kan_date, type.lower())
+        else:
+            print('KANOPUS TYPE NOT DEFINED, CANNOT DOENLOAD DATA: %s' % kan_id)
+    else:
+        return "source='kanopus' and hashless_id='%s'" % kan_id
 
 # Записать изображение, проверяя корректность его формата
 # Если overwrite==False, то изображения в корректном формате пропускаются
@@ -320,35 +364,34 @@ def RepairImage(img_in, img_out, count, band_order=None, multiply = None):
     raster = new_raster = None
     return img_out
 
-def UploadKanopusFromS3(kan_id, pout, type=None, geom_path = None):
+def DownloadKanopusFromS3(id, pout, type=None, geom_path = None):
     folder = tempname()
-    kan_newid = bool(re.search('IM4-.+', kan_id))
-    if kan_newid:
-        date = kan_id.split('-')[2]
-        kan_date = '%s-%s-%s' % (date[:4], date[4:6], date[6:])
-        command = r'''gu_db_query -w "source='kanopus' and date(datetime)='%s'" -d %s''' % (kan_date, folder)
-    else:
-        command = r'''gu_db_query -w "source='kanopus' and hashless_id='%s'" -d %s''' % (kan_id, folder)
+    command = r'''gu_db_query -w %s -d %s''' % (KanCallSQL(id, type), folder)
     if geom_path is not None:
         command += ' -v %s' % geom_path
-    if type is not None:
-        command = command.replace('" ',''' and type='%s'" ''' % type.lower())
     print(command)
     os.system(command)
-    files = folder_paths(folder, 1, 'tif')
-    l = len(files)
+    kan_dirs = FolderDirs(folder)
+    l = len(kan_dirs)
     if l == 1:
-        if kan_newid:
-            kan_id = split3(files[0])[1]
-        shutil.copyfile(files[0], fullpath(pout, kan_id, 'tif'))
-        print('WRITTEN: %s' % kan_id)
-    elif l == 0:
-        print('SCENE DATA NOT FOUND: %s' % kan_id)
+        for kan_long_id in kan_dirs:
+            kan_id = '_'.join(kan_long_id.split('_')[:-1])
+            kan_raster_path = folder_paths(kan_dirs[kan_long_id],1,'tif')[0]
+            shutil.copyfile(kan_raster_path, fullpath(pout, kan_id, 'tif'))
+            print('WRITTEN: %s' % kan_id)
     else:
-        print('MULTIPLE SCENES FOUND FOR: %s - %i scenes' % (kan_id, l))
-        for i, file in enumerate(files):
-            if kan_newid:
-                kan_id = split3(file)[1]
-            shutil.copyfile(files[0], fullpath(pout, '%s_%i' % (kan_id, i+1), 'tif'))
+        kan_id = None
+        if l == 0:
+            print('SCENE DATA NOT FOUND: %s' % id)
+        else:
+            print('MULTIPLE SCENES FOUND FOR: %s - %i scenes' % (id, l))
     destroydir(folder)
-    return l
+    return kan_id
+
+def Pansharp(pan_path, ms_path, pms_path):
+    command = r'python py2pci_pansharp.py %s %s %s -d TRUE' % (pan_path, ms_path, pms_path)
+    os.system(command)
+    if os.path.exists(pms_path):
+        return pms_path
+    else:
+        print('PANSHARPENING ERROR: %s' % split3(pms_path)[1])

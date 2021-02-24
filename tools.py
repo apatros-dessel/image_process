@@ -408,6 +408,12 @@ def copydir(path_in, dir_out):
     for file in files:
         shutil.copyfile(file, fullpath(dir_out, file[len(dir_in):]))
 
+# Copy file
+def copyfile(path_in, path_out):
+    if os.path.exists(path_out):
+        if os.path.exists(path_in):
+            shutil.copyfile(path_in, path_out)
+
 # Completely destroys dir with all contained files and folders
 def destroydir(path, preserve_path = False):
     folders, files = folder_paths(path)

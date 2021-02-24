@@ -12,7 +12,12 @@ index_path = args.index_path
 final_dir = args.final_dir
 
 def ExtractKanId(line):
-    return line.split('MS')[0]+'MS.L2'
+    if re.search('KV.+L2', line):
+        return line
+    else:
+        for type in ['.MS', '.PAN', '.PMS']:
+            if type in line:
+                return line.split(type)[0]+type+'.L2'
 
 class FolderDirs(dict):
 
@@ -49,13 +54,20 @@ for line in lines:
     else:
         path0 = dout
         suredir(path0)
+    raster_fin = fullpath(final_dir,id,'tif')
+    if os.path.exists(raster_fin):
+        print('FILE EXISTS: %s' % id)
+        continue
     command = r'''gu_db_query -w "source='kanopus' and hashless_id='%s'" -d %s''' % (id, path0)
     os.system(command)
     dirs = FolderDirs(path0)
-    for folder in dirs:
-        imgid = ExtractKanId(folder)
-        raster = folder_paths(dirs[folder],1,'tif')[0]
-        raster_fin = fullpath(final_dir,imgid,'tif')
-        shutil.copyfile(raster, raster_fin)
-        print('WRITTEN: %s\n' % id)
+    if dirs:
+        for folder in dirs:
+            imgid = ExtractKanId(folder)
+            raster = folder_paths(dirs[folder],1,'tif')[0]
+            raster_fin = fullpath(final_dir,imgid,'tif')
+            copyfile(raster, raster_fin)
+            print('WRITTEN: %s\n' % id)
+    else:
+        print('EMPTY DIRS: %s\n' % id)
     destroydir(path0)

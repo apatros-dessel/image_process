@@ -152,7 +152,6 @@ class MaskTypeFolderIndex:
 
     def SaveBandsSeparated(self, subtype=''):
         full_imgs = self.Images(subtype, 'MS')
-        # scroll(full_imgs, header=subtype)
         band_params = globals()['band_params']
         if full_imgs:
             for ms_name in full_imgs:
@@ -161,7 +160,6 @@ class MaskTypeFolderIndex:
                     band_num, bandclass = band_params[channel]
                     band_name = ms_name.replace('.tif', '_%s.tif' % channel)
                     band_path = r'%s\%s\img\%s\%s' % (self.corner, bandclass, subtype, band_name)
-                    print(band_path)
                     band_folder = os.path.dirname(band_path)
                     suredir(band_folder)
                     SetImage(ms_path, band_path, band_num=1, band_reposition=[band_num], overwrite=False)
@@ -169,128 +167,74 @@ class MaskTypeFolderIndex:
         else:
             print('FULL IMAGE DATA NOT FOUND: %s' % subtype)
 
-    def GetKanPath(self, kan_name, subtype='', type=None, geom_path=None):
+    def GetKanPath(self, kan_name, subtype='', type=None, geom_path=None, use_source_pms=True):
         if type is None:
             type = GetKanTypeFromID(kan_name)
         kan_path = r'%s\%s\img\%s\%s' % (self.corner, type, subtype, kan_name)
         if os.path.exists(kan_path):
+            print('FILE EXISTS: %s' % kan_path)
             return kan_path
         else:
             kan_folder, kan_id, tif = split3(kan_path)
-            kan_id = DownloadKanopusFromS3(kan_id, kan_folder, type=type, geom_path=geom_path)
-            if kan_id:
+            suredir(kan_folder)
+            if type=='PMS' and (not use_source_pms):
+                pass
+            else:
+                kan_id = DownloadKanopusFromS3(kan_id, kan_folder, type=type, geom_path=geom_path)
+                if kan_id:
+                    kan_path = fullpath(kan_folder, kan_id, tif)
+            if os.path.exists(kan_path):
+                print('FILE EXISTS: %s' % kan_path)
                 return kan_path
             elif type=='PMS':
-                ms_path = self.GetKanPath(kan_name.replace('.PMS','.MS'), subtype=subtype, type=type, geom_path=geom_path)
-                pan_path = self.GetKanPath(kan_name.replace('.PMS','.PAN'), subtype=subtype, type=type, geom_path=geom_path)
+                ms_path = self.GetKanPath(kan_name.replace('.PMS','.MS'), subtype=subtype, type='MS', geom_path=geom_path)
+                pan_path = self.GetKanPath(kan_name.replace('.PMS','.PAN'), subtype=subtype, type='PAN', geom_path=geom_path)
                 if ms_path and pan_path:
-                    pms_path = Pansharp(pan_path, ms_path, kan_path)
+                    pms_id = split3(pan_path)[1].replace('.PAN','.PMS')
+                    pms_path = fullpath(kan_folder, pms_id, tif)
+                    # scroll((pan_path, ms_path, pms_path))
+                    pms_path = Pansharp(pan_path, ms_path, pms_path)
                     if pms_path:
                         return pms_path
 
-    def UpdateFromMS(self, bandclass='PMS', subtype=''):
+    def UpdateFromMS(self, bandclass='PMS', subtype='', use_source_pms=True):
         ms_imgs = self.Images(subtype, 'MS')
         if ms_imgs:
             errors = []
             for ms_name in ms_imgs:
                 pan_name = ms_name.replace('.MS','.%s' % bandclass)
                 geom_path = RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=tempname('json'))
-                kan_path = self.GetKanPath(pan_name, subtype=subtype, type=bandclass, geom_path=geom_path)
+                kan_path = self.GetKanPath(pan_name, subtype=subtype, type=bandclass, geom_path=geom_path, use_source_pms=use_source_pms)
                 delete(geom_path)
                 if not kan_path:
                     errors.append(ms_name)
             if errors:
                 scroll(errors, header='\nFAILED TO SAVE FILES:')
 
-    def SavePanData(self, subtype=''):
-        ms_imgs = self.Images(subtype, 'MS')
-        errors = []
-        if ms_imgs:
-            for ms_name in ms_imgs:
-                pan_name = ms_name.replace('.MS', '.PAN')
-                pan_path = r'%s\PAN\img\%s\%s' % (self.corner, subtype, pan_name)
-                if not os.path.exists(pan_path):
-                    pan_folder, pan_id, tif = split3(pan_path)
-                    suredir(pan_folder)
-                    vector_path = tempname('json')
-                    RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=vector_path)
-                    kan_id = DownloadKanopusFromS3(pan_id, pan_folder, type='PAN', geom_path=vector_path)
-                    delete(vector_path)
-                    if kan_id is None:
-                        errors.append(pan_id)
-            if errors:
-                scroll(errors, header='\nFAILED TO SAVE FILES:')
-
-    def SavePmsData(self, subtype=''):
-        ms_imgs = self.Images(subtype, 'MS')
-        if ms_imgs:
-            pms_name = pms_name.replace('.MS', '.PMS')
-            pms_path = r'%s\PMS\img\%s\%s' % (self.corner, subtype, pms_name)
-            if not os.path.exists(pms_path):
-                pms_folder, pms_id, tif = split3(pms_path)
-                suredir(pms_folder)
-                vector_path = tempname('json')
-                RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=vector_path)
-                DownloadKanopusFromS3(pms_id, pms_folder, vector_path)
-                if not os.path.exists(pms_path):
-                    self.Pansharp(subtype, pms_id)
-                delete(vector_path)
-
-    def GetScenePathFromID(self, subtype, kan_id):
-        type = GetKanTypeFromID(kan_id)
-        kan_path = r'%s\%s\img\%s\%s.tif' % (self.corner, type, subtype, kan_id)
-        if os.path.exists(kan_path):
-            print('FOUND: %s' % kan_id)
-            return kan_path
-        else:
-            suredir(r'%s\%s\img\%s' % (self.corner, type, subtype))
-            l = DownloadKanopusFromS3(kan_id, os.path.dirname(kan_path))
-            if l==1:
-                return kan_path
-            elif l>1:
-                return r'%s\%s\img\%s\%s_1.tif' % (self.corner, type, subtype, kan_id)
-            else:
-                if type=='PMS':
-                    pms_path = self.Pansharp(subtype, kan_id)
-                    if pms_path:
-                        return pms_path
-                print('SCENE NOT FOUND: %s' % kan_id)
-                pass
-
-    def Pansharp(self, subtype, pms_id):
-        pms_path = r'%s\PMS\img\%s\%s.tif' % (self.corner, subtype, pms_id)
-        if os.path.exists(pms_path):
-            return pms_path
-        ms_path = self.GetScenePathFromID(subtype, pms_id.replace('.PMS','.MS'))
-        pan_path = self.GetScenePathFromID(subtype, pms_id.replace('.PMS','.PAN'))
-        if ms_path and pan_path:
-            command = r'python py2pci_pansharp.py %s %s %s -d TRUE' % (pan_path, ms_path, pms_path)
-            os.system(command)
-            if os.path.exists(pms_path):
-                return pms_path
-            else:
-                print('PANSHARPENING ERROR: %s' % pms_id)
-        else:
-            print('CANNOT GET SOURCE DATA FOR PANSHARPENING: %s' % pms_id)
-
 def GetKanTypeFromID(kan_id):
-    if '.MS' in kan_id:
-        return 'MS'
-    elif '.PAN' in kan_id:
-        return 'PAN'
-    elif '.PMS' in kan_id:
-        return 'PMS'
+    if re.search('IM4-.+-.+', kan_id):
+        if 'PMS' in kan_id.split('_')[4]:
+            return 'PMS'
+        else:
+            return 'MS'
+    else:
+        if '.MS' in kan_id:
+            return 'MS'
+        elif '.PAN' in kan_id:
+            return 'PAN'
+        elif '.PMS' in kan_id:
+            return 'PMS'
 
 def KanCallSQL(kan_id, type=False):
     if re.search('IM4-.+-.+', kan_id):
         if type:
             date = kan_id.split('-')[2]
             kan_date = '%s-%s-%s' % (date[:4], date[4:6], date[6:])
-            return "source='kanopus' and date(datetime)='%s' and type=%s" % (kan_date, type.lower())
+            return '''"source='kanopus' and date(datetime)='%s' and type='%s'"''' % (kan_date, type.lower())
         else:
-            print('KANOPUS TYPE NOT DEFINED, CANNOT DOENLOAD DATA: %s' % kan_id)
+            print('KANOPUS TYPE NOT DEFINED, CANNOT DOWNLOAD DATA: %s' % kan_id)
     else:
-        return "source='kanopus' and hashless_id='%s'" % kan_id
+        return '''"source='kanopus' and hashless_id='%s'"''' % kan_id
 
 # Записать изображение, проверяя корректность его формата
 # Если overwrite==False, то изображения в корректном формате пропускаются
@@ -375,7 +319,7 @@ def DownloadKanopusFromS3(id, pout, type=None, geom_path = None):
     l = len(kan_dirs)
     if l == 1:
         for kan_long_id in kan_dirs:
-            kan_id = '_'.join(kan_long_id.split('_')[:-1])
+            kan_id = '_'.join(kan_long_id.split('_')[:-1])+'.L2'
             kan_raster_path = folder_paths(kan_dirs[kan_long_id],1,'tif')[0]
             shutil.copyfile(kan_raster_path, fullpath(pout, kan_id, 'tif'))
             print('WRITTEN: %s' % kan_id)
@@ -390,8 +334,11 @@ def DownloadKanopusFromS3(id, pout, type=None, geom_path = None):
 
 def Pansharp(pan_path, ms_path, pms_path):
     command = r'python py2pci_pansharp.py %s %s %s -d TRUE' % (pan_path, ms_path, pms_path)
+    command = command.replace('&','!!!!!!!')
+    print(command)
     os.system(command)
     if os.path.exists(pms_path):
+        print('PANSHARPENING SUCCESSFUL: %s' % split3(pms_path)[1])
         return pms_path
     else:
         print('PANSHARPENING ERROR: %s' % split3(pms_path)[1])

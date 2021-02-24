@@ -3008,7 +3008,8 @@ def RasterGeometry(ds_, reference=None):
     else:
         geom = ogr.CreateGeometryFromWkt(wkt, reference)
     if reference is None:
-        print('Raster geometry reference not found, using raster projection data')
+        # print('Raster geometry reference not found, using raster projection data')
+        pass
     elif srs!=reference:
         trans = osr.CoordinateTransformation(srs, reference)
         geom.Transform(trans)
@@ -3136,11 +3137,11 @@ def VectorMask(raster_in, mask_in, colname=None):
 
 def RasterCentralPoint(ds_, reference=None, vector_path=None):
     if ds_:
-        if reference is None:
-            reference = get_srs(ds_)
         geom = RasterGeometry(ds_, reference)
         center_geom = geom.Centroid()
         if vector_path:
+            if reference is None:
+                reference = get_srs(ds_)
             json(vector_path, srs = reference)
             ds_out, lyr_out = get_lyr_by_path(vector_path, True)
             feat_defn = lyr_out.GetLayerDefn()

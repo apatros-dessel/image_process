@@ -120,18 +120,6 @@ codes = {
 }
 objidval = 0
 
-def WriteLog(logstring, logpath = None):
-    datestring = str(datetime.now()).replace(' ', '_').replace(':', '-')
-    datelogstring = '%s %s\n' % (datestring, logstring)
-    if logpath is None:
-        logpath = globals().get('logpath')
-        if logpath is None:
-            logpath = tempname('txt')
-            globals()['logpath'] = logpath
-    style = ('w', 'a')[os.path.exists(logpath)]
-    with open(logpath, style) as txt:
-        txt.write(datelogstring)
-
 class FolderDirs(dict):
 
     def __init__(self, folder, miss_tmpt=None):
@@ -173,7 +161,6 @@ class MaskSubtypeFolderIndex(dict):
     def FillFromDisk(self, corner, subtype):
         self.corner = corner
         self.subtype = subtype
-        WriteLog('NEW SubtypeIndex %s %s' % (corner, subtype))
         datacats = globals()['datacats']
         for datacat in datacats:
             self.Fill(datacat)
@@ -185,14 +172,12 @@ class MaskSubtypeFolderIndex(dict):
             datacatpath = (r'%s/%s/%s' % (self.corner, datacat, self.subtype)).rstrip(r'\/')
             if os.path.exists(datacatpath):
                 self[datacat] = {}
-                WriteLog('NEW SubtypeIndex %s %s %s' % (self.corner, self.subtype, datacat))
                 files = FolderFiles(datacatpath, miss_tmpt='&', type=datacats[datacat])
                 # scroll(files)
                 for name in files:
                     if not name in self[datacat]:
                         datapath = files[name]
                         self[datacat][name] = datapath
-                        WriteLog('NEW SubtypeIndex %s %s %s %s %s' % (self.corner, self.subtype, datacat, name, datapath))
         else:
             print('WRONG DATACAT: %s' % datacat)
 

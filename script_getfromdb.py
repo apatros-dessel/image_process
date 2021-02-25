@@ -12,7 +12,7 @@ index_path = args.index_path
 final_dir = args.final_dir
 
 def ExtractKanId(line):
-    if re.search('KV.+L2', line):
+    if re.search('^KV.+L2$', line):
         return line
     else:
         for type in ['.MS', '.PAN', '.PMS']:

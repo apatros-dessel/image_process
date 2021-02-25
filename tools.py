@@ -410,7 +410,7 @@ def copydir(path_in, dir_out):
 
 # Copy file
 def copyfile(path_in, path_out):
-    if os.path.exists(path_out):
+    if not os.path.exists(path_out):
         if os.path.exists(path_in):
             shutil.copyfile(path_in, path_out)
 

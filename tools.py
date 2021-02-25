@@ -1101,3 +1101,10 @@ def Do(func, *args, **kwargs):
             return func(*args, **kwargs)
         except:
             print('Do() ERROR')
+
+def Separate(line, char, num=1):
+    parts = line.split(char)
+    if len(parts)>=(num):
+        return char.join(parts[:num]),char.join(parts[num:])
+    else:
+        return line, None

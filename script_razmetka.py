@@ -718,6 +718,7 @@ scroll(input, header='\nTotal input:')
 # Создавать маски из найденных пар
 t = datetime.now()
 msk_end_values = {}
+
 try:
     if not (re.search('^IMCH\d+$', imgid) or re.search('^IM[0-9RGBN]+$', imgid)):
         raise Exception('\n  WRONG imgid: {}, "IM[0-9RGBN]+" or "IMCH\d+" is needed\n'.format(imgid))
@@ -747,13 +748,17 @@ try:
                     set_quicklook(img_out, vec_in, ql_img_out, ql_msk_out, pixelsize=size, method=gdal.GRA_Average,
                                   overwrite=overwrite)
             if not msk_out.startswith('ERROR'):
-                if replace_vals:
+                if '&full_cloud' in img_in:
+                    replace = {0:201}
+                else:
+                    replace = replace_vals
+                if replace is not None:
                     try:
-                        ReplaceValues(msk_out, replace_vals)
+                        ReplaceValues(msk_out, replace)
                         input[neuroid]['report'] = 'SUCCESS'
                         if quickpaths:
                             for size in quickpaths:
-                                ReplaceValues(quickpaths[size][1], replace_vals)
+                                ReplaceValues(quickpaths[size][1], replace)
                     except:
                         print('Error replacing values: %s' % neuroid)
                         input[neuroid]['report'] = 'ERROR: Mask names not replaced'

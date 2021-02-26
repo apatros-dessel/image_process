@@ -42,8 +42,8 @@ multiply_band = dictstr(args.multiply_band, toint=True)
 input_from_report = args.input_from_report
 empty_mask = boolstr(args.empty)
 
-if re.search('^IM[RGBN]$', imgid) and (band_reposition is None):
-    band_reposition = {'R':[1],'G':[2],'B':[3],'N':[4]}[imgid[-1]]
+if re.search('^IM[RGBNP]$', imgid) and (band_reposition is None):
+    band_reposition = {'R':[1],'G':[2],'B':[3],'N':[4],'P':[1]}[imgid[-1]]
 
 split_vector = False
 if vin:
@@ -518,7 +518,7 @@ def check_image(img_in, neuro, multiply = None):
     img_type = neuro.split('__')[0].split('-')[0]
     if re.search(r'^IM\d+$', img_type):
         metaBandNum = int(img_type[2:])
-    elif re.search(r'IM[RGBN]$', img_type):
+    elif re.search(r'IM[RGBNP]$', img_type):
         metaBandNum = 1
     elif re.search(r'IMCH\d+$', img_type):
         metaBandNum = int(img_type[4:])

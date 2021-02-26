@@ -470,7 +470,7 @@ def band2raster(bandpath, t_raster, method, exclude_nodata = True, enforce_nodat
     s_raster = gdal.Open(s_raster_path)
     s_proj = s_raster.GetProjection()
     s_trans = s_raster.GetGeoTransform()
-    print(s_trans)
+    # print(s_trans)
     t_proj = t_raster.GetProjection()
     t_trans = t_raster.GetGeoTransform()
     t_shape = (t_raster.RasterYSize, t_raster.RasterXSize)

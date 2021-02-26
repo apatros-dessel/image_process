@@ -123,13 +123,14 @@ objidval = 0
 class FolderDirs(dict):
 
     def __init__(self, folder, miss_tmpt=None):
-        for name in os.listdir(folder):
-            path = fullpath(folder, name)
-            if os.path.isdir(path):
-                if miss_tmpt:
-                    if re.search(miss_tmpt, name):
-                        continue
-                self[name] = path
+        if os.path.exists(folder):
+            for name in os.listdir(folder):
+                path = fullpath(folder, name)
+                if os.path.isdir(path):
+                    if miss_tmpt:
+                        if re.search(miss_tmpt, name):
+                            continue
+                    self[name] = path
 
 def FolderFiles(folder, miss_tmpt=None, type=None):
     dict_ = {}
@@ -297,6 +298,22 @@ class MaskTypeFolderIndex:
             if os.path.exists(vec_path):
                 return vec_path
         print('''VECTOR PATH NOT FOUND: %s with dataclass='%s' and subtype='%s' ''' % (name, dataclass, subtype))
+
+    def ReprojectPanToMs(self, folder, subtype = ''):
+        ms_imgs = self.Images(subtype, 'MS')
+        if ms_imgs:
+            for ms_name in ms_imgs:
+                ms_path = ms_imgs[ms_name]
+                geom_path = RasterCentralPoint(gdal.Open(ms_path), reference=None, vector_path=tempname('json'))
+                pan_id = ms_name.replace('.MS', '.PAN')
+                pan_path = self.GetKanPath(pan_id, subtype=subtype, type='PAN', geom_path=geom_path)
+                delete(geom_path)
+                if pan_path:
+                    output_path = fullpath(folder, ms_name)
+                    output_dir = os.path.dirname(output_path)
+                    suredir(output_dir)
+                    raster2raster([(pan_path, 1)], output_path, path2target=ms_path, method=gdal.GRA_CubicSpline,
+                                  enforce_nodata=0, compress='DEFLATE', overwrite=False)
 
     def GetRasterMask(self, name, target, dataclass=['shp_auto', 'shp_hand'], colname='gridcode', subtype='',
                       bandclass=None, use_source_pms=True, quicksizes=None, train_folder=None, sat='kanopus',

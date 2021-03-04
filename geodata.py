@@ -3150,3 +3150,28 @@ def RasterCentralPoint(ds_, reference=None, vector_path=None):
             lyr_out.SetFeature(feat)
             ds_out = None
         return vector_path
+
+def GetAttrVals(shp_path, attr, func=None):
+    din, lyr = get_lyr_by_path(shp_path)
+    vals = []
+    for feat in lyr:
+        val = feat.GetField(attr)
+        if val is not None:
+            if func is not None:
+                val = func(val)
+            if not (val in vals):
+                vals.append(val)
+    vals.sort()
+    return vals
+
+def ReplaceAttrVals(shp_path, attr, replace, func=None):
+    din, lyr = get_lyr_by_path(shp_path, 1)
+    for feat in lyr:
+        val = feat.GetField(attr)
+        if func is not None:
+            val = func(val)
+        if val in replace:
+            new_val = replace[val]
+            feat.SetField(attr, new_val)
+            lyr.SetFeature(feat)
+    din = None

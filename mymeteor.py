@@ -44,12 +44,12 @@ meteor_bandpaths = OrderedDict(
 
 # Gets Meteor file names as ordered dictionary
 def GetFiles(id):
-    if 'MSU100' in id:
-        return 'msu100'
-    elif 'MSU50' in id:
-        return 'msu50'
+    if 'KMSS100' in id:
+        return ['msu100']
+    elif 'KMSS50' in id:
+        return ['msu50']
     elif 'MSU-MR' in id:
-        return 'msu-mr'
+        return ['msu-mr']
 
 # Gets Meteor file names as ordered dictionary
 def GetBandpaths(file):
@@ -66,7 +66,8 @@ def metadata(path):
 
     meta = scene_metadata('MET')
 
-    meta.container['meta'] = meta = xml2tree(path)
+    meta.container = {}
+    meta.container['meta'] = cur_meta = xml2tree(path)
     meta.container['dc'] = xml2tree(path.replace('.MD','.DC'))
     meta.container['qa'] = xml2tree(path.replace('.MD', '.QA'))
 
@@ -78,7 +79,7 @@ def metadata(path):
 
     meta.bandpaths =    GetBandpaths(meta.files[0])
     meta.location =     ''.join(meta.id.split('_')[1:3])
-    meta.datetime =     get_date_from_string(get_from_tree(meta, 'acquisitionDate'))
+    meta.datetime =     get_date_from_string(get_from_tree(cur_meta, 'acquisitionDate'))
 
     meta.namecodes.update(
         {
@@ -92,7 +93,7 @@ def metadata(path):
     meta.write_time_codes(meta.datetime)
 
     # Optional:
-    # meta.datamask =        # path to vector data
+    meta.datamask =        r'%s.GBD.json' % meta.id
     # meta.cloudmask =      # path to vector data
     meta.quicklook =        r'%s.QL.jpg' % meta.id
 
@@ -106,26 +107,22 @@ def set_cover_meta(feat, meta):
         feat.SetField('id', meta.id)
         feat.SetField('id_s', meta.name('[location]'))
         feat.SetField('id_neuro', meta.name('[fullsat]-[date]-[location]-[lvl]'))
-        feat.SetField('datetime', get_from_tree(metadata, 'EARLIESTACQTIME'))
-        feat.SetField('clouds', float(get_from_tree(metadata, 'CLOUDCOVER'))*100)
-        feat.SetField('sun_elev', get_from_tree(metadata, 'MEANSUNEL'))
-        feat.SetField('sun_azim', get_from_tree(metadata, 'MEANSUNAZ'))
+        feat.SetField('datetime', get_from_tree(metadata, 'acquisitionDate'))
+        feat.SetField('clouds', None)
+        feat.SetField('sun_elev', get_from_tree(metadata, 'illuminationElevationAngle'))
+        feat.SetField('sun_azim', get_from_tree(metadata, 'illuminationAzimuthAngle'))
         feat.SetField('sat_id', meta.name('[fullsat]'))
-        feat.SetField('sat_view', get_from_tree(metadata, 'MEANOFFNADIRVIEWANGLE'))
-        feat.SetField('sat_azim', None)
-        if meta.sat == 'WV01':
-            feat.SetField('type', 'PAN')
-            feat.SetField('channels', 1)
-        else:
-            feat.SetField('type', 'MS')
-            feat.SetField('channels', 4)
+        feat.SetField('sat_view', get_from_tree(metadata, 'satelliteViewAngle'))
+        feat.SetField('sat_azim', get_from_tree(metadata, 'azimuthAngle'))
+        feat.SetField('type', 'MS')
         feat.SetField('format', '16U')
-        feat.SetField('rows', get_from_tree(metadata, 'NUMROWS'))
-        feat.SetField('cols', get_from_tree(metadata, 'NUMCOLUMNS'))
-        feat.SetField('epsg_dat', '326%i' % get_from_tree(metadata, 'MAPZONE'))
+        feat.SetField('rows', get_from_tree(metadata, 'rowCount')[0])
+        feat.SetField('cols', get_from_tree(metadata, 'columnCount')[0])
+        zonestr = re.search(r'UTM zone \d+[NS]', get_from_tree(metadata, 'wktString')).group()[-3:]
+        feat.SetField('epsg_dat', int('32'+{'N':'6','S':'7'}[zonestr[-1]]+zonestr[:-1]))
         feat.SetField('u_size', 'meter')
-        feat.SetField('x_size', get_from_tree(metadata, 'COLSPACING'))
-        feat.SetField('y_size', get_from_tree(metadata, 'ROWSPACING'))
-        feat.SetField('level', get_from_tree(metadata, 'PRODUCTLEVEL'))
+        feat.SetField('x_size', get_from_tree(metadata, 'resolutionX'))
+        feat.SetField('y_size', get_from_tree(metadata, 'resolutionY'))
+        feat.SetField('level', get_from_tree(metadata, 'productType'))
         feat.SetField('area', 0.0)
     return feat

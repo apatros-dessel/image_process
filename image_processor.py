@@ -7,7 +7,7 @@ from tools import *
 import geodata
 
 # import mylandsat
-import myplanet, mykanopus, mysentinel, myresursp, mydg, myskysat, myrapideye, mypleiades
+import myplanet, mykanopus, mysentinel, myresursp, mydg, myskysat, myrapideye, mypleiades, mymeteor
 import mylandsat2 as mylandsat
 
 # Constants
@@ -24,6 +24,7 @@ metalib = {
     'SS': myskysat,
     'RYE': myrapideye,
     'PLD': mypleiades,
+    'MET': mymeteor,
 }
 
 # A dictionary of metadata filenames templates
@@ -179,7 +180,7 @@ class process(object):
                             self.add_scene(newpath, imsys, skip_duplicates=skip_duplicates)
                         except:
                             print('Error making scene from list: %s' % newpath)
-                            # self.add_scene(newpath, imsys, skip_duplicates=skip_duplicates)
+                            self.add_scene(newpath, imsys, skip_duplicates=skip_duplicates)
                             errors.append(newpath)
 
         if len(errors) > 0:
@@ -458,8 +459,8 @@ class scene:
                     # print(v_crs, t_crs)
                     coordTrans = geodata.osr.CoordinateTransformation(v_crs, t_crs)
                     geom.Transform(coordTrans)
-                if sys.version.startswith('3'):
-                    geom = geodata.changeXY(geom)
+                # if sys.version.startswith('3'):
+                    # geom = geodata.changeXY(geom)
             feat.SetGeometry(geom)
         feat = globals()['metalib'].get(self.imsys).set_cover_meta(feat, self.meta)
         if self.imsys=='KAN' and 'NP' in self.meta.id:

@@ -598,9 +598,9 @@ def get_date_from_string(date_str):
     year = int(date_str[:4])
     month = int(date_str[5:7])
     day = int(date_str[8:10])
-    hour = int(date_str[11:13])
-    minute = int(date_str[14:16])
-    second = float(re.search(r'\d+\.\d+', date_str[17:-1]).group())
+    # hour = int(date_str[11:13])
+    # minute = int(date_str[14:16])
+    # second = float(re.search(r'\d+\.\d+', date_str[17:-1]).group())
     return datetime(year, month, day)
 
 # Datetime object from string datetime as YYYY-MM-DDThh:mm:ss

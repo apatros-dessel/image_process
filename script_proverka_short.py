@@ -6,9 +6,15 @@ parser = argparse.ArgumentParser()
 parser.add_argument('path', help='Путь для поиска исходных данных')
 parser.add_argument('-x', default=None, dest='xls_name', help='Название таблицы Excel')
 parser.add_argument('-t', default=None, dest='type', help='Тип данных (KAN или RSP)')
+parser.add_argument('-b', default='MS', dest='band_type', help='Тип данных (KAN или RSP)')
+parser.add_argument('-o', default='report.xls', dest='xls_out', help='Название выходного файла')
+parser.add_argument('--pathmark', default=None, dest='pathmark', help='Маркер пути к файлу')
 args = parser.parse_args()
 type_tmpt = {'KAN':'KV','RSP':'RP'}.get(args.type.upper())
 xls_name = args.xls_name
+xls_out = args.xls_out
+band_type = args.band_type
+pathmark = args.pathmark
 path = args.path
 
 def CheckImage(img_path):
@@ -47,6 +53,11 @@ end = OrderedDict()
 
 for file in files:
     name = os.path.basename(file)
+    if pathmark:
+        if not pathmark in file:
+            continue
+    if not band_type in name:
+        continue
     if type_tmpt:
         if re.search(type_tmpt,name) is None:
             continue
@@ -61,4 +72,6 @@ for file in files:
     report['mark'] = result
     end[file] = report
 
-dict_to_xls(fullpath(path, 'report.xls'), end)
+saving = Confirmation('Проверка окончена, сохранить результаты (y/n)?')
+if saving:
+    dict_to_xls(fullpath(path, xls_out), end)

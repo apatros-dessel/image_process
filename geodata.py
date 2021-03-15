@@ -3140,6 +3140,22 @@ def VectorMask(raster_in, mask_in, colname=None):
     delete(mask_path)
     return mask_arr
 
+def CreateDataMask(raster_in, mask_out, value=1, nodata=0, bandnum=1):
+    mask_ds = ds(mask_out, copypath=raster_in, options={'bandnum': 1, 'compress': 'DEFLATE', 'nodata': nodata}, editable=True)
+    raster_ds = gdal.Open(raster_in)
+    if raster_ds is None:
+        print('CANNOT GET MASK FROM %s' % raster_in)
+    else:
+        band = raster_ds.GetRasterBand(int(bandnum))
+        if band is None:
+            print('BAND %s NOT FOUND FOR %s' % (bandnum, raster_in))
+        else:
+            arr = band.ReadAsArray()
+            arr[arr==band.GetNoDataValue()] = nodata
+            arr[arr!= band.GetNoDataValue()] = value
+            mask_ds.GetRasterBand(1).WriteArray(arr)
+            mask_ds = None
+
 def RasterCentralPoint(ds_, reference=None, vector_path=None):
     if ds_:
         geom = RasterGeometry(ds_, reference)

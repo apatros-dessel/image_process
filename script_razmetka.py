@@ -585,7 +585,7 @@ def repair_img(img_in, img_out, count, band_order=None, multiply = None):
     return img_out
 
 # Создать растровую маску на основе вектора
-def set_mask(img_in, vec_in, msk_out, overwrite=False):
+def set_mask(img_in, vec_in, msk_out, overwrite=False, empty_value=0):
     if check_exist(msk_out, ignore=overwrite):
         return msk_out
     if os.path.exists(vec_in):
@@ -603,16 +603,17 @@ def set_mask(img_in, vec_in, msk_out, overwrite=False):
             return 'ERROR: Rasterizing error'
     else:
         try:
-            ds(msk_out, copypath=img_in, options={'bandnum': 1, 'dt': 1, 'compress': 'DEFLATE'}, overwrite=overwrite)
+            # ds(msk_out, copypath=img_in, options={'bandnum': 1, 'dt': 1, 'compress': 'DEFLATE'}, overwrite=overwrite)
+            CreateDataMask(img_in, msk_out, value=empty_value, nodata=0, bandnum=1)
             return msk_out
         except:
             print('Rasterizing error: %s %s' % (img_in, vec_in))
             return 'ERROR: Rasterizing error'
 
 # Создать загрублённые снимки и растровые маски на основе вектора
-def set_quicklook(img_in, vec_in, ql_out, msk_out, pixelsize=None, method=gdal.GRA_Average, overwrite=True):
+def set_quicklook(img_in, vec_in, ql_out, msk_out, pixelsize=None, method=gdal.GRA_Average, empty_value=0, overwrite=True):
     MakeQuicklook(img_in, ql_out, epsg=None, pixelsize=pixelsize, method=method, overwrite=overwrite)
-    set_mask(ql_out, vec_in, msk_out, overwrite=overwrite)
+    set_mask(ql_out, vec_in, msk_out, empty_value=empty_value, overwrite=overwrite)
 
 def size2str(size):
     strsize = str(size).strip(' 0')
@@ -740,20 +741,25 @@ try:
             img_out, msk_out, quickpaths = paths
             img_in = input[neuroid]['r']
             vec_in = input[neuroid].get('v', '')
+            if '&full_cloud' in img_in:
+                empty_value = 201
+            else:
+                empty_value = 0
             img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=band_reposition, multiply=multiply_band)
             input[neuroid]['img_out'] = img_out
-            msk_out = set_mask(img_in, vec_in, msk_out, overwrite=overwrite)
+            msk_out = set_mask(img_in, vec_in, msk_out, empty_value=empty_value, overwrite=overwrite)
             input[neuroid]['msk_out'] = msk_out
             if quickpaths:
                 for size in quickpaths:
                     ql_img_out, ql_msk_out = quickpaths[size]
                     set_quicklook(img_out, vec_in, ql_img_out, ql_msk_out, pixelsize=size, method=gdal.GRA_Average,
-                                  overwrite=overwrite)
+                                  empty_value=empty_value, overwrite=overwrite)
             if not msk_out.startswith('ERROR'):
-                if '&full_cloud' in img_in:
-                    replace = {0:201}
-                else:
-                    replace = replace_vals
+                replace = replace_vals
+                # if '&full_cloud' in img_in:
+                    # replace = {0:201}
+                # else:
+                    # replace = replace_vals
                 if replace is not None:
                     try:
                         ReplaceValues(msk_out, replace)

@@ -880,6 +880,8 @@ class scene_metadata:
 # Searches filenames according to template and returns a list of full paths to them
 def folder_paths(path, files = False, extension = None, id_max=100000, filter_folder=[]):
     # templates_list = listoftype(templates_list, str, export_tuple=True)
+    if extension is not None:
+        extensions = obj2list(extension)
     if os.path.exists(path):
         if not os.path.isdir(path):
             path = os.path.split(path)[0]
@@ -899,8 +901,10 @@ def folder_paths(path, files = False, extension = None, id_max=100000, filter_fo
                 export_files.extend(file_)
             else:
                 for f in file_:
-                    if f.lower().endswith('.{}'.format(extension.lower())):
-                        export_files.append(f)
+                    for extension in extensions:
+                        if f.lower().endswith('.{}'.format(extension.lower())):
+                            export_files.append(f)
+                            break
         id += 1
     if len(path_list) > id_max:
         raise Exception('Number of folder exceeds maximum = {}'.format(id_max))

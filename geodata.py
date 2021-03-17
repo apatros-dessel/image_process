@@ -2325,20 +2325,20 @@ def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, da
     t_ds = ds(path=path_out, copypath=path_in_raster, options=options, editable=True, overwrite=overwrite)
 
     if value_colname is None:
-        rasterize_options = ['BURN_VALUES=1']
+        rasterize_options = []
     else:
         rasterize_options = [r'ATTRIBUTE={}'.format(value_colname)]
     if value_colname_sec is not None:
         rasterize_options_sec = [r'ATTRIBUTE={}'.format(value_colname_sec)]
         try:
-            s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, burn_values=[burn_value], options=rasterize_options_sec)
+            s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, burn_values=[int(burn_value)], options=rasterize_options_sec)
             arr_sec = t_ds.GetRasterBand(1).ReadAsArray()
         except:
             print('RASTERIZING ERROR SEC: %s' % path_out)
             arr_sec = None
     try:
         # s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, burn_values=[burn_value], options = ['attribute = gridcode']) # This code raises warning if the layer does not have a projection definition
-        s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, burn_values = [burn_value], options = rasterize_options)
+        s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, burn_values = [int(burn_value)], options = rasterize_options)
     except:
         # s = gdal.RasterizeLayer(t_ds, [1], lyr_in_vector, options=['gridcode', '', ''])
         print('RASTERIZING ERROR: %s' % path_out)

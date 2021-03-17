@@ -1,22 +1,17 @@
 from geodata import *
 
-xls = r'e:\rks\razmetka\set050__20210304__kanopus_mist_cloud_shadow_surface\quicklook\30\report_2021-03-04_11-30-05.481744.xls'
+path = r'e:\rks\razmetka_source\dgready'
+folders = folder_paths(path)[0][1:]
 
-xls_dict = xls_to_dict(xls)
-keys = list(xls_dict.keys())
-files = folder_paths(r'e:\rks\razmetka\set050__20210304__kanopus_mist_cloud_shadow_surface',1,'tif')
-
-for key in keys:
-    vals = xls_dict[key]
-    msk_vals = vals['msk_values'].split(' ')
-    for i in ('203','2031','2032','2033'):
-        if i in msk_vals:
-            xls_dict.pop(key)
-            baseid = '-'.join(key.split('-')[1:])
-            for file in files:
-                if baseid in file:
-                    delete(file)
-            break
-
-# scroll(flist(list(xls_dict.values()), lambda x: [x['msk_values'].split(' ')]), lower=len(xls_dict))
-dict_to_xls(r'e:\rks\razmetka\set050__20210304__kanopus_mist_cloud_shadow_surface\quicklook\30\report_2021-03-10.xls', xls_dict)
+for folder in folders:
+    tifs = folder_paths(folder,1,'tif')
+    if len(tifs)==1:
+        tif = tifs[0]
+        name = split3(tif)[1]
+        files = folder_paths(folder,1)
+        for file in files:
+            if file!=tif:
+                f,n,e = split3(file)
+                end_file = fullpath(f,name,e)
+                print(file, end_file)
+                os.rename(file, end_file)

@@ -18,8 +18,9 @@ parser.add_argument('--overwrite', default=False, dest='overwrite', help='Зам
 parser.add_argument('--replace', default=None, dest='replace_vals', help='Изменить значения в конечной маске в соответствии со словарём, если None, то замены не производится')
 parser.add_argument('--band_reposition', default=None, dest='band_reposition', help='Изменить порядок каналов в конечном растре, если None, то порядок сохраняется')
 parser.add_argument('--multiply_band', default=None, dest='multiply_band', help='Перемножить заданные каналы на фиксированный множитель')
-parser.add_argument('--dg_metadata', default=None, dest='metadata_path', help='Путь к хранению метаданных DG')
+parser.add_argument('--dg_metadata', default=None, dest='dg_metadata', help='Путь к хранению метаданных DG')
 parser.add_argument('--xls', default=None, dest='input_from_report', help='Путь к таблице xls с путями к источникам данных, если None, то пары снимок-вектор строятся заново. Менять источники можно вручную, формат xlsx не читает')
+parser.add_argument('--burn_value', default=None, dest='burn_value', help='Единое значение для всех масок')
 parser.add_argument('pin', help='Путь к исходным файлам, растровым или растровым и векторным')
 parser.add_argument('pout', help='Путь для сохранения конечных файлов')
 parser.add_argument('maskid', help='Тип масок')
@@ -42,13 +43,14 @@ replace_vals = dictstr(args.replace_vals, toint=True)
 band_reposition = liststr(args.band_reposition, toint=True)
 multiply_band = dictstr(args.multiply_band, toint=True)
 dg_metadata = args.dg_metadata
+burn_value = args.burn_value
 input_from_report = args.input_from_report
 empty_mask = boolstr(args.empty)
 
 if dg_metadata is not None:
-    dg_source = process().input(dg_metadata, imsys_list=['DG'])
+    dg_files = folder_paths(dg_metadata,1,'tif')
 else:
-    dg_source = None
+    dg_files = None
 
 if re.search('^IM[RGBNP]$', imgid) and (band_reposition is None):
     band_reposition = {'R':[1],'G':[2],'B':[3],'N':[4],'P':[1]}[imgid[-1]]
@@ -67,6 +69,7 @@ satellite_types = {
     'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs'},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet'},
     'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat'},
+    'DigitalGlobe': {'tmpt': r'WV\d+', 'folder': 'dg'},
 }
 
 composite_types = {
@@ -277,20 +280,31 @@ def parse_landsat8(id):
 def parse_dg(id):
     vals = id.split('_')
     datetime, sulvl, loc1 = vals[0].split('-')
-    loc = ''.join([loc1,vals[1]],vals[2])
+    loc = ''.join([loc1,vals[1],vals[2]])
     months = {'JAN':'01','FEB':'02','MAR':'03','APR':'04','MAY':'05','JUN':'06','JUL':'07','AUG':'08','SEP':'09','OCT':'10','NOV':'11','DEC':'12'}
     date = '20%s%s%s' % (datetime[:2],months[datetime[2:5]],datetime[5:7])
     time = datetime[7:]
     return date, time, loc
 
-def GetMetaDG(id, dg_source):
-    scene = dg_source.get_scene(id)
-    if scene is None:
-        print('Scene not found: %s' % id)
-        return None
-    satid = scene.meta.name('[sat]')
-    lvl = scene.meta.name('[lvl]')
-    return satid, lvl
+def GetMetaDG(id):
+    files = globals()['dg_files']
+    if not files:
+        print('DG files dir is absent')
+    # names = flist(files, lambda x: split3(x)[1])
+    for file in files:
+        f,n,e = split3(file)
+        if id in n:
+            dg_proc = process().input(f)
+            # scroll(dg_proc.get_ids(), header=id)
+            dg_scene = dg_proc.scenes[0]
+            satid = dg_scene.meta.name('[sat]')
+            date = dg_scene.meta.name('[date]')
+            time = dg_scene.meta.name('[time]')
+            loc = dg_scene.meta.name('[location]')
+            lvl = dg_scene.meta.name('[lvl]')
+            # print(satid, date, time, loc, lvl)
+            return satid, date, time, loc, lvl
+    # print('DG file not found: %s' % id)
 
 # Расширенная функция расчёта neuroid, учитывающая готовые neuroid и названия разновременных композитов
 def neuroid_extended(id):
@@ -339,18 +353,13 @@ def get_neuroid(id):
         satid, date, time, loc, lvl = parse_sentinel1(id)
     elif re.search(r'^LC08_', id):
         satid, date, loc, lvl = parse_landsat8(id)
-    elif re.search(r'/d+/s/+/d+-S2AS-/d+0_/d/d_P/d+', id):
-        dg_source = globals()['dg_source']
-        if dg_source is None:
-            print('DG source not set, cannot get neuroid')
-            return None
-        date, time, loc = parse_dg(id)
-        dg_id = re.search(r'^.+_/d/d_P/d+', id).group()
-        dg_metavals = GetMetaDG(dg_id, dg_source)
+    elif re.search(r'.+-S2AS.+_P\d+', id):
+        dg_id = re.search(r'^.+P\d+', id).group()
+        dg_metavals = GetMetaDG(dg_id)
         if dg_metavals is None:
             return None
         else:
-            satid, lvl = dg_metavals
+            satid, date, time, loc, lvl = dg_metavals
     else:
         print('Unknown imsys for: %s' % id)
         return None
@@ -435,8 +444,12 @@ def get_pair_paths(pin, pms = False):
         paths = folder_paths(folder, 1)
         for path in paths:
             f,n,e = split3(path)
+            if not e in ['shp', 'json', 'geojson', 'tif']:
+                continue
             id = neuroid_extended(n)
             if id is None:
+                if e=='tif':
+                    print(path)
                 continue
             if pms_exit(id, pms):
                 continue
@@ -508,7 +521,7 @@ def get_paths(pout, id, maskid, imgid, quicksizes):
         if fail:
             print('Unknown time composite for %s')
             return None
-    elif re.search(r'^IM[0-9RGBN]+-.+-\d+-.+-.+$', id) and re.search('^IM[0-9RGBN]+$', imgid):
+    elif re.search(r'^IM[0-9RGBNP]+-.+-\d+-.+-.+$', id) and re.search('^IM[0-9RGBNP]+$', imgid):
         for satid in satellite_types:
             if re.search(satellite_types[satid]['tmpt'], id.split('-')[1]):
                 sat_folder = satellite_types[satid]['folder']
@@ -624,7 +637,7 @@ def repair_img(img_in, img_out, count, band_order=None, multiply = None):
     return img_out
 
 # Создать растровую маску на основе вектора
-def set_mask(img_in, vec_in, msk_out, overwrite=False, empty_value=0):
+def set_mask(img_in, vec_in, msk_out, overwrite=False, empty_value=0, burn_value=None):
     if check_exist(msk_out, ignore=overwrite):
         return msk_out
     if os.path.exists(vec_in):
@@ -634,7 +647,10 @@ def set_mask(img_in, vec_in, msk_out, overwrite=False, empty_value=0):
         if not os.path.exists(vec_reprojected):
             vec_reprojected = vec_in
         try:
-            RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
+            if burn_value is None:
+                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
+            else:
+                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, burn_value=burn_value, compress=compress, overwrite=overwrite)
             return msk_out
         except:
             # RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
@@ -650,9 +666,9 @@ def set_mask(img_in, vec_in, msk_out, overwrite=False, empty_value=0):
             return 'ERROR: Rasterizing error'
 
 # Создать загрублённые снимки и растровые маски на основе вектора
-def set_quicklook(img_in, vec_in, ql_out, msk_out, pixelsize=None, method=gdal.GRA_Average, empty_value=0, overwrite=True):
+def set_quicklook(img_in, vec_in, ql_out, msk_out, pixelsize=None, method=gdal.GRA_Average, empty_value=0, burn_value=None, overwrite=True):
     MakeQuicklook(img_in, ql_out, epsg=None, pixelsize=pixelsize, method=method, overwrite=overwrite)
-    set_mask(ql_out, vec_in, msk_out, empty_value=empty_value, overwrite=overwrite)
+    set_mask(ql_out, vec_in, msk_out, empty_value=empty_value, burn_value=burn_value, overwrite=overwrite)
 
 def size2str(size):
     strsize = str(size).strip(' 0')
@@ -762,8 +778,8 @@ t = datetime.now()
 msk_end_values = {}
 
 try:
-    if not (re.search('^IMCH\d+$', imgid) or re.search('^IM[0-9RGBN]+$', imgid)):
-        raise Exception('\n  WRONG imgid: {}, "IM[0-9RGBN]+" or "IMCH\d+" is needed\n'.format(imgid))
+    if not (re.search('^IMCH\d+$', imgid) or re.search('^IM[0-9RGBNP]+$', imgid)):
+        raise Exception('\n  WRONG imgid: {}, "IM[0-9RGBNP]+" or "IMCH\d+" is needed\n'.format(imgid))
     for i, neuroid in enumerate(input):
         if (neuroid is None):
             print('  %i -- NEUROID ERROR: %s\n' % (i, str(neuroid)))
@@ -786,7 +802,7 @@ try:
                 empty_value = 0
             img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=band_reposition, multiply=multiply_band)
             input[neuroid]['img_out'] = img_out
-            msk_out = set_mask(img_in, vec_in, msk_out, empty_value=empty_value, overwrite=overwrite)
+            msk_out = set_mask(img_in, vec_in, msk_out, empty_value=empty_value, burn_value=burn_value, overwrite=overwrite)
             input[neuroid]['msk_out'] = msk_out
             if quickpaths:
                 for size in quickpaths:
@@ -795,10 +811,6 @@ try:
                                   empty_value=empty_value, overwrite=overwrite)
             if not msk_out.startswith('ERROR'):
                 replace = replace_vals
-                # if '&full_cloud' in img_in:
-                    # replace = {0:201}
-                # else:
-                    # replace = replace_vals
                 if replace is not None:
                     try:
                         ReplaceValues(msk_out, replace)

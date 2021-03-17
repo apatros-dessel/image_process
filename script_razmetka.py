@@ -2,6 +2,7 @@
 # Anything was grist that came to the Royal Navy’s mill!
 
 from geodata import *
+from image_processor import process
 import argparse
 
 parser = argparse.ArgumentParser(description='Razmetka creation options')
@@ -17,6 +18,7 @@ parser.add_argument('--overwrite', default=False, dest='overwrite', help='Зам
 parser.add_argument('--replace', default=None, dest='replace_vals', help='Изменить значения в конечной маске в соответствии со словарём, если None, то замены не производится')
 parser.add_argument('--band_reposition', default=None, dest='band_reposition', help='Изменить порядок каналов в конечном растре, если None, то порядок сохраняется')
 parser.add_argument('--multiply_band', default=None, dest='multiply_band', help='Перемножить заданные каналы на фиксированный множитель')
+parser.add_argument('--dg_metadata', default=None, dest='metadata_path', help='Путь к хранению метаданных DG')
 parser.add_argument('--xls', default=None, dest='input_from_report', help='Путь к таблице xls с путями к источникам данных, если None, то пары снимок-вектор строятся заново. Менять источники можно вручную, формат xlsx не читает')
 parser.add_argument('pin', help='Путь к исходным файлам, растровым или растровым и векторным')
 parser.add_argument('pout', help='Путь для сохранения конечных файлов')
@@ -39,8 +41,14 @@ quicksizes = liststr(args.quicksizes, tofloat=True)
 replace_vals = dictstr(args.replace_vals, toint=True)
 band_reposition = liststr(args.band_reposition, toint=True)
 multiply_band = dictstr(args.multiply_band, toint=True)
+dg_metadata = args.dg_metadata
 input_from_report = args.input_from_report
 empty_mask = boolstr(args.empty)
+
+if dg_metadata is not None:
+    dg_source = process().input(dg_metadata, imsys_list=['DG'])
+else:
+    dg_source = None
 
 if re.search('^IM[RGBNP]$', imgid) and (band_reposition is None):
     band_reposition = {'R':[1],'G':[2],'B':[3],'N':[4],'P':[1]}[imgid[-1]]
@@ -265,6 +273,25 @@ def parse_landsat8(id):
         loc = loc_
     return satid, date, loc, lvl
 
+# Parse DG name
+def parse_dg(id):
+    vals = id.split('_')
+    datetime, sulvl, loc1 = vals[0].split('-')
+    loc = ''.join([loc1,vals[1]],vals[2])
+    months = {'JAN':'01','FEB':'02','MAR':'03','APR':'04','MAY':'05','JUN':'06','JUL':'07','AUG':'08','SEP':'09','OCT':'10','NOV':'11','DEC':'12'}
+    date = '20%s%s%s' % (datetime[:2],months[datetime[2:5]],datetime[5:7])
+    time = datetime[7:]
+    return date, time, loc
+
+def GetMetaDG(id, dg_source):
+    scene = dg_source.get_scene(id)
+    if scene is None:
+        print('Scene not found: %s' % id)
+        return None
+    satid = scene.meta.name('[sat]')
+    lvl = scene.meta.name('[lvl]')
+    return satid, lvl
+
 # Расширенная функция расчёта neuroid, учитывающая готовые neuroid и названия разновременных композитов
 def neuroid_extended(id):
     cutsearch = re.search('__cut\d+$', id)
@@ -312,6 +339,18 @@ def get_neuroid(id):
         satid, date, time, loc, lvl = parse_sentinel1(id)
     elif re.search(r'^LC08_', id):
         satid, date, loc, lvl = parse_landsat8(id)
+    elif re.search(r'/d+/s/+/d+-S2AS-/d+0_/d/d_P/d+', id):
+        dg_source = globals()['dg_source']
+        if dg_source is None:
+            print('DG source not set, cannot get neuroid')
+            return None
+        date, time, loc = parse_dg(id)
+        dg_id = re.search(r'^.+_/d/d_P/d+', id).group()
+        dg_metavals = GetMetaDG(dg_id, dg_source)
+        if dg_metavals is None:
+            return None
+        else:
+            satid, lvl = dg_metavals
     else:
         print('Unknown imsys for: %s' % id)
         return None

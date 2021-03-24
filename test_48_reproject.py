@@ -1,12 +1,13 @@
 from geodata import *
 
-folder_in = r'd:\rks\KV_sverdlovsk'
-txt_names_in = None # r'\\172.21.195.2\FTP-Share\ftp\20200713_kanopus\102_2020_1339\2020-07-06_2748.txt'
-folder_out = r'd:\rks\KV_sverdlovsk\ref'
-references_path = r'e:\rks\References'
-source_name_tmpt = r'kv.+\d{2,}$' # fr1_KV3_13044_10269_01_3NP2_20_S_584506_090620.tif
+folder_in = r'e:\rks\rucode\new3_2\source'
+txt_names_in = r''
+folder_out = r'e:\rks\rucode\new3_2\reproject'
+references_path = r'\\172.21.195.2\thematic\Sadkov_SA\References'
+source_name_tmpt = r'kv.+$' # fr1_KV3_13044_10269_01_3NP2_20_S_584506_090620.tif
 align_renaming_template = (r'fr.+_s_.+$', '_S_', '_PSS1_')
 folder_pansharp = None
+replace = False
 
 reproject_methods_dict = {
     'NN': gdal.GRA_NearestNeighbour,
@@ -118,10 +119,24 @@ def align_system(pin, ref, pout, tempdir=None, align_file=None, reproject_method
 
 
 if not txt_names_in in (None, ''):
-    files = open(txt_names_in).read().split('\n')
+    files = []
+    names0 = open(txt_names_in).read().split('\n')
+    names0 = flist(names0, lambda x: x.strip())[:-1]
+    scroll(names0, lower=len(names0))
+    files0 = folder_paths(folder_in, 1, 'tif')
+    print(len(files0))
+    for file in files0:
+        name = split3(file)[1]
+        for name0 in names0:
+            scn = re.search('SCN\d\.',name0)
+            if scn:
+                name0 = name0.replace(scn.group(),'SCN0%s.'%scn.group()[-2])
+            if name0 in file:
+                files.append(file)
 else:
     files = folder_paths(folder_in, 1, 'tif')
 names = flist(files, lambda x: split3(x)[1])
+scroll(files)
 
 suredir(folder_out)
 
@@ -131,6 +146,7 @@ for file in files:
     fail = True
     p,n,e = split3(file)
     if re.search(source_name_tmpt, n.lower()) is None:
+        print("Wrong name: %s" % n)
         continue
     composition[file] = OrderedDict()
     align_file = file
@@ -154,7 +170,10 @@ for file in files:
                 print('False align file: %s' % align_file)
     composition[file]['align_file'] = align_file
 
-    pout = fullpath(folder_out, n + '.REF', e)
+    if replace:
+        pout = fullpath(p, n + '.REF', e)
+    else:
+        pout = fullpath(folder_out, n, e)
     composition[file]['output_file'] = pout
     if os.path.exists(pout):
         print('\nFILE ALREADY EXISTS: %s' % pout)
@@ -177,6 +196,10 @@ for file in files:
     if fail:
         globals()['errors_list'].append(os.path.basename(file))
         print('REFERENCE NOT FOUND FOR: %s' % file)
+    if replace:
+        if os.path.exists(pout):
+            os.remove(file)
+            os.rename(pout, file)
 
 dict_to_xls(fullpath(folder_out, 'reprojection_report.xls'), composition)
 

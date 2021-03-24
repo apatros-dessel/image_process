@@ -69,7 +69,7 @@ satellite_types = {
     'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs'},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet'},
     'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat'},
-    'DigitalGlobe': {'tmpt': r'WV\d+', 'folder': 'dg'},
+    'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg'},
 }
 
 composite_types = {
@@ -278,23 +278,31 @@ def parse_landsat8(id):
 
 # Parse DG name
 def parse_dg(id):
+    print(id)
+    satid = 'DG'
+    lvl = 'LVL'
     vals = id.split('_')
-    datetime, sulvl, loc1 = vals[0].split('-')
-    loc = ''.join([loc1,vals[1],vals[2]])
     months = {'JAN':'01','FEB':'02','MAR':'03','APR':'04','MAY':'05','JUN':'06','JUL':'07','AUG':'08','SEP':'09','OCT':'10','NOV':'11','DEC':'12'}
-    date = '20%s%s%s' % (datetime[:2],months[datetime[2:5]],datetime[5:7])
+    if re.search(r'.+-S2AS-.+_\d+_P\d+', id):
+        datetime, sulvl, loc1 = vals[0].split('-')
+        loc = ''.join([loc1,vals[1],vals[2]])
+    elif re.search(r'.+-S2AS_R\d+C\d+.*-.+_\d+_P\d+', id):
+        datetime = vals[0].split('-')[0]
+        newlocs = vals[1].split('-')
+        loc4 = ''.join(newlocs[:-1])
+        loc1 = newlocs[-1]
+        loc = ''.join([loc1,vals[2],vals[3],loc4])
+    date = '20%s%s%s' % (datetime[:2], months[datetime[2:5]], datetime[5:7])
     time = datetime[7:]
-    return date, time, loc
+    return satid, date, time, loc, lvl
 
 def GetMetaDG(id):
     files = globals()['dg_files']
-    if not files:
-        print('DG files dir is absent')
-    # names = flist(files, lambda x: split3(x)[1])
-    for file in files:
-        f,n,e = split3(file)
-        if id in n:
-            dg_proc = process().input(f)
+    if files:
+        names = flist(files, lambda x: split3(x)[1])
+        if id in names:
+            file = files[names.index(id)]
+            dg_proc = process().input(os.path.dirname(file))
             # scroll(dg_proc.get_ids(), header=id)
             dg_scene = dg_proc.scenes[0]
             satid = dg_scene.meta.name('[sat]')
@@ -304,7 +312,8 @@ def GetMetaDG(id):
             lvl = dg_scene.meta.name('[lvl]')
             # print(satid, date, time, loc, lvl)
             return satid, date, time, loc, lvl
-    # print('DG file not found: %s' % id)
+    else:
+        return parse_dg(id)
 
 # Расширенная функция расчёта neuroid, учитывающая готовые neuroid и названия разновременных композитов
 def neuroid_extended(id):

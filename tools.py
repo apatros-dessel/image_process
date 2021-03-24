@@ -1112,3 +1112,6 @@ def Separate(line, char, num=1):
         return char.join(parts[:num]),char.join(parts[num:])
     else:
         return line, None
+
+def Name(path):
+    return split3(path)[1]

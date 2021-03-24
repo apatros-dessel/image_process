@@ -12,11 +12,11 @@ from geodata import copydeflate, SaveRasterBands
 
 init_image = None
 final_image = None
-input_folder = r'f:\pari\planet_test' # Путь к исходным растровым данным
-output_folder = r'f:\pari\planet_test' # Путь для сохранения итоговых композитов
+input_folder = r'e:\rks\rucode\new3_2\reproject' # Путь к исходным растровым данным
+output_folder = r'e:\rks\rucode\new3_2\composit' # Путь для сохранения итоговых композитов
 bands_order = [1, 2, 3, 4, 1, 2, 3, 4] # Порядок каналов; для обработки Planet использовать [3,2,1,4,3,2,1,4]
 images_order = ['i','i','i','i','f','f','f','f'] # Порядок изображений для отбора каналов (4 с первого снимка, 4 с последнего)
-path2xls = r'f:\pari\planet_test\planet_test.xls' # Путь к таблице с названиями файлов для коррегистрации, указанных соответственно в колонках 'old' и 'new'; в колонке 'composit' должно быть указано уникальное имя конечного файла (расширение можно не указывать)
+path2xls = r'e:\rks\rucode\new3_2\composit\composit.xls' # Путь к таблице с названиями файлов для коррегистрации, указанных соответственно в колонках 'old' и 'new'; в колонке 'composit' должно быть указано уникальное имя конечного файла (расширение можно не указывать)
 
 def Usage():
     print(
@@ -246,11 +246,7 @@ def scroll(obj, print_type=True, header=None):
 
 xls_data = xls_to_dict(path2xls)
 
-test = xls_data[1]
-init_test = test['old']
-final_test = test['new']
-composit_test = test['composit']
-channels_test = test['channels']
+test = xls_data
 
 init_image_list = []
 final_image_list = []
@@ -258,16 +254,16 @@ composit_image_list = []
 channels_list = []
 
 for i in xls_data.keys():
-	test = xls_data[i]
-	init_test = test['old']#.replace('.PMS','.MS')
-	final_test = test['new']#.replace('.PMS','.MS')
-	# time.sleep(5)
-	for path in folder_paths(input_folder, 1, 'tif'):
-		if init_test in path:
-			init_image_list.append(path)
+    test = xls_data[i]
+    # scroll(test)
+    init_test = test['old']#.replace('.PMS','.MS')
+    final_test = test['new']#.replace('.PMS','.MS')
+    for path in folder_paths(input_folder, 1, 'tif'):
+        if init_test in path:
+            init_image_list.append(path)
         if final_test in path:
-			final_image_list.append(path)
-	composit_image_list.append(fullpath(output_folder, test['composit'], 'tif'))
+            final_image_list.append(path)
+    composit_image_list.append(fullpath(output_folder, test['composit'], 'tif'))
 
 argv = sys.argv
 
@@ -275,7 +271,7 @@ if argv is None:
     sys.exit(1)
 
 if not os.path.exists(output_folder):
-	os.makedirs(output_folder)
+    os.makedirs(output_folder)
 
 '''
 # Parse command line arguments.

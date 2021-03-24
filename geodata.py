@@ -1578,30 +1578,41 @@ def Intersection(path2shp1, path2shp2, path_out):
         shp2_ds = vec_to_crs(shp2_ds, shp1_lyr.GetSpatialRef(), tempname('shp'))
         shp2_lyr = shp2_ds.GetLayer()
 
-    print(shp1_lyr.GetExtent())
-    print(shp2_lyr.GetExtent())
+    def InterFeat(geom, feat):
+        add_geom = feat.GetGeometryRef()
+        if add_geom is None:
+            return geom
+        elif geom is None:
+            return add_geom
+        elif geom==0:
+            return 0
+        print(geom.Intersect(add_geom))
+        if geom.Intersect(add_geom):
+            return geom.Intersection(add_geom)
+        else:
+            return 0
 
-    feat1 = shp1_lyr.GetNextFeature()
-    geom = feat1.GetGeometryRef()
+    geom = None
 
-    for feat1 in shp1_lyr:
-        geom = geom.Intersection(feat1.GetGeometryRef())
+    for feat in shp1_lyr:
+        geom = InterFeat(geom, feat)
+        scroll(geom, lower=1)
+    for feat in shp2_lyr:
+        geom = InterFeat(geom, feat)
+        scroll(geom, lower=2)
 
-    shp2_lyr.ResetReading()
-    for feat2 in shp2_lyr:
-        geom2 = feat2.GetGeometryRef()
-        geom = geom.Intersection(geom2)
-    if path_out.endswith('json'):
-        dout = json(path_out, srs=shp1_lyr.GetSpatialRef())
-    else:
-        dout = shp(path_out, copy_ds=path2shp1)
-    dout, lout = get_lyr_by_path(path_out, 1)
-    feat = ogr.Feature(shp1_lyr.GetLayerDefn())
-    feat.SetGeometry(geom)
-    lout.CreateFeature(feat)
-    dout = None
+    if geom is not None:
+        if path_out.endswith('json'):
+            dout = json(path_out, srs=shp1_lyr.GetSpatialRef())
+        else:
+            dout = shp(path_out, copy_ds=path2shp1)
+        dout, lout = get_lyr_by_path(path_out, 1)
+        feat = ogr.Feature(shp1_lyr.GetLayerDefn())
+        feat.SetGeometry(geom)
+        lout.CreateFeature(feat)
+        dout = None
 
-    return 0
+        return 0
 
 # Returns a matrix of intersections between features in two shapefiles
 def intersect_array(shp1, shp2):
@@ -3172,6 +3183,21 @@ def RasterCentralPoint(ds_, reference=None, vector_path=None):
             ds_out = None
         return vector_path
 
+def RasterLimits(ds_, reference=None, vector_path=None):
+    if ds_:
+        geom = RasterGeometry(ds_, reference)
+        if vector_path:
+            if reference is None:
+                reference = get_srs(ds_)
+            json(vector_path, srs = reference)
+            ds_out, lyr_out = get_lyr_by_path(vector_path, True)
+            feat_defn = lyr_out.GetLayerDefn()
+            feat = ogr.Feature(feat_defn)
+            feat.SetGeometry(geom)
+            lyr_out.SetFeature(feat)
+            ds_out = None
+        return vector_path
+
 def GetAttrVals(shp_path, attr, func=None):
     din, lyr = get_lyr_by_path(shp_path)
     vals = []
@@ -3196,3 +3222,18 @@ def ReplaceAttrVals(shp_path, attr, replace, func=None):
             feat.SetField(attr, new_val)
             lyr.SetFeature(feat)
     din = None
+
+def SelectFromVectorByAttribute(vec_list, attr, vals, pout, proj=get_srs(4326), single = True):
+    ds_fin = json(pout, editable=True, srs=proj)
+    lyr_fin = ds_fin.GetLayer()
+    for vec in vec_list:
+        d, l = get_lyr_by_path(vec)
+        vec_srs = l.GetSpatialRef()
+        for feat in l:
+            val = feat.GetField(attr)
+            if val in vals:
+                if single:
+                    vals.pop(vals.index(val))
+                lyr_fin.CreateFeature(feat)
+                print(val, vec)
+    ds_fin = None

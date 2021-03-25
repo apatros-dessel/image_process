@@ -1,7 +1,7 @@
 from geodata import *
 
-folder_in = r'e:\rks\rucode\mosaics\source2\source'
-folder_out = r'e:\rks\rucode\mosaics\source2\mask'
+folder_in = r'\\172.21.195.2\thematic\!projects\Rucode\vyborka_5'
+folder_out = r'\\172.21.195.2\thematic\!projects\Rucode\mask_new'
 
 suredir(folder_out)
 

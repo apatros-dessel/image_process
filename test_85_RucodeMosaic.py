@@ -1,7 +1,7 @@
 from geodata import *
 
-folder_in = r'\\172.21.195.2\thematic\!projects\Rucode\mask_fin'
-folder_out = r'\\172.21.195.2\thematic\!projects\Rucode\mask_fin'
+folder_in = r'e:\rks\rucode\mosaics\source2\source'
+folder_out = r'e:\rks\rucode\mosaics\source2\mask'
 
 suredir(folder_out)
 
@@ -19,7 +19,7 @@ def GetPairs(folder_in):
     return pairs
 
 pairs = GetPairs(folder_in)
-scroll(pairs)
+# scroll(pairs)
 
 for name in pairs:
     RasterizeVector(pairs[name]['v'], pairs[name]['r'], fullpath(folder_out, name, 'tif'),

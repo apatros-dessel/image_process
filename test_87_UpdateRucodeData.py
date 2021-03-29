@@ -1,7 +1,7 @@
 from geodata import *
 
-source = r'\\172.21.195.2\exchanger\festival\Images_composit\8_ch'
-source_mask = r'\\172.21.195.2\exchanger\festival\mask'
+source = r'e:\rks\rucode\fetsival\Images_composit\8_ch'
+source_mask = r'e:\rks\rucode\fetsival\mask'
 out = r'e:\rks\rucode\festival_fin'
 
 folder_comp8 = r'%s\Images_composit\8_ch' % out
@@ -44,7 +44,7 @@ for name, file in zip(comp_names, comp_files):
     copyfile(file, new_file)
     SaveRasterBands(new_file, [1,2,3,4], fullpath(folder_old,new_name1,'tif'), options={'compress':'DEFLATE'}, overwrite=False)
     SaveRasterBands(new_file, [5,6,7,8], fullpath(folder_new,new_name2,'tif'), options={'compress': 'DEFLATE'}, overwrite=False)
-    SaveRasterBands(new_file, [1,6,2], fullpath(folder_comp3,new_kompname+'__3CH','tif'), options={'compress': 'DEFLATE'}, overwrite=False)
+    SaveRasterBands(new_file, [6,1,7], fullpath(folder_comp3,new_kompname+'__3CH','tif'), options={'compress': 'DEFLATE'}, overwrite=False)
     if name in mask_names:
         copyfile(mask_files[mask_names.index(name)], fullpath(folder_mask,new_kompname,'tif'))
     print('WRITTEN: %s' % new_kompname)

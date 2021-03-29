@@ -12,11 +12,11 @@ from geodata import copydeflate, SaveRasterBands
 
 init_image = None
 final_image = None
-input_folder = r'e:\rks\rucode\new3_3\reproject' # Путь к исходным растровым данным
-output_folder = r'e:\rks\rucode\new3_3\composit' # Путь для сохранения итоговых композитов
+input_folder = r'e:\rks\rucode\new4\reproject' # Путь к исходным растровым данным
+output_folder = r'e:\rks\rucode\new4\composit' # Путь для сохранения итоговых композитов
 bands_order = [1, 2, 3, 4, 1, 2, 3, 4] # Порядок каналов; для обработки Planet использовать [3,2,1,4,3,2,1,4]
 images_order = ['i','i','i','i','f','f','f','f'] # Порядок изображений для отбора каналов (4 с первого снимка, 4 с последнего)
-path2xls = r'e:\rks\rucode\new3_3\composit\composit.xls' # Путь к таблице с названиями файлов для коррегистрации, указанных соответственно в колонках 'old' и 'new'; в колонке 'composit' должно быть указано уникальное имя конечного файла (расширение можно не указывать)
+path2xls = r'e:\rks\rucode\new4\composit\composit.xls' # Путь к таблице с названиями файлов для коррегистрации, указанных соответственно в колонках 'old' и 'new'; в колонке 'composit' должно быть указано уникальное имя конечного файла (расширение можно не указывать)
 
 def Usage():
     print(

@@ -1,7 +1,7 @@
 from geodata import *
 
-folder_in = r'\\172.21.195.2\thematic\!projects\Rucode\vyborka_5'
-folder_out = r'\\172.21.195.2\thematic\!projects\Rucode\mask_new'
+folder_in = r'e:\rks\rucode\fetsival\Images_composit\8_ch'
+folder_out = r'\\172.21.195.2\thematic\!projects\Rucode\vyborka_5\buffer_5m'
 
 suredir(folder_out)
 
@@ -14,6 +14,7 @@ def GetPairs(folder_in):
     for i, name in enumerate(tif_names):
         if name in shp_names:
             pairs[name] = {'r': tif_files[i], 'v': shp_files[shp_names.index(name)]}
+            print('WRITTEN: %s' % name)
         else:
             print('SHP NOT FOUND: %s' % name)
     return pairs

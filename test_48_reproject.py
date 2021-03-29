@@ -1,8 +1,8 @@
 from geodata import *
 
-folder_in = r'e:\rks\rucode\new3_4\source'
+folder_in = r'e:\rks\rucode\new4\source'
 txt_names_in = r''
-folder_out = r'e:\rks\rucode\new3_4\reproject'
+folder_out = r'e:\rks\rucode\new4\reproject'
 references_path = r'\\172.21.195.2\thematic\Sadkov_SA\References'
 source_name_tmpt = r'kv.+$' # fr1_KV3_13044_10269_01_3NP2_20_S_584506_090620.tif
 align_renaming_template = (r'fr.+_s_.+$', '_S_', '_PSS1_')

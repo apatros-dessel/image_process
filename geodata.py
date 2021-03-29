@@ -139,6 +139,8 @@ def format_to_gdal(dtype_in):
 def vec_to_crs(ogr_dataset, t_crs, export_path, changexy=False):
     ogr_layer = ogr_dataset.GetLayer()
     v_crs = ogr_layer.GetSpatialRef()
+    if v_crs is None:
+        v_crs = t_crs
     if v_crs.ExportToUSGS() != t_crs.ExportToUSGS():
         coordTrans = osr.CoordinateTransformation(v_crs, t_crs)
         driver = ogr.GetDriverByName('ESRI Shapefile')

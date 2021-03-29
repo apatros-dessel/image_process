@@ -69,7 +69,7 @@ satellite_types = {
     'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs'},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet'},
     'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat'},
-    'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg'},
+    # 'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg'},
 }
 
 composite_types = {
@@ -204,6 +204,7 @@ def parse_kanopus(id):
 
 # Parse Resurs name
 def parse_resurs(id):
+    # RP1_28244_05_GEOTON_20180713_050017_050036.SCN3.MS.L2
     satid, loc1, sentnum, geoton, date, num1, ending = id.split('_')
     ending = ending.split('.')
     if len(ending) == 4:
@@ -325,15 +326,15 @@ def neuroid_extended(id):
         # print('NoCut: %s' % id)
         cut = ''
     if re.search(r'^IM\d+-.+-\d+-.+-.+$', id):
-        return id
+        return id + cut
     elif re.search(r'^S[12][AB]-\d+-.+-.+$', id):
-        return 'IM4-'+id
+        return 'IM4-' + id + cut
     elif re.search(r'IMCH\d+__.+__.+', id):
         parts = id.split('__')[1:3]
     elif len(id.split('__'))==2:
         parts = id.split('__')
     else:
-        return get_neuroid(id)
+        return get_neuroid(id) + cut
     vals = [globals()['imgid']]
     # scroll(parts)
     for part_id in parts:
@@ -354,6 +355,12 @@ def get_neuroid(id):
         id = re.search(r'RP.+L2.GRN\d+', id).group()
         satid, loc1, sentnum, date, num1, num2, scn, type, lvl, grn = parse_resurs(id)
         loc = loc1 + scn[3:] + grn[3:]
+        if type == 'PMS':
+            lvl += type
+    elif re.search(r'^RP.+L2', id):
+        id = re.search(r'^RP.+L2', id).group()
+        satid, loc1, sentnum, date, num1, num2, scn, type, lvl, grn = parse_resurs(id)
+        loc = loc1 + scn[3:]
         if type == 'PMS':
             lvl += type
     elif re.search(r'^S2[AB]', id) or re.search(r'^S2.+cut\d+$', id):
@@ -780,7 +787,7 @@ else:
 
 # Создать пути для размещения изображений и масок
 suredir(pout)
-scroll(input, header='\nTotal input:')
+# scroll(input, header='\nTotal input:')
 
 # Создавать маски из найденных пар
 t = datetime.now()
@@ -791,14 +798,14 @@ try:
         raise Exception('\n  WRONG imgid: {}, "IM[0-9RGBNP]+" or "IMCH\d+" is needed\n'.format(imgid))
     for i, neuroid in enumerate(input):
         if (neuroid is None):
-            print('  %i -- NEUROID ERROR: %s\n' % (i, str(neuroid)))
+            print('  %i -- NEUROID ERROR: %s\n' % (i+1, str(neuroid)))
             continue
         elif input[neuroid]['pairing']==False:
             if empty_mask and os.path.exists(str(input[neuroid].get('r'))):
                 # print('  %i -- VECTOR NOT FOUND, CREATING EMPTY MASK: %s\n' % (i, str(neuroid)))
                 pass
             else:
-                print('  %i -- PAIRING ERROR: %s\n' % (i, str(neuroid)))
+                print('  %i -- PAIRING ERROR: %s\n' % (i+1, str(neuroid)))
                 continue
         paths = get_paths(pout, neuroid, maskid, imgid, quicksizes)
         if paths:

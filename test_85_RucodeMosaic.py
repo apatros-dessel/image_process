@@ -1,7 +1,7 @@
 from geodata import *
 
-folder_in = r'e:\rks\rucode\fetsival\Images_composit\8_ch'
-folder_out = r'\\172.21.195.2\thematic\!projects\Rucode\vyborka_5\buffer_5m'
+folder_in = r'e:\rks\rucode\festival_fin\Images_composit\8_ch'
+folder_out = r'e:\rks\rucode\festival_fin\mask_fin'
 
 suredir(folder_out)
 

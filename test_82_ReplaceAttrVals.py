@@ -1,6 +1,6 @@
 from geodata import *
 
-pin = r'e:\rks\razmetka_source\kanopus_mist_cloud_shadow_surface\shp_hand_mist_cloud_shadow_surface'
+pin = r'e:\rks\razmetka_source\kanopus_mist_cloud_shadow_surface'
 attr = 'gridcode'
 replace = {203:2033,204:2031,205:2032}
 

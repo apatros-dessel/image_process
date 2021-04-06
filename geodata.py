@@ -3239,3 +3239,12 @@ def SelectFromVectorByAttribute(vec_list, attr, vals, pout, proj=get_srs(4326), 
                 lyr_fin.CreateFeature(feat)
                 print(val, vec)
     ds_fin = None
+
+def GetRasterDataParams(path):
+    raster = gdal.Open(path)
+    if raster:
+        params = [raster.RasterXSize, raster.RasterYSize]
+        for num in range(1, raster.RasterCount+1):
+            band = raster.GetRasterBand(num)
+            params.append(flist(band.GetStatistics(1,1), round))
+        return params

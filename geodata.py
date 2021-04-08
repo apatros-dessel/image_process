@@ -173,11 +173,13 @@ def vec_to_crs(ogr_dataset, t_crs, export_path, changexy=False):
 def changeXY(geom):
     coords = geom.ExportToWkt().split(',')
     for i, coord in enumerate(coords):
-        vals = re.search('\d+\.?\d+ \d+\.?\d+', coord).group()
-        xy = vals.split(' ')
-        xy.reverse()
-        new_vals = ' '.join(xy)
-        coords[i] = coord.replace(vals, new_vals)
+        search = re.search('\d+\.?\d+ \d+\.?\d+', coord)
+        if search is not None:
+            vals = search.group()
+            xy = vals.split(' ')
+            xy.reverse()
+            new_vals = ' '.join(xy)
+            coords[i] = coord.replace(vals, new_vals)
     new_geom = ogr.Geometry(wkt = ','.join(coords))
     return new_geom
 

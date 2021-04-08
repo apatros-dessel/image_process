@@ -31,10 +31,16 @@ kshmsa_bandpaths = OrderedDict(
 
 # Functions for <imsys_name> metadata processing
 
-# Gets <imsys_name> file names as ordered dictionary
-def function1():
-    # some code
-    return data
+# Returns KSHMSA data type
+def get_kshmsa_type(id):
+    if r'.PMS.' in id:
+        return 'PMS'
+    elif r'.MS.' in id:
+        return 'MS'
+    elif r'.PAN.' in id:
+        return 'PAN'
+    else:
+        return None
 
 # Fill <imsys_name> metadata
 def metadata(path):
@@ -73,6 +79,7 @@ def metadata(path):
     meta.datamask = r'%s.GBD.json' % meta.id
     # meta.cloudmask =      # path to vector data
     meta.quicklook = r'%s.QL.jpg' % meta.id
+    meta.type = get_kshmsa_type(id)
 
     return meta
 

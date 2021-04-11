@@ -409,8 +409,8 @@ def copydir(path_in, dir_out):
         shutil.copyfile(file, fullpath(dir_out, file[len(dir_in):]))
 
 # Copy file
-def copyfile(path_in, path_out):
-    if not os.path.exists(path_out):
+def copyfile(path_in, path_out, overwrite=False):
+    if (not os.path.exists(path_out)) or overwrite:
         if os.path.exists(path_in):
             shutil.copyfile(path_in, path_out)
 

@@ -3250,3 +3250,15 @@ def GetRasterDataParams(path):
             band = raster.GetRasterBand(num)
             params.append(flist(band.GetStatistics(1,1), round))
         return params
+
+def ReorderBands(path_in, path_out, band_order):
+    copyfile(path_in, path_out, overwrite=True)
+    raster_in = gdal.Open(path_in)
+    raster_out = gdal.Open(path_out, 1)
+    for i, new_band in enumerate(band_order):
+        old_band = i + 1
+        if new_band != old_band:
+            arr = raster_in.GetRasterBand(old_band).ReadAsArray()
+            raster_out.GetRasterBand(new_band).WriteArray(arr)
+            arr = None
+    raster_out = None

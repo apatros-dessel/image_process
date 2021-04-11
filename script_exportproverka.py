@@ -39,5 +39,6 @@ for path in proverka:
             if reorder is None:
                 copyfile(file_in, fullpath(args.dout, id, 'tif'))
             else:
-                SaveRasterBands(file_in, reorder, fullpath(args.dout, id, 'tif'), options={'compress': 'DEFLATE'}, overwrite=True)
+                # SaveRasterBands(file_in, reorder, fullpath(args.dout, id, 'tif'), options={'compress': 'DEFLATE'}, overwrite=True)
+                ReorderBands(file_in, fullpath(args.dout, id, 'tif'), reorder)
             print('SAVED: %s' % id)

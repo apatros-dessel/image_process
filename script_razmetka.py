@@ -342,9 +342,12 @@ def neuroid_extended(id):
     elif len(id.split('__'))==2:
         parts = id.split('__')
     else:
-        id = get_neuroid(id)
-        if id is not None:
-            return id + cut
+        newid = get_neuroid(id)
+        if newid is not None:
+            return newid + cut
+        else:
+            print('WRONG ID: %s' % id)
+            return None
     vals = [globals()['imgid']]
     # scroll(parts)
     for part_id in parts:

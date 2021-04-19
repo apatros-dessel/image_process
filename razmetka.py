@@ -460,6 +460,18 @@ def KanCallSQL(kan_id, type=False):
             return '''"source='kanopus' and date(datetime)='%s' and type='%s'"''' % (kan_date, type.lower())
         else:
             print('KANOPUS TYPE NOT DEFINED, CANNOT DOWNLOAD DATA: %s' % kan_id)
+    elif re.search(r'fr\d+_KV.+_3NP2_.+_P?S*\d*_.+', kan_id):
+        # fr1_KV1_35000_27800_00_3NP2_08_S_005407_121118.tif
+        # KV1_35000_27800_00_KANOPUS_20181112_075400_075527.SCN1.MS.L2.MD.xml
+        fr, sat, loc1, loc2, loc3, np1, np2, type2, loc11, loc12 = kan_id.split('_')
+        kan_part = '_'.join([sat, loc1, loc2])
+        if not type:
+            type = {'S': 'ms', 'PSS1': 'pan', 'PSS4': 'pms'}.get(type2)
+        if type:
+            # return '''"hashless_id like '%s' and source='kanopus' and type='%s'"''' % (type.lower(), kan_part)
+            return '''"source='kanopus' and hashless_id LIKE '{}%'"'''.format(kan_part)
+        else:
+            print('KANOPUS TYPE NOT DEFINED, CANNOT DOWNLOAD DATA: %s' % kan_id)
     else:
         return '''"source='kanopus' and hashless_id='%s'"''' % kan_id
 
@@ -580,7 +592,7 @@ def DownloadKanopusFromS3(id, pout, type=None, geom_path = None):
     command = r'''gu_db_query -w %s -d %s''' % (KanCallSQL(id, type), folder)
     if geom_path is not None:
         command += ' -v %s' % geom_path
-    print(command)
+    # print(command)
     os.system(command)
     kan_dirs = FolderDirs(folder)
     l = len(kan_dirs)
@@ -596,6 +608,39 @@ def DownloadKanopusFromS3(id, pout, type=None, geom_path = None):
             print('SCENE DATA NOT FOUND: %s' % id)
         else:
             print('MULTIPLE SCENES FOUND FOR: %s - %i scenes' % (id, l))
+    destroydir(folder)
+    return kan_id
+
+def GetKanopusId(id, type='MS', geom_path=None):
+    if re.search('^KV.+L2$', id):
+        return id
+    elif re.search('^KV.+.P?MS', id) or re.search('^KV.+.PAN', id):
+        return id + '.L2'
+    elif re.search('^KV.+SCN\d+$', id):
+        return '%s.%s.L2' % (id, type)
+    folder = tempname()
+    command = r'''gu_db_query -w %s -d %s''' % (KanCallSQL(id, type), folder)
+    if geom_path is not None:
+        command += ' -v %s' % geom_path
+    print(command)
+    os.system(command)
+    kan_dirs = FolderDirs(folder)
+    l = len(kan_dirs)
+    if l == 1:
+        for kan_long_id in kan_dirs:
+            kan_id = '_'.join(kan_long_id.split('_')[:-1])+'.L2'
+    else:
+        kan_id = None
+        if l == 0:
+            print('SCENE DATA NOT FOUND: %s' % id)
+        elif l > 1:
+            print('MULTIPLE SCENES FOUND FOR: %s - %i scenes' % (id, l))
+            files = folder_paths(folder,1,'tif')
+            for file in files:
+                f,n,e = split3(file)
+                if id==n or Neuroid(n)==id:
+                    folder_name = os.path.split(f)[1]
+                    kan_id = '_'.join(folder_name.split('_')[:-1]) + '.L2'
     destroydir(folder)
     return kan_id
 

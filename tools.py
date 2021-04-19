@@ -414,6 +414,12 @@ def copyfile(path_in, path_out, overwrite=False):
         if os.path.exists(path_in):
             shutil.copyfile(path_in, path_out)
 
+def rename(path_in, path_out):
+    try:
+        os.rename(path_in, path_out)
+    except:
+        print('CANNOT RENAME FILE: %s' % path_in)
+
 # Completely destroys dir with all contained files and folders
 def destroydir(path, preserve_path = False):
     folders, files = folder_paths(path)

@@ -3171,6 +3171,24 @@ def CreateDataMask(raster_in, mask_out, value=1, nodata=0, bandnum=1):
             mask_ds.GetRasterBand(1).WriteArray(arr)
             mask_ds = None
 
+def VectorCentralPoint(path, reference=None, vector_path=None):
+    ds_in, lyr_in = get_lyr_by_path(path)
+    if lyr_in:
+        extent = lyr_in.GetExtent()
+        x1, x2, y1, y2 = extent
+        center_geom = ogr.CreateGeometryFromWkt('POINT (%f %f)' % ((x1+x2)/2, (y1+y2)/2))
+        if vector_path:
+            if reference is None:
+                reference = get_srs(ds_in)
+            json(vector_path, srs = reference)
+            ds_out, lyr_out = get_lyr_by_path(vector_path, True)
+            feat_defn = lyr_out.GetLayerDefn()
+            feat = ogr.Feature(feat_defn)
+            feat.SetGeometry(center_geom)
+            lyr_out.SetFeature(feat)
+            ds_out = None
+    return vector_path
+
 def RasterCentralPoint(ds_, reference=None, vector_path=None):
     if ds_:
         geom = RasterGeometry(ds_, reference)

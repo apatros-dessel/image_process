@@ -11,6 +11,7 @@ parser.add_argument('-i', default='IM4', dest='imgid', help='Индекс изо
 parser.add_argument('-p', default=False, dest='pms', help='Использовать паншарпы')
 parser.add_argument('-q', default=None, dest='quicksizes', help='Создать маски квиклуков заданных размеров')
 parser.add_argument('-e', default=False, dest='empty', help='Создавать пустые маски при отсутствии вектора')
+parser.add_argument('-o', default=True, dest='original', help='Сохранять исходные названия сцен')
 parser.add_argument('--image_col', default=None, dest='image_col', help='Название колонки идентификатора растровой сцены (если vin != 0)')
 parser.add_argument('--code_col_sec', default=None, dest='code_col_sec', help='Дополнительная колонка с кодовыми значениями')
 parser.add_argument('--compress', default='DEFLATE', dest='compress', help='Алгоритм сжатия растровых данных')
@@ -34,6 +35,7 @@ code_col = args.code_col
 imgid = args.imgid
 vin = args.vin
 image_col = args.image_col
+original = args.original
 code_col_sec = args.code_col_sec
 compress = args.compress.upper()
 overwrite = boolstr(args.overwrite)
@@ -63,13 +65,13 @@ if vin:
 vecids_path = None  # Список id при их отсутствии в исходном векторном файле. Если None, то поиск будет производиться в колонке image_col
 
 satellite_types = {
-    'Sentinel-2': {'tmpt': r'S2[AB]', 'folder': 'sentinel'},
-    'Sentinel-1': {'tmpt': r'S1[AB]', 'folder': 'sentinel-1'},
-    'Kanopus': {'tmpt': r'KV[1-6I]', 'folder': 'kanopus'},
-    'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs'},
-    'Planet': {'tmpt': r'PLN.+', 'folder': 'planet'},
-    'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat'},
-    # 'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg'},
+    'Sentinel-2': {'tmpt': r'S2[AB]', 'folder': 'sentinel', 'base_tmpt': '^S2[A,B]', 'band_num': 4},
+    'Sentinel-1': {'tmpt': r'S1[AB]', 'folder': 'sentinel-1', 'base_tmpt': '^S1[A,B]', 'band_num': 1},
+    'Kanopus': {'tmpt': r'KV[1-6I]', 'folder': 'kanopus', 'base_tmpt': '^KV[1-6I]', 'band_num': 4},
+    'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs', 'base_tmpt': '^RP\d', 'band_num': 4},
+    'Planet': {'tmpt': r'PLN.+', 'folder': 'planet', 'base_tmpt': 'Analytic', 'band_num': 4},
+    'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat', 'base_tmpt': '^LS\d', 'band_num': 4},
+    # 'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg', 'base_tmpt': r'[DW]?[GV]?', 'band_num': 4},
 }
 
 composite_types = {
@@ -325,7 +327,7 @@ def GetMetaDG(id):
         return parse_dg(id)
 
 # Расширенная функция расчёта neuroid, учитывающая готовые neuroid и названия разновременных композитов
-def neuroid_extended(id):
+def neuroid_extended(id, original=False):
     cutsearch = re.search('__cut\d+$', id)
     if cutsearch is not None:
         cut = cutsearch.group()
@@ -342,7 +344,7 @@ def neuroid_extended(id):
     elif len(id.split('__'))==2:
         parts = id.split('__')
     else:
-        newid = get_neuroid(id)
+        newid = get_neuroid(id, original=original)
         if newid is not None:
             return newid + cut
         else:
@@ -351,12 +353,14 @@ def neuroid_extended(id):
     vals = [globals()['imgid']]
     # scroll(parts)
     for part_id in parts:
-        part_neuroid = neuroid_extended(part_id)
+        part_neuroid = neuroid_extended(part_id, original=original)
         vals.append(part_neuroid[part_neuroid.index('-')+1:])
     return '__'.join(vals) + cut
 
 # Получить neuroid из исходного имени файла (для 4-х канального RGBN)
-def get_neuroid(id):
+def get_neuroid(id, original=False):
+    if original:
+        return id
     if re.search(r'^KV.+L2$', id):
         id = re.search(r'KV.+L2', id).group()
         satid, loc1, loc2, sentnum, date, num1, num2, scn, type, lvl = parse_kanopus(id)
@@ -467,7 +471,7 @@ def pms_exit(id, pms = False):
     return False
 
 # Получить пути к исходным данным для масок для разделённых векторных файлов (shp, json, geojson) и растровых снимков (tif)
-def get_pair_paths(pin, pms = False):
+def get_pair_paths(pin, pms = False, original = False):
     export = OrderedDict()
     for folder in obj2list(pin):
         paths = folder_paths(folder, 1)
@@ -475,7 +479,7 @@ def get_pair_paths(pin, pms = False):
             f,n,e = split3(path)
             if not e in ['shp', 'json', 'geojson', 'tif']:
                 continue
-            id = neuroid_extended(n)
+            id = neuroid_extended(n, original=original)
             if id is None:
                 if e=='tif':
                     print(path)
@@ -500,7 +504,7 @@ def get_pair_paths(pin, pms = False):
     return export
 
 # Получить пути к исходным данным для масок для цельных векторных файлов
-def get_pairs(raster_paths, vin, img_colname, vecids=None, split_vector=True, pms=False):
+def get_pairs(raster_paths, vin, img_colname, vecids=None, split_vector=True, pms=False, original=False):
     export = OrderedDict()
     if vecids is None:
         vecids = get_col_keys(vin, img_colname)
@@ -510,7 +514,7 @@ def get_pairs(raster_paths, vin, img_colname, vecids=None, split_vector=True, pm
         for i, rasterid in enumerate(raster_names):
             if id == rasterid:
                 try:
-                    neuroid = neuroid_extended(id)
+                    neuroid = neuroid_extended(n, original=original)
                     if split_vector:
                         export[neuroid] = {'r': raster_paths[i], 'v': filter_dataset_by_col(vin, img_colname, vecid)}
                     else:
@@ -562,8 +566,14 @@ def get_paths(pout, id, maskid, imgid, quicksizes):
             print('Unknown satellite for: %s' % id)
             return None
     else:
-        print('Wrong id format: %s' % id)
-        return None
+        for satid in satellite_types:
+            if re.search(satellite_types[satid]['base_tmpt'], id):
+                sat_folder = satellite_types[satid]['folder']
+                imgname = id
+                fail = False
+        if fail:
+            print('Wrong id format: %s' % id)
+            return None
     img_folder = r'%s\images\%s' % (pout, sat_folder)
     msk_type = globals()['mask_types'].get(maskid)
     if msk_type:
@@ -574,10 +584,13 @@ def get_paths(pout, id, maskid, imgid, quicksizes):
     for folder in (img_folder, msk_folder):
         suredir(folder)
     img_path = fullpath(img_folder, imgname, 'tif')
-    if len(imgid) == 3:
-        msk_name = msk_type['id']+id[3:]
+    if imgname.startswith('IM'):
+        if len(imgid) == 3:
+            msk_name = msk_type['id']+id[3:]
+        else:
+            msk_name = msk_type['id'] + id[4:]
     else:
-        msk_name = msk_type['id'] + id[4:]
+        msk_name = id
     msk_path = fullpath(msk_folder, msk_name, 'tif')
     if quicksizes:
         quickpaths = OrderedDict()
@@ -598,6 +611,7 @@ def get_paths(pout, id, maskid, imgid, quicksizes):
 def check_image(img_in, neuro, multiply = None):
     raster = gdal.Open(img_in)
     realBandNum = raster.RasterCount
+    metaBandNum = 0
     img_type = neuro.split('__')[0].split('-')[0]
     if re.search(r'^IM\d+$', img_type):
         metaBandNum = int(img_type[2:])
@@ -605,6 +619,13 @@ def check_image(img_in, neuro, multiply = None):
         metaBandNum = 1
     elif re.search(r'IMCH\d+$', img_type):
         metaBandNum = int(img_type[4:])
+    elif '.PAN' in neuro:
+        metaBandNum = 1
+    else:
+        satellite_types = globals()['satellite_types']
+        for satid in satellite_types:
+            if re.search(satellite_types[satid]['base_tmpt'], neuro):
+                metaBandNum = satellite_types[satid]['band_num']
     counter = min((metaBandNum, realBandNum))
     if multiply is not None:
         return True, counter
@@ -787,7 +808,7 @@ if input_from_report:
     print('Input taken from %s' % input_from_report)
 else:
     if vin is None or vin == '':
-        input = get_pair_paths(pin, pms=pms)
+        input = get_pair_paths(pin, pms=pms, original=original)
     else:
         vecids = None
         if vecids_path is not None:
@@ -795,7 +816,7 @@ else:
                 with open(vecids_path) as vecids_data:
                     vecis = vecids_data.read().split('\n')
         raster_paths = get_raster_paths(pin)
-        input = get_pairs(raster_paths, vin, image_col, vecids=vecids, split_vector=split_vector, pms=pms)
+        input = get_pairs(raster_paths, vin, image_col, vecids=vecids, split_vector=split_vector, pms=pms, original=original)
     print('Input collected for {}'.format(datetime.now()-t))
 
 # Создать пути для размещения изображений и масок

@@ -1121,3 +1121,11 @@ def Separate(line, char, num=1):
 
 def Name(path):
     return split3(path)[1]
+
+def MinMax(old, new, maximum=False):
+    if old is None:
+        return new
+    elif maximum:
+        return max([old, new])
+    else:
+        return min([old, new])

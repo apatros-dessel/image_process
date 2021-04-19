@@ -3269,6 +3269,17 @@ def GetRasterDataParams(path):
             params.append(flist(band.GetStatistics(1,1), round))
         return params
 
+def RasterMinMax(path):
+    raster = gdal.Open(path)
+    minimum = None
+    maximum = None
+    if raster:
+        for num in range(1, raster.RasterCount+1):
+            stats = raster.GetRasterBand(num).GetStatistics(1,1)
+            minimum = MinMax(minimum, stats[0])
+            maximum = MinMax(maximum, stats[1], True)
+    return minimum, maximum
+
 def ReorderBands(path_in, path_out, band_order):
     copyfile(path_in, path_out, overwrite=True)
     raster_in = gdal.Open(path_in)

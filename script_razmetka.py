@@ -748,7 +748,7 @@ def qlReport(folder, input, size):
         new_dict['r'] = _dict.get('r')
         new_dict['v'] = _dict.get('v')
         new_dict['pairing'] = _dict.get('pairing')
-        new_dict['img_out'] = QlPathStr(_dict.get('img_out'), strsize)
+        new_dict['img_out'] = img_out = QlPathStr(_dict.get('img_out'), strsize)
         new_dict['msk_out'] = msk_out = QlPathStr(_dict.get('msk_out'), strsize)
         if os.path.exists(str(msk_out)):
             vals = list(np.unique(gdal.Open(msk_out).ReadAsArray()))
@@ -765,6 +765,10 @@ def qlReport(folder, input, size):
         else:
             new_dict['report'] = 'FAILURE'
             new_dict['msk_values'] = ''
+        if os.path.exists(str(img_out)):
+            minimum, maximum = RasterMinMax(img_out)
+            input[neuroid]['min'] = minimum
+            input[neuroid]['max'] = maximum
         ql_input[new_line] = new_dict
     dict_to_csv(fullpath(folder, 'mask_values.csv'), msk_end_values)
     report_name = 'report_{}.xls'.format(datetime.now()).replace(' ', '_').replace(':', '-')
@@ -891,7 +895,10 @@ try:
                     print('Cannot get mask values for: %s' % neuroid)
                     msk_values = ''
                 input[neuroid]['msk_values'] = msk_values
-                print('  %i -- MASKED: %s with %s\n' % (i+1, neuroid, msk_values))
+                minimum, maximum = RasterMinMax(img_out)
+                input[neuroid]['min'] = minimum
+                input[neuroid]['max'] = maximum
+                print('  %i -- MASKED: %s with: %s ; data range: %s-%s \n' % (i+1, neuroid, msk_values, int(minimum), int(maximum)))
             else:
                 print('  %i -- ERROR: %s\n' % (i + 1, neuroid))
         else:

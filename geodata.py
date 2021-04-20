@@ -779,7 +779,7 @@ def write_prj(path2prj, projection):
     prj_handle.close()
     return None
 
-# Unites all objects in a set of vector layers in a single layer
+# Unites all objects in a set of vector layers into a single layer
 def unite_vector(path2vector_list, path2export): # No georeference check is used
 
     drv = ogr.GetDriverByName("ESRI Shapefile")
@@ -2320,7 +2320,7 @@ def RandomLinesRectangle(path_in, path_out,
 
 # Rasterize vector layer
 # Returns a mask as np.array of np.bool
-def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, data_type = 1, value_colname = None, value_colname_sec = None, filter_nodata = True, compress = None, overwrite=True):
+def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, data_type = 1, value_colname = None, value_colname_sec = None, filter_nodata = True, unvectored_data = None, compress = None, overwrite=True):
 
     if check_exist(path_out, ignore=overwrite):
         return 1
@@ -2373,7 +2373,12 @@ def RasterizeVector(path_in_vector, path_in_raster, path_out, burn_value = 1, da
         ds_in = gdal.Open(path_in_raster)
         band_in = ds_in.GetRasterBand(1)
         mask = (band_in.ReadAsArray() != band_in.GetNoDataValue()).astype(int)
-        new_data = t_ds.GetRasterBand(1).ReadAsArray() * mask
+        if unvectored_data is None:
+            new_data = t_ds.GetRasterBand(1).ReadAsArray() * mask
+        else:
+            new_array = t_ds.GetRasterBand(1).ReadAsArray()
+            new_array[new_array==0] = unvectored_data
+            new_data = new_array * mask
         t_ds.GetRasterBand(1).WriteArray(new_data)
 
     t_ds = None

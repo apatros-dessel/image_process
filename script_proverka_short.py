@@ -14,7 +14,7 @@ type_tmpt = {'KAN':'KV','RSP':'RP'}.get(args.type.upper())
 xls_name = args.xls_name
 xls_out = args.xls_out
 band_type = args.band_type
-pathmark = args.pathmark
+pathmark = obj2list(args.pathmark.split(','))
 path = args.path
 
 def CheckImage(img_path):
@@ -43,26 +43,32 @@ def CheckImage(img_path):
             except:
                 pass
 
+def CheckPathmark(marks, path):
+    if marks is not None:
+        for mark in obj2list(marks):
+            if mark in path:
+                return True
+    return False
+
 files = folder_paths(path,1,'jpg')
 
-if xls_name:
-    xls_dict = xls_to_dict(xls_name)
-else:
-    xls_dict = None
 end = OrderedDict()
+if xls_name:
+    end = xls_to_dict(xls_name)
+    if end is None:
+        end = OrderedDict()
 
-for file in files:
+for i, file in enumerate(files):
+    if (i+1)%100==0:
+        if len(end)>0:
+            dict_to_xls(fullpath(path, xls_out), end)
     name = os.path.basename(file)
-    if pathmark:
-        if not pathmark in file:
-            continue
+    if not CheckPathmark(pathmark, file):
+        continue
     if not band_type in name:
         continue
     if type_tmpt:
         if re.search(type_tmpt,name) is None:
-            continue
-    if xls_dict:
-        if not (name in xls_dict):
             continue
     result = CheckImage(file)
     if result==909:

@@ -1129,3 +1129,15 @@ def MinMax(old, new, maximum=False):
         return max([old, new])
     else:
         return min([old, new])
+
+class FolderDirs(dict):
+
+    def __init__(self, folder, miss_tmpt=None):
+        if os.path.exists(folder):
+            for name in os.listdir(folder):
+                path = fullpath(folder, name)
+                if os.path.isdir(path):
+                    if miss_tmpt:
+                        if re.search(miss_tmpt, name):
+                            continue
+                    self[name] = path

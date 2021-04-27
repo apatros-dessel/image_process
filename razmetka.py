@@ -173,7 +173,7 @@ class MaskSubtypeFolderIndex(dict):
             datacatpath = (r'%s/%s/%s' % (self.corner, datacat, self.subtype)).rstrip(r'\/')
             if os.path.exists(datacatpath):
                 self[datacat] = {}
-                files = FolderFiles(datacatpath, miss_tmpt='&', type=datacats[datacat])
+                files = FolderFiles(datacatpath, miss_tmpt=None, type=datacats[datacat])
                 # scroll(files)
                 for name in files:
                     if not name in self[datacat]:
@@ -214,7 +214,7 @@ class MaskTypeFolderIndex:
         for bandclass in self.bandclasses:
             bandclasspath = self.bandclasses[bandclass]
             datacatpath = r'%s/%s' % (bandclasspath, 'img')
-            subtypedirs = FolderDirs(datacatpath, miss_tmpt='[&#]')
+            subtypedirs = FolderDirs(datacatpath, miss_tmpt='[#]')
             if subtypedirs is not None:
                 subtypes.update(subtypedirs)
         for subtype in subtypes.keys():
@@ -243,8 +243,8 @@ class MaskTypeFolderIndex:
 
     def SaveBandsSeparated(self, subtype=''):
         full_imgs = self.Images(subtype, 'MS')
-        band_params = globals()['band_params']
         if full_imgs:
+            band_params = globals()['band_params']
             for ms_name in full_imgs:
                 ms_path = full_imgs[ms_name]
                 for channel in band_params:
@@ -611,6 +611,16 @@ def DownloadKanopusFromS3(id, pout, type=None, geom_path = None):
     destroydir(folder)
     return kan_id
 
+def SetKanIdByType(kan_id, type):
+    if kan_id is not None:
+        types = ['PMS', 'PAN', 'MS']
+        # print(kan_id, type)
+        if not ('.%s' % type) in kan_id:
+            for t in types:
+                if t!=type:
+                    kan_id = kan_id.replace('.%s' % type, '.%s' % t)
+        return kan_id
+
 def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
     folder = tempname()
     raster_path = None
@@ -635,7 +645,11 @@ def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
         else:
             kan_id = None
             if l == 0:
-                print('SCENE DATA NOT FOUND: %s' % id)
+                # if type!='MS':
+                    # kan_id = GetKanopusId(id, type='MS', geom_path=geom_path)
+                if kan_id is None:
+                    # print('SCENE DATA NOT FOUND: %s' % id)
+                    pass
             elif l > 1:
                 print('MULTIPLE SCENES FOUND FOR: %s - %i scenes' % (id, l))
                 files = folder_paths(folder,1,'tif')
@@ -645,7 +659,8 @@ def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
                         folder_name = os.path.split(f)[1]
                         raster_path = file
                         kan_id = '_'.join(folder_name.split('_')[:-1]) + '.L2'
-    print(raster_dir, kan_id)
+    kan_id = SetKanIdByType(kan_id, type)
+    # print(raster_dir, kan_id)
     if (raster_dir is not None) and (kan_id is not None):
         if raster_path is None:
             command = r'''gu_db_query -w %s -d %s''' % (KanCallSQL(kan_id, type), folder)

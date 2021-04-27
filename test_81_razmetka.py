@@ -1,11 +1,11 @@
 from razmetka import *
 
-path = r'\\172.21.195.2\thematic\!razmetka\Kanopus\Kanopus_surface'
+path = r'\\172.21.195.2\thematic\!razmetka\Kanopus\Kanopus_clouds'
 
 folder_index = MaskTypeFolderIndex(path)
 
 # scroll(folder_index.subtypes['img_cloud']['MS']['img'])
 
-folder_index.UpdateFromMS('PAN','img_without_clouds',use_source_pms=False)
-# folder_index.SaveBandsSeparated('img_mist_cloud_shadow_surface')
+# folder_index.UpdateFromMS('PAN','img_without_clouds',use_source_pms=False)
+folder_index.SaveBandsSeparated('&without_cloud')
 # folder_index.ReprojectPanToMs(r'e:\rks\kantest2\img_cloud_mist_shadow', 'img_cloud_mist_shadow')

@@ -1141,3 +1141,12 @@ class FolderDirs(dict):
                         if re.search(miss_tmpt, name):
                             continue
                     self[name] = path
+
+def FindAny(str_, find_list):
+    if find_list is None:
+        return True
+    else:
+        for part in obj2list(find_list):
+            if part in str_:
+                return True
+    return False

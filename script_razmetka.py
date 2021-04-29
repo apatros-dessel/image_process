@@ -22,6 +22,7 @@ parser.add_argument('--multiply_band', default=None, dest='multiply_band', help=
 parser.add_argument('--dg_metadata', default=None, dest='dg_metadata', help='Путь к хранению метаданных DG')
 parser.add_argument('--xls', default=None, dest='input_from_report', help='Путь к таблице xls с путями к источникам данных, если None, то пары снимок-вектор строятся заново. Менять источники можно вручную, формат xlsx не читает')
 parser.add_argument('--burn_value', default=None, dest='burn_value', help='Единое значение для всех масок')
+parser.add_argument('--pathmark', default=None, dest='pathmark', help='Фильтровать пути к файлам по отметке')
 parser.add_argument('pin', help='Путь к исходным файлам, растровым или растровым и векторным')
 parser.add_argument('pout', help='Путь для сохранения конечных файлов')
 parser.add_argument('maskid', help='Тип масок')
@@ -48,6 +49,7 @@ dg_metadata = args.dg_metadata
 burn_value = args.burn_value
 input_from_report = args.input_from_report
 empty_mask = boolstr(args.empty)
+pathmark = liststr(args.pathmark)
 
 if dg_metadata is not None:
     dg_files = folder_paths(dg_metadata,1,'tif')
@@ -471,11 +473,13 @@ def pms_exit(id, pms = False):
     return False
 
 # Получить пути к исходным данным для масок для разделённых векторных файлов (shp, json, geojson) и растровых снимков (tif)
-def get_pair_paths(pin, pms = False, original = False):
+def get_pair_paths(pin, pms = False, original = False, pathmark = None):
     export = OrderedDict()
     for folder in obj2list(pin):
         paths = folder_paths(folder, 1)
         for path in paths:
+            if not FindAny(path, pathmark):
+                continue
             f,n,e = split3(path)
             if not e in ['shp', 'json', 'geojson', 'tif']:
                 continue
@@ -504,7 +508,7 @@ def get_pair_paths(pin, pms = False, original = False):
     return export
 
 # Получить пути к исходным данным для масок для цельных векторных файлов
-def get_pairs(raster_paths, vin, img_colname, vecids=None, split_vector=True, pms=False, original=False):
+def get_pairs(raster_paths, vin, img_colname, vecids=None, split_vector=True, pms=False, original=False, pathmark=None):
     export = OrderedDict()
     if vecids is None:
         vecids = get_col_keys(vin, img_colname)
@@ -514,6 +518,8 @@ def get_pairs(raster_paths, vin, img_colname, vecids=None, split_vector=True, pm
         for i, rasterid in enumerate(raster_names):
             if id == rasterid:
                 try:
+                    if not FindAny(raster_paths[i], pathmark):
+                        raise Exception
                     neuroid = neuroid_extended(n, original=original)
                     if split_vector:
                         export[neuroid] = {'r': raster_paths[i], 'v': filter_dataset_by_col(vin, img_colname, vecid)}
@@ -619,7 +625,7 @@ def check_image(img_in, neuro, multiply = None):
         metaBandNum = 1
     elif re.search(r'IMCH\d+$', img_type):
         metaBandNum = int(img_type[4:])
-    elif '.PAN' in neuro:
+    elif FindAny(neuro, ['.PAN','_red','_green','_blue','_nir']):
         metaBandNum = 1
     else:
         satellite_types = globals()['satellite_types']
@@ -812,7 +818,7 @@ if input_from_report:
     print('Input taken from %s' % input_from_report)
 else:
     if vin is None or vin == '':
-        input = get_pair_paths(pin, pms=pms, original=original)
+        input = get_pair_paths(pin, pms=pms, original=original, pathmark=pathmark)
     else:
         vecids = None
         if vecids_path is not None:

@@ -624,9 +624,17 @@ def SetKanIdByType(kan_id, type):
 def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
     folder = tempname()
     raster_path = None
-    if re.search('^KV.+L2$', id):
+    band_id = ''
+    for part in ['_red','_green','_blue','_nir']:
+        if part in id:
+            id = id.split(part)[0]
+            band_id = part
+            break
+    if re.search(r'^KV.+SCN\d+.L2$', id):
+        kan_id = id.replace('.L2', '.%s.L2' % type)
+    elif re.search('^KV.+L2$', id):
         kan_id = id
-    elif re.search('^KV.+.P?MS', id) or re.search('^KV.+.PAN', id):
+    elif re.search('^KV.+.P?MS$', id) or re.search('^KV.+.PAN$', id):
         kan_id = id + '.L2'
     elif re.search('^KV.+SCN\d+$', id):
         kan_id = '%s.%s.L2' % (id, type)
@@ -674,6 +682,8 @@ def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
         if raster_path is not None:
             copyfile(raster_path, fullpath(raster_dir, kan_id, 'tif'), overwrite=True)
     destroydir(folder)
+    if kan_id is not None:
+        kan_id += band_id
     return kan_id
 
 def Pansharp(pan_path, ms_path, pms_path):

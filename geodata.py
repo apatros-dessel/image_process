@@ -3296,3 +3296,40 @@ def ReorderBands(path_in, path_out, band_order):
             raster_out.GetRasterBand(new_band).WriteArray(arr)
             arr = None
     raster_out = None
+
+def VectorCentroids(path_in, path_out, area_lim = None):
+    ds_in, lyr_in = get_lyr_by_path(path_in)
+    if lyr_in:
+        ds_out = json(path_out, editable=True, srs=lyr_in.GetSpatialRef())
+        lyr_out = ds_out.GetLayer()
+        for feat in lyr_in:
+            geom = feat.GetGeometryRef()
+            if area_lim is not None:
+                area = geom.GetArea()
+                if area>area_lim:
+                    continue
+            geom_centroid = geom.Centroid()
+            feat.SetGeometry(geom_centroid)
+            lyr_out.CreateFeature(feat)
+        ds_out = None
+
+def FindTreesFromDEM(raster_in, raster_out, vector_out, radius=1, min_height=5):
+    raster = gdal.Open(raster_in)
+    if raster:
+        dem = raster.GetRasterBand(1).ReadAsArray()
+        arr_diff = LocalMinMax(dem, radius, method=2)
+        tree_mask = arr_diff > min_height
+        if len(np.unique(tree_mask))>1:
+            raster_fin = ds(raster_out, copypath=raster_in, options={'bandnum':1, 'dtype':1, 'compress': 'DEFLATE'}, editable=True)
+            band_out = raster_fin.GetRasterBand(1)
+            band_out.WriteArray(tree_mask)
+            raster_fin = None
+            vector_polygon = tempname('shp')
+            trans = raster.GetGeoTransform()
+            area_lim = abs(trans[1] * trans[5] * ((2 * radius + 1) ** 2))/2
+            print(area_lim)
+            VectorizeBand((raster_out,1), vector_polygon)
+            VectorCentroids(vector_polygon, vector_out, area_lim=area_lim)
+            delete(vector_polygon)
+        else:
+            print('ERROR: TREE ARRAY IS EMPTY: %s' % raster_in)

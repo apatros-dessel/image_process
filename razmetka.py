@@ -498,7 +498,7 @@ def SetImage(img_in, img_out, band_num=1, band_reposition=None, multiply=None, n
         return img_out
 
 # Создать растровую маску на основе вектора
-def SetMask(img_in, vec_in, msk_out, value_colname, replace=None, empty_default=0,
+def SetMask(img_in, vec_in, msk_out, value_colname='gridcode', replace=None, empty_default=0,
             colname_sec=None, compress='DEFLATE', overwrite=False):
     if check_exist(msk_out, ignore=overwrite):
         return msk_out, GetValues(msk_out)
@@ -509,7 +509,7 @@ def SetMask(img_in, vec_in, msk_out, value_colname, replace=None, empty_default=
         if not os.path.exists(vec_reprojected):
             vec_reprojected = vec_in
         try:
-            RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
+            RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, value_colname=value_colname, value_colname_sec=colname_sec, compress=compress, overwrite=overwrite)
             values = GetValues(msk_out, replace=replace, band_num=1)
             return msk_out, values
         except:

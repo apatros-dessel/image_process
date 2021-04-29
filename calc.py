@@ -418,3 +418,28 @@ def splitbin(arr1, arr2):
     for i in range(arr1.size):
         arr_sum[i] = np.sum(arr1[:i]) + np.sum(arr2[i:])
     return np.argsort(arr_sum)[0]
+
+def LocalArr(arr_part, method):
+    # print(arr_part)
+    if method == 0:
+        return np.min(arr_part)
+    elif method == 1:
+        return np.max(arr_part)
+    elif method == 2:
+        return np.max(arr_part) - np.min(arr_part)
+    else:
+        return 0
+
+def LocalMinMax(arr_, area, method=0):
+    # Methods: 0 - minimum, 1 - maximum, 2 - range
+    area = int(area)
+    if not method in range(3):
+        print('WRONG MWETHOD: {}'.format(method))
+        return None
+    y_size, x_size = arr_.shape
+    arr_fin = np.zeros((y_size, x_size)).astype(arr_.dtype)
+    for y in range(y_size):
+        for x in range(x_size):
+            arr_part = arr_[max(0, y-area):min(y_size, y+1+area), max(0, x-area):min(x_size, x+1+area)]
+            arr_fin[y,x] = LocalArr(arr_part, method)
+    return arr_fin

@@ -6,7 +6,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('path', help='Путь для поиска исходных данных')
 parser.add_argument('-x', default=None, dest='xls_name', help='Название таблицы Excel')
 parser.add_argument('-t', default=None, dest='type', help='Тип данных (KAN или RSP)')
-parser.add_argument('-b', default='MS', dest='band_type', help='Тип данных (KAN или RSP)')
+parser.add_argument('-b', default='MS', dest='band_type', help='Тип данных (MS, PAN или PMS)')
 parser.add_argument('-o', default='report.xls', dest='xls_out', help='Название выходного файла')
 parser.add_argument('--pathmark', default=None, dest='pathmark', help='Маркер пути к файлу')
 args = parser.parse_args()
@@ -14,7 +14,9 @@ type_tmpt = {'KAN':'KV','RSP':'RP'}.get(args.type.upper())
 xls_name = args.xls_name
 xls_out = args.xls_out
 band_type = args.band_type
-pathmark = obj2list(args.pathmark.split(','))
+pathmark = args.pathmark
+if pathmark is not None:
+    pathmark = obj2list(pathmark.split(','))
 path = args.path
 
 def CheckImage(img_path):
@@ -44,7 +46,9 @@ def CheckImage(img_path):
                 pass
 
 def CheckPathmark(marks, path):
-    if marks is not None:
+    if marks is None:
+        return True
+    else:
         for mark in obj2list(marks):
             if mark in path:
                 return True
@@ -63,6 +67,7 @@ for i, file in enumerate(files):
         if len(end)>0:
             dict_to_xls(fullpath(path, xls_out), end)
     name = os.path.basename(file)
+    # print(file, pathmark, band_type)
     if not CheckPathmark(pathmark, file):
         continue
     if not band_type in name:

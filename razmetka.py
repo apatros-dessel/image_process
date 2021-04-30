@@ -2,6 +2,7 @@ from geodata import *
 
 bandclasses = ('MS','PAN','PMS','BANDS','BANDS_nir')
 datacats = {'img': ('tif'),
+            'img_check': ('tif'),
             'mask': ('tif'),
             'shp_auto': ('shp','json','geojson'),
             'shp_hand': ('shp', 'json','geojson'),
@@ -194,12 +195,12 @@ class MaskSubtypeFolderIndex(dict):
 
 class MaskTypeFolderIndex:
 
-    def __init__(self, corner):
+    def __init__(self, corner, datacat='img'):
         self.corner = corner
         self.bandclasses = {}
         self.subtypes = {}
         self.FillMaskBandclasses()
-        self.FillMaskSubtypes()
+        self.FillMaskSubtypes(datacat=datacat)
 
     def FillMaskBandclasses(self):
         bandclasses = globals()['bandclasses']
@@ -208,12 +209,12 @@ class MaskTypeFolderIndex:
             if os.path.exists(bandclasspath):
                 self.bandclasses[bandclass] = bandclasspath
 
-    def FillMaskSubtypes(self):
+    def FillMaskSubtypes(self, datacat='img'):
         datacats = globals()['datacats']
         subtypes = {'': None}
         for bandclass in self.bandclasses:
             bandclasspath = self.bandclasses[bandclass]
-            datacatpath = r'%s/%s' % (bandclasspath, 'img')
+            datacatpath = r'%s/%s' % (bandclasspath, datacat)
             subtypedirs = FolderDirs(datacatpath, miss_tmpt='[#]')
             if subtypedirs is not None:
                 subtypes.update(subtypedirs)
@@ -230,19 +231,19 @@ class MaskTypeFolderIndex:
         else:
             print('SUBTYPE NOT FOUND: %s' % subtype)
 
-    def Images(self, subtype='', bandclass='MS'):
+    def Images(self, subtype='', bandclass='MS', datacat='img'):
         subtype_dict = self.Subtype(subtype)
         if subtype_dict:
             if bandclass in subtype_dict:
-                if 'img' in subtype_dict[bandclass]:
-                    return subtype_dict[bandclass]['img']
+                if datacat in subtype_dict[bandclass]:
+                    return subtype_dict[bandclass][datacat]
                 else:
                     print('MS IMG FOLDER NOT FOUND: %s' % subtype)
             else:
                 print('MS DATA NOT FOUND: %s' % subtype)
 
-    def SaveBandsSeparated(self, subtype=''):
-        full_imgs = self.Images(subtype, 'MS')
+    def SaveBandsSeparated(self, subtype='', datacat='img'):
+        full_imgs = self.Images(subtype, 'MS', datacat=datacat)
         if full_imgs:
             band_params = globals()['band_params']
             for ms_name in full_imgs:
@@ -250,7 +251,7 @@ class MaskTypeFolderIndex:
                 for channel in band_params:
                     band_num, bandclass = band_params[channel]
                     band_name = ms_name.replace('.tif', '_%s.tif' % channel)
-                    band_path = r'%s\%s\img\%s\%s' % (self.corner, bandclass, subtype, band_name)
+                    band_path = r'%s\%s\%s\%s\%s' % (self.corner, bandclass, datacat, subtype, band_name)
                     band_folder = os.path.dirname(band_path)
                     suredir(band_folder)
                     SetImage(ms_path, band_path, band_num=1, band_reposition=[band_num], overwrite=False)

@@ -1,6 +1,6 @@
 from razmetka import *
 
-pout = r'e:\rks\razmetka_source\kanopus_water'
+pout = r'e:\rks\razmetka_source\kanopu_full_ms'
 type = 'MS'
 update = False
 

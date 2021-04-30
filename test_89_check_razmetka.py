@@ -1,10 +1,12 @@
 from tools import *
 
 razmetka_path = r'e:\rks\razmetka'
+copy_mask_folder = r'e:\rks\copymask'
 out_xls = r'e:\rks\razmetka\razmetka_report.xls'
 
-def ReadXlsMeta(xls_path):
+def ReadXlsMeta(xls_path, copy_mask_folder=None):
     data = xls_to_dict(xls_path)
+    folder = os.path.split(xls_path)[0]
     scn_num = len(data)
     raster_folders = {}
     values = []
@@ -23,8 +25,35 @@ def ReadXlsMeta(xls_path):
             for val in scn_values:
                 if not val in values:
                     values.append(val)
+        if copy_mask_folder is not None:
+            msk_path = data[id].get('msk_out')
+            if msk_path:
+                msk_name = os.path.basename(msk_path)
+                # msk_type = GetMaskBandType(msk_name)
+                # msk_folder = r'%s/%s/%s' % (copy_mask_folder, msk_type, raster)
+                msk_folder = r'%s/%s' % (copy_mask_folder, raster)
+                suredir(msk_folder)
+                msk_folder_down = msk_path.split('masks')[1]
+                msk_source = r'%s/masks/%s' % (folder, msk_folder_down)
+                copyfile(msk_source, fullpath(msk_folder, msk_name))
     values.sort()
     return scn_num, raster_folders, values
+
+def GetMaskBandType(msk_name):
+    if msk_name.startswith('IMR') or ('_red' in msk_name):
+        return 'red'
+    if msk_name.startswith('IMG') or ('_green' in msk_name):
+        return 'green'
+    if msk_name.startswith('IMB') or ('_blue' in msk_name):
+        return 'blue'
+    if msk_name.startswith('IMN') or ('_nir' in msk_name):
+        return 'nir'
+    if msk_name.startswith('IMP') or ('.PAN' in msk_name):
+        return 'pan'
+    if '.PMS' in msk_name:
+        return 'pms'
+    else:
+        return 'ms'
 
 def DictToLine(dict_):
     str_ = ''
@@ -43,7 +72,7 @@ for razmetka_id in folders:
     xls_files = folder_paths(folder,1,'xls',filter_folder='quicklook')
     if len(xls_files)>0:
         xls_path = xls_files[0]
-        scn_num, raster_folders, values = ReadXlsMeta(xls_path)
+        scn_num, raster_folders, values = ReadXlsMeta(xls_path, copy_mask_folder=fullpath(copy_mask_folder, razmetka_id))
         scroll(raster_folders, header='\n%s: %s' % (razmetka_id, scn_num), lower=' '.join(flist(values, str)))
         razmetka_report['Всего сцен'] = scn_num
         razmetka_report['По типам'] = DictToLine(raster_folders)

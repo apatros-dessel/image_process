@@ -226,6 +226,7 @@ class MaskTypeFolderIndex:
                     self.subtypes[subtype][bandclass] = subtype_index
 
     def Subtype(self, subtype):
+        # scroll(self.subtypes, lower=subtype)
         if subtype in self.subtypes:
             return self.subtypes[subtype]
         else:
@@ -241,6 +242,8 @@ class MaskTypeFolderIndex:
                     print('MS IMG FOLDER NOT FOUND: %s' % subtype)
             else:
                 print('MS DATA NOT FOUND: %s' % subtype)
+        else:
+            print('SUBTYPE DICT IS EMPTY: %s' % subtype)
 
     def SaveBandsSeparated(self, subtype='', datacat='img'):
         full_imgs = self.Images(subtype, 'MS', datacat=datacat)
@@ -425,8 +428,8 @@ class MaskTypeFolderIndex:
                 dict_to_xls(rep_id_path, reports[rep_id])
                 SaveMaskValues(rep_id_path, reports[rep_id])
 
-    def UpdateFromMS(self, bandclass='PAN', subtype='', use_source_pms=True):
-        ms_imgs = self.Images(subtype, 'MS')
+    def UpdateFromMS(self, bandclass='PAN', subtype='', use_source_pms=True, datacat='img'):
+        ms_imgs = self.Images(subtype=subtype, bandclass='MS', datacat=datacat)
         if ms_imgs:
             errors = []
             for ms_name in ms_imgs:
@@ -618,8 +621,9 @@ def SetKanIdByType(kan_id, type):
         # print(kan_id, type)
         if not ('.%s' % type) in kan_id:
             for t in types:
-                if t!=type:
-                    kan_id = kan_id.replace('.%s' % type, '.%s' % t)
+                if t!=type and (t in kan_id):
+                    kan_id = kan_id.replace('.%s' % t, '.%s' % type)
+                    # print(kan_id)
         return kan_id
 
 def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):

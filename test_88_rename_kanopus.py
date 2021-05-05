@@ -1,7 +1,7 @@
 from razmetka import *
 
-pout = r'e:\rks\razmetka_source\kanopu_full_ms'
-type = 'MS'
+pout = r'e:\rks\razmetka_source\kanopus_surface_pan'
+type = 'PAN'
 update = False
 
 files = folder_paths(pout,1,['shp','tif','json'])

@@ -1142,9 +1142,9 @@ class FolderDirs(dict):
                             continue
                     self[name] = path
 
-def FindAny(str_, find_list):
+def FindAny(str_, find_list, default=True):
     if find_list is None:
-        return True
+        return default
     else:
         for part in obj2list(find_list):
             if part in str_:

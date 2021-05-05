@@ -3225,25 +3225,40 @@ def RasterLimits(ds_, reference=None, vector_path=None):
             ds_out = None
         return vector_path
 
+def GetAttrLike(feat, attr_like):
+    keys = feat.keys()
+    if attr_like in keys:
+        return feat.GetField(attr_like), attr_like
+    else:
+        for attr in keys:
+            if re.search(attr_like.lower(), attr.lower()):
+                return feat.GetField(attr), attr
+        return None, None
+
 def GetAttrVals(shp_path, attr, func=None):
     din, lyr = get_lyr_by_path(shp_path)
     vals = []
-    for feat in lyr:
-        val = feat.GetField(attr)
-        if val is not None:
-            if func is not None:
-                val = func(val)
-            if not (val in vals):
-                vals.append(val)
-    vals.sort()
-    return vals
+    attr_fin = None
+    if lyr is not None:
+        for feat in lyr:
+            val, attr_fin = GetAttrLike(feat, attr)
+            if val is not None:
+                if func is not None:
+                    val = func(val)
+                if not (val in vals):
+                    vals.append(val)
+        vals.sort()
+    return vals, attr_fin
 
 def ReplaceAttrVals(shp_path, attr, replace, func=None):
     din, lyr = get_lyr_by_path(shp_path, 1)
     for feat in lyr:
         val = feat.GetField(attr)
         if func is not None:
-            val = func(val)
+            try:
+                val = func(val)
+            except:
+                continue
         if val in replace:
             new_val = replace[val]
             feat.SetField(attr, new_val)

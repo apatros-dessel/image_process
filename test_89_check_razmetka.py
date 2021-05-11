@@ -24,7 +24,8 @@ def ReadXlsMeta(xls_path, copy_mask_folder=None):
             scn_values = flist(str(scn_values).strip().split(' '), int)
             for val in scn_values:
                 if not val in values:
-                    values.append(val)
+                    if val is not None:
+                        values.append(val)
         if copy_mask_folder is not None:
             msk_path = data[id].get('msk_out')
             if msk_path:
@@ -33,9 +34,12 @@ def ReadXlsMeta(xls_path, copy_mask_folder=None):
                 # msk_folder = r'%s/%s/%s' % (copy_mask_folder, msk_type, raster)
                 msk_folder = r'%s/%s' % (copy_mask_folder, raster)
                 suredir(msk_folder)
-                msk_folder_down = msk_path.split('masks')[1]
-                msk_source = r'%s/masks/%s' % (folder, msk_folder_down)
-                copyfile(msk_source, fullpath(msk_folder, msk_name))
+                if 'masks' in msk_path:
+                    msk_folder_down = msk_path.split('masks')[1]
+                    msk_source = r'%s/masks/%s' % (folder, msk_folder_down)
+                    copyfile(msk_source, fullpath(msk_folder, msk_name))
+                else:
+                    print('Wrong msk_out: %s' % str(msk_path))
     values.sort()
     return scn_num, raster_folders, values
 

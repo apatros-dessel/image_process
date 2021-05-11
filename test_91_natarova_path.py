@@ -1,9 +1,9 @@
 from tools import *
 
-xls_check = r'\\172.21.195.2\thematic\!SPRAVKA\S3\16\report_kv_water.xls'
-xls_paths = r'\\172.21.195.2\thematic\!SPRAVKA\S3\16\16.xls'
-txt_path = r'\\172.21.195.2\thematic\!SPRAVKA\S3\16\report_kv_water.txt'
-marks = ['997']
+xls_check = r'\\172.21.195.2\thematic\!SPRAVKA\S3\24\report_surfacetype.xls'
+xls_paths = r'\\172.21.195.2\thematic\!SPRAVKA\S3\24\24.xls'
+txt_path = r'\\172.21.195.2\thematic\!SPRAVKA\S3\24\report_kv_tundra.txt'
+marks = ['96','97']
 mount = 'y:/'
 
 check = xls_to_dict(xls_check)

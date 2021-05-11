@@ -271,11 +271,14 @@ def RemoveFromList(list_, val_):
 
 
 # Change all values in list using the function
-def flist(l, func, copy=True):
+def flist(l, func, copy=True, error_value=None):
     if copy:
         l = list(deepcopy(l))
     for i, v in enumerate(l):
-        l[i] = func(v)
+        try:
+            l[i] = func(v)
+        except:
+            l[i] = error_value
     return l
 
 # Return mean

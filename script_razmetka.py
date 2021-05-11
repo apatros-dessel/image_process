@@ -866,8 +866,12 @@ try:
             elif 'no_cloud' in img_in:
                 empty_value = 0
             else:
-                print('UNKNOWN EMPTY VALUE: %s' % str(neuroid))
+                # print('UNKNOWN EMPTY VALUE: %s' % str(neuroid))
                 empty_value = None
+            if (not vec_in) and (empty_value is None):
+                input[neuroid]['report'] = 'FAILURE'
+                print('  %i -- EMPTY VALUE ERROR: %s\n' % (i + 1, str(neuroid)))
+                continue
             img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=band_reposition, multiply=multiply_band)
             input[neuroid]['img_out'] = img_out
             if vec_in:

@@ -7,9 +7,20 @@ update = False
 files = folder_paths(pout,1,['shp','tif','json'])
 
 vals = {}
+names = {}
+name_duplicates = {}
 
 for file in files:
     f,id,e = split3(file)
+    name = '%s.%s' % (id, e)
+    foldername = os.path.split(f)[1]
+    if name in names:
+        if name in name_duplicates:
+            name_duplicates[name].append(foldername)
+        else:
+            name_duplicates[name] = [names[name], foldername]
+    else:
+        names[name] = foldername
     if not id in vals:
         if e.lower() in ('tif'):
             geom_path = RasterCentralPoint(gdal.Open(file), reference=None, vector_path=tempname('json'))
@@ -30,3 +41,6 @@ for file in folder_paths(pout,1):
             rename(file, fullpath(f,kan_id,e))
 
 scroll(vals)
+
+if len(name_duplicates)>0:
+    scroll(name_duplicates)

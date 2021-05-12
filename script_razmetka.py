@@ -593,7 +593,7 @@ def get_paths(pout, id, maskid, imgid, quicksizes, original=original):
         suredir(folder)
     img_path = fullpath(img_folder, imgname, 'tif')
     if original:
-        msk_name = id
+        msk_name = imgname
     else:
         if len(imgid) == 3:
             msk_name = msk_type['id']+id[3:]

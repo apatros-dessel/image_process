@@ -1,6 +1,6 @@
 from razmetka import *
 
-path = r'\\172.21.195.2\thematic\!razmetka\Kanopus\Kanopus_clouds'
+path = r'\\172.21.195.2\thematic\!razmetka\Kanopus\Kanopus_surface'
 datacat = 'img'
 
 folder_index = MaskTypeFolderIndex(path, datacat=datacat)
@@ -10,8 +10,8 @@ folder_index.FillMaskSubtypes(datacat=datacat)
 # scroll(folder_index.subtypes.keys())
 # sys.exit()
 
-folder_index.UpdateFromMS('PAN','img_mist_cloud_shadow_surface',use_source_pms=False)
-sys.exit()
+# folder_index.UpdateFromMS('PAN','img_mist_cloud_shadow_surface',use_source_pms=False)
+# sys.exit()
 for subtype in folder_index.subtypes:
     folder_index.UpdateFromMS('PAN', subtype, use_source_pms=False)
     # folder_index.SaveBandsSeparated(subtype, datacat=datacat)

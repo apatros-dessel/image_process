@@ -331,18 +331,20 @@ def GetMetaDG(id):
         return parse_dg(id)
 
 # Расширенная функция расчёта neuroid, учитывающая готовые neuroid и названия разновременных композитов
-def neuroid_extended(id, original=False):
+def neuroid_extended(id, original=False, imgid=None):
     cutsearch = re.search('__cut\d+$', id)
+    if imgid is None:
+        imgid = 'IM4'
     if cutsearch is not None:
         cut = cutsearch.group()
-        id = id[:-len(cut)]
+        id = id.split('__cut')[0]
     else:
         # print('NoCut: %s' % id)
         cut = ''
-    if re.search(r'^IM\d+-.+-\d+-.+-.+$', id):
-        return id + cut
+    if re.search(r'^%s-.+-\d+-.+-.+$' % imgid, id) or re.search(r'^IM4-.+-\d+-.+-.+$', id):
+        return '%s-%s%s' % (imgid, '-'.join(id.split('-')[1:]), cut)
     elif re.search(r'^S[12][AB]-\d+-.+-.+$', id):
-        return 'IM4-' + id + cut
+        return '%s-%s%s' % (imgid, id, cut)
     elif re.search(r'IMCH\d+__.+__.+', id):
         parts = id.split('__')[1:3]
     elif len(id.split('__'))==2:
@@ -475,7 +477,7 @@ def pms_exit(id, pms = False):
     return False
 
 # Получить пути к исходным данным для масок для разделённых векторных файлов (shp, json, geojson) и растровых снимков (tif)
-def get_pair_paths(pin, pms = False, original = False, pathmark = None, missmark = None):
+def get_pair_paths(pin, pms = False, original = False, pathmark = None, missmark = None, imgid = None):
     export = OrderedDict()
     for folder in obj2list(pin):
         paths = folder_paths(folder, 1)
@@ -485,7 +487,7 @@ def get_pair_paths(pin, pms = False, original = False, pathmark = None, missmark
             f,n,e = split3(path)
             if not e in ['shp', 'json', 'geojson', 'tif']:
                 continue
-            id = neuroid_extended(n, original=original)
+            id = neuroid_extended(n, original=original, imgid=imgid)
             if id is None:
                 if e=='tif':
                     print(path)
@@ -823,7 +825,7 @@ if input_from_report:
     print('Input taken from %s' % input_from_report)
 else:
     if vin is None or vin == '':
-        input = get_pair_paths(pin, pms=pms, original=original, pathmark=pathmark, missmark=missmark)
+        input = get_pair_paths(pin, pms=pms, original=original, pathmark=pathmark, missmark=missmark, imgid=imgid)
     else:
         vecids = None
         if vecids_path is not None:
@@ -836,7 +838,8 @@ else:
 
 # Создать пути для размещения изображений и масок
 suredir(pout)
-# scroll(input, header='\nTotal input:')
+scroll(input, header='\nTotal input:')
+# sys.exit()
 
 # Создавать маски из найденных пар
 t = datetime.now()
@@ -848,7 +851,6 @@ try:
     for i, neuroid in enumerate(input):
         if (neuroid is None):
             print('  %i -- NEUROID ERROR: %s\n' % (i+1, str(neuroid)))
-            continue
         elif input[neuroid]['pairing']==False:
             if empty_mask and os.path.exists(str(input[neuroid].get('r'))):
                 # print('  %i -- VECTOR NOT FOUND, CREATING EMPTY MASK: %s\n' % (i, str(neuroid)))

@@ -128,9 +128,8 @@ class FolderDirs(dict):
             for name in os.listdir(folder):
                 path = fullpath(folder, name)
                 if os.path.isdir(path):
-                    if miss_tmpt:
-                        if re.search(miss_tmpt, name):
-                            continue
+                    if FindAny(path, miss_tmpt, default=False):
+                        continue
                     self[name] = path
 
 def FolderFiles(folder, miss_tmpt=None, type=None):
@@ -195,12 +194,12 @@ class MaskSubtypeFolderIndex(dict):
 
 class MaskTypeFolderIndex:
 
-    def __init__(self, corner, datacat='img'):
+    def __init__(self, corner, datacats='img'):
         self.corner = corner
         self.bandclasses = {}
         self.subtypes = {}
         self.FillMaskBandclasses()
-        self.FillMaskSubtypes(datacat=datacat)
+        self.FillMaskSubtypes(datacats=datacats)
 
     def FillMaskBandclasses(self):
         bandclasses = globals()['bandclasses']
@@ -208,31 +207,39 @@ class MaskTypeFolderIndex:
             bandclasspath = r'%s/%s' % (self.corner, bandclass)
             if os.path.exists(bandclasspath):
                 self.bandclasses[bandclass] = bandclasspath
+            else:
+                print('BANDCLASS NOT FOUND: %s' % bandclass)
 
-    def FillMaskSubtypes(self, datacat='img'):
-        datacats = globals()['datacats']
-        subtypes = {'': None}
+    def FillMaskSubtypes(self, datacats='img'):
+        if datacats is None:
+            datacats = globals()['datacats']
+        else:
+            datacats = obj2list(datacats)
+        self.subtypes[''] = {}
         for bandclass in self.bandclasses:
-            bandclasspath = self.bandclasses[bandclass]
-            datacatpath = r'%s/%s' % (bandclasspath, datacat)
-            subtypedirs = FolderDirs(datacatpath, miss_tmpt='[#]')
-            if subtypedirs is not None:
-                subtypes.update(subtypedirs)
-        for subtype in subtypes.keys():
-            self.subtypes[subtype] = {}
-            for bandclass in self.bandclasses:
-                subtype_index = MaskSubtypeFolderIndex().FillFromDisk(self.bandclasses[bandclass], subtype)
-                if subtype_index:
-                    self.subtypes[subtype][bandclass] = subtype_index
+            self.subtypes[''][bandclass] = {}
+            for datacat in datacats:
+                bandclasspath = self.bandclasses[bandclass]
+                datacatpath = r'%s/%s' % (bandclasspath, datacat)
+                self.subtypes[''][bandclass][datacat] = datacatpath
+                subtypedirs = FolderDirs(datacatpath, miss_tmpt=['#', 'set'])
+                for subtype_dir in subtypedirs:
+                    subtype = CorrectFolderName(subtype_dir, ['img', 'shp_hand', 'shp_auto', 'mask'])
+                    if subtype in self.subtypes:
+                        if bandclass in self.subtypes[subtype]:
+                            self.subtypes[subtype][bandclass][datacat] = subtypedirs[subtype_dir]
+                        else:
+                            self.subtypes[subtype][bandclass] = {datacat: subtypedirs[subtype_dir]}
+                    else:
+                        self.subtypes[subtype] = {bandclass: {datacat: subtypedirs[subtype_dir]}}
 
     def Subtype(self, subtype):
-        # scroll(self.subtypes, lower=subtype)
         if subtype in self.subtypes:
             return self.subtypes[subtype]
         else:
             print('SUBTYPE NOT FOUND: %s' % subtype)
 
-    def Images(self, subtype='', bandclass='MS', datacat='img'):
+    def DataFolder(self, subtype='', bandclass='MS', datacat='img'):
         subtype_dict = self.Subtype(subtype)
         if subtype_dict:
             if bandclass in subtype_dict:
@@ -245,6 +252,11 @@ class MaskTypeFolderIndex:
         else:
             print('SUBTYPE DICT IS EMPTY: %s' % subtype)
 
+    def Images(self, subtype='', bandclass='MS', datacat='img'):
+        image_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
+        if image_folder:
+            return FolderFiles(image_folder, miss_tmpt=None, type='tif')
+
     def SaveBandsSeparated(self, subtype='', datacat='img'):
         full_imgs = self.Images(subtype, 'MS', datacat=datacat)
         if full_imgs:
@@ -254,18 +266,20 @@ class MaskTypeFolderIndex:
                 for channel in band_params:
                     band_num, bandclass = band_params[channel]
                     band_name = ms_name.replace('.tif', '_%s.tif' % channel)
-                    band_path = r'%s\%s\%s\%s\%s' % (self.corner, bandclass, datacat, subtype, band_name)
-                    band_folder = os.path.dirname(band_path)
+                    band_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
+                    band_path = fullpath(band_folder, band_name)
                     suredir(band_folder)
                     SetImage(ms_path, band_path, band_num=1, band_reposition=[band_num], overwrite=False)
                 print('BANDS WRITTEN: %s' % ms_name)
         else:
             print('FULL IMAGE DATA NOT FOUND: %s' % subtype)
 
-    def GetKanPath(self, kan_name, subtype='', type=None, geom_path=None, use_source_pms=True):
+    def GetKanPath(self, kan_name, subtype='', type=None, geom_path=None, use_source_pms=True, datacat='img'):
         if type is None:
             type = GetKanTypeFromID(kan_name)
-        kan_path = r'%s\%s\img\%s\%s' % (self.corner, type, subtype, kan_name)
+        kan_folder = self.DataFolder(subtype=subtype, bandclass=type, datacat=datacat)
+        print(' '.join(flist([subtype, kan_name, kan_folder], str)))
+        kan_path = fullpath(kan_folder, kan_name)
         if os.path.exists(kan_path):
             print('FILE EXISTS: %s' % kan_path)
             return kan_path
@@ -287,21 +301,21 @@ class MaskTypeFolderIndex:
                 if ms_path and pan_path:
                     pms_id = split3(pan_path)[1].replace('.PAN','.PMS')
                     pms_path = fullpath(kan_folder, pms_id, tif)
-                    # scroll((pan_path, ms_path, pms_path))
                     pms_path = Pansharp(pan_path, ms_path, pms_path)
                     if pms_path:
                         return pms_path
 
-    def GetVectorPath(self, name, dataclass, subtype='', type=None):
+    def GetVectorPath(self, name, datacat='shp_hand', subtype='', type=None):
         if type is None:
             type = GetKanTypeFromID(name)
-        vec_path_ = r'%s\%s\%s\%s\%s' % (self.corner, type, dataclass, subtype, name)
+        vec_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
+        vec_path_ = fullpath(vec_folder, name)
         vec_folder, vec_id, ext_ = split3(vec_path_)
         for ext in ['shp', 'json', 'geojson']:
             vec_path = fullpath(vec_folder, vec_id, ext)
             if os.path.exists(vec_path):
                 return vec_path
-        print('''VECTOR PATH NOT FOUND: %s with dataclass='%s' and subtype='%s' ''' % (name, dataclass, subtype))
+        print('''VECTOR PATH NOT FOUND: %s with dataclass='%s' and subtype='%s' ''' % (name, datacat, subtype))
 
     def ReprojectPanToMs(self, folder, subtype = ''):
         ms_imgs = self.Images(subtype, 'MS')
@@ -330,7 +344,8 @@ class MaskTypeFolderIndex:
         else:
             print('UNKNOWN TARGET: %s' % target)
             return None
-        msk_path_ = r'%s\%s\%s\%s\%s' % (self.corner, bandclass, dataclass, subtype, name)
+        msk_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat='mask')
+        msk_path_ = fullpath(msk_folder, name)
         msk_folder, msk_id_, ext_ = split3(msk_path_)
         neuro_id = Neuroid(msk_id_)
         if neuro_id:
@@ -424,7 +439,8 @@ class MaskTypeFolderIndex:
             final_datetime = str(datetime.now()).replace(' ', '_').replace(':', '-')
             report_name = 'report_%s.xls' % final_datetime
             for rep_id in reports:
-                rep_id_path = r'%s\%s\mask\%s\%s' % (self.corner, bandclass, subtype, report_name)
+                rep_id_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat='mask')
+                rep_id_path = fullpath(rep_id_folder, report_name)
                 dict_to_xls(rep_id_path, reports[rep_id])
                 SaveMaskValues(rep_id_path, reports[rep_id])
 
@@ -434,13 +450,48 @@ class MaskTypeFolderIndex:
             errors = []
             for ms_name in ms_imgs:
                 pan_name = ms_name.replace('.MS','.%s' % bandclass)
-                geom_path = RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=tempname('json'))
-                kan_path = self.GetKanPath(pan_name, subtype=subtype, type=bandclass, geom_path=geom_path, use_source_pms=use_source_pms)
-                delete(geom_path)
+                ms_folder = os.path.dirname(ms_imgs[ms_name])
+                pan_folder = self.UpdateSubtype(bandclass, subtype, datacat, subtype_folder_name=os.path.split(ms_folder)[1])
+                if pan_folder:
+                    geom_path = RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=tempname('json'))
+                    kan_path = self.GetKanPath(pan_name, subtype=subtype, type=bandclass, geom_path=geom_path, use_source_pms=use_source_pms)
+                    delete(geom_path)
+                else:
+                    kan_path = False
                 if not kan_path:
                     errors.append(ms_name)
             if errors:
                 scroll(errors, header='\nFAILED TO SAVE FILES:')
+
+    def UpdateSubtype(self, bandclass, subtype, datacat, subtype_folder_name = None):
+        if not bandclass in self.bandclasses:
+            print('BANDCLASS NOT FOUND: %s' % bandclass)
+            return None
+        if subtype_folder_name is None:
+            subtype_folder_name = subtype
+        subtype_folder_path = self.GetSubtypeFolderPath(bandclass, datacat, subtype_folder_name)
+        if subtype in self.subtypes:
+            if bandclass in self.subtypes[subtype]:
+                self.subtypes[subtype][bandclass][datacat] = subtype_folder_path
+            else:
+                self.subtypes[subtype][bandclass] = {datacat: subtype_folder_path}
+        else:
+            self.subtypes[subtype] = {bandclass: {datacat: subtype_folder_path}}
+        suredir(subtype_folder_path)
+        return subtype_folder_path
+
+    def GetSubtypeFolderPath(self, bandclass, datacat, subtype_folder_name):
+        return r'%s\%s\%s\%s' % (self.corner, bandclass, datacat, subtype_folder_name)
+
+def CorrectFolderName(folder_out, types='img'):
+    folder = folder_out
+    types = obj2list(types)
+    for type in types:
+        if re.search('^%s_' % type, folder_out):
+            folder = folder_out[len(type)+1:]
+        elif re.search('^[&$#]%s_' % type, folder_out):
+            folder = folder_out[0]+folder_out[len(type)+2:]
+    return folder
 
 def GetKanTypeFromID(kan_id):
     if re.search('IM4-.+-.+', kan_id):

@@ -1150,6 +1150,6 @@ def FindAny(str_, find_list, default=True):
         return default
     else:
         for part in obj2list(find_list):
-            if part in str_:
+            if re.search(part, str_):
                 return True
     return False

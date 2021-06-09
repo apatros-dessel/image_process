@@ -176,6 +176,7 @@ codes = {
     81: 'поля',
     811:'поля распаханные, занятые посевами и травяная залежь',
     812: 'поля заброшенные с зарастанием кустарниковой и древесной растительностью',
+    82: 'лишайниковые пустоши и тундры',
     9:  'водные объекты (любые)',
     100:'изменения (любые)',
     101:'новые карьеры (любые)',
@@ -332,7 +333,7 @@ def GetMetaDG(id):
 
 # Расширенная функция расчёта neuroid, учитывающая готовые neuroid и названия разновременных композитов
 def neuroid_extended(id, original=False, imgid=None):
-    cutsearch = re.search('__cut\d+$', id)
+    cutsearch = re.search('__cut\d+', id)
     if imgid is None:
         imgid = 'IM4'
     if cutsearch is not None:
@@ -903,10 +904,10 @@ try:
                     input[neuroid]['report'] = 'SUCCESS'
                 try:
                     vals = list(np.unique(gdal.Open(msk_out).ReadAsArray()))
-                    all_codes = check_type(vals)
-                    max_type = max(all_codes, key=lambda key: all_codes[key])
-                    if max_type != maskid:
-                        print("Warning: masktype %s mismatch maskid %s" % (max_type, maskid))
+                    # all_codes = check_type(vals)
+                    # max_type = max(all_codes, key=lambda key: all_codes[key])
+                    # if max_type != maskid:
+                        # print("Warning: masktype %s mismatch maskid %s" % (max_type, maskid))
                     for val in vals:
                         if val and (not val in msk_end_values):
                             if val in codes:

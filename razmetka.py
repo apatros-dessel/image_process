@@ -120,6 +120,7 @@ codes = {
     7:  'изменения (не используется, т.к. аналогичен 100)',
     8:  'травянистая растительность (луга, поля и т.д.)',
     81: 'поля',
+    82: 'лишайниковые пустоши и тундры',
     9:  'водные объекты (любые)',
     100:'изменения (любые)',
     101:'новые карьеры (любые)',
@@ -360,6 +361,7 @@ class MaskTypeFolderIndex:
                 if ms_path and pan_path:
                     pms_id = split3(pan_path)[1].replace('.PAN','.PMS')
                     pms_path = fullpath(kan_folder, pms_id, tif)
+                    # scroll((pan_path, ms_path, pms_path))
                     pms_path = Pansharp(pan_path, ms_path, pms_path)
                     if pms_path:
                         return pms_path
@@ -873,40 +875,28 @@ def SetKanIdByType(kan_id, type):
         return kan_id
 
 def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
+    id = id.replace('.MD','')
     folder = tempname()
     raster_path = None
     band_id = ''
-    cut_id = ''
-    if re.search('_cut\d+$', id):
-        id, cut_num = id.split('cut')
-        id = id.strip('_')
-        cut_id = '__cut' + cut_num
+    cut = ''
     for part in ['_red','_green','_blue','_nir']:
         if part in id:
             id = id.split(part)[0]
             band_id = part
             break
     if re.search('_cut\d+$', id):
-        id, cut_num = id.split('cut')
+        id, cut = id.split('_cut')
         id = id.strip('_')
-        cut_id = '__cut' + cut_num
-    if re.search(r'^KV.+SCN\d+.L2$', id):
+        cut = '_cut' + cut
+    if re.search(r'^KV.+SCN\d+.L2$', id) or re.search(r'^RP.+SCN\d+.L2$', id):
         kan_id = id.replace('.L2', '.%s.L2' % type)
-    elif re.search('^KV.+L2', id):
-        kan_id = id.split('.L2')[0] + '.L2'
-    elif re.search('^RP.+.P?MS$', id) or re.search('^RP.+.PAN$', id):
+    elif re.search('^KV.+L2$', id) or re.search('^RP.+L2$', id):
+        kan_id = id
+    elif re.search('^KV.+.P?MS$', id) or re.search('^KV.+.PAN$', id) or re.search('^RP.+.P?MS$', id) or re.search('^RP.+.PAN$', id):
         kan_id = id + '.L2'
-    elif re.search('^KV.+SCN\d+$', id):
+    elif re.search('^KV.+SCN\d+$', id) or re.search('^RP.+SCN\d+$', id):
         kan_id = '%s.%s.L2' % (id, type)
-    elif re.search('^RP.+L2', id):
-        kan_id = id.split('.L2')[0] + '.L2'
-        print('Resurs found: %s' % kan_id)
-    elif re.search('^KV.+.P?MS$', id) or re.search('^KV.+.PAN$', id):
-        kan_id = id + '.L2'
-        print('Resurs found: %s' % kan_id)
-    elif re.search('^RP.+SCN\d+$', id):
-        kan_id = '%s.%s.L2' % (id, type)
-        print('Resurs found: %s' % kan_id)
     else:
         command = r'''gu_db_query -w %s -d %s''' % (KanCallSQL(id, type), folder)
         if geom_path is not None:
@@ -952,9 +942,8 @@ def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
             copyfile(raster_path, fullpath(raster_dir, kan_id, 'tif'), overwrite=True)
     destroydir(folder)
     if kan_id is not None:
+        kan_id += cut
         kan_id += band_id
-    if cut_id is not None:
-        kan_id += cut_id
     return kan_id
 
 def Pansharp(pan_path, ms_path, pms_path):

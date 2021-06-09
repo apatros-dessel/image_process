@@ -360,6 +360,7 @@ def neuroid_extended(id, original=False, imgid=None):
     vals = [globals()['imgid']]
     scroll(parts)
     for part_id in parts:
+        print(id)
         part_neuroid = neuroid_extended(part_id, original=original)
         vals.append(part_neuroid[part_neuroid.index('-')+1:])
     return '__'.join(vals) + cut

@@ -3348,3 +3348,34 @@ def FindTreesFromDEM(raster_in, raster_out, vector_out, radius=1, min_height=5):
             delete(vector_polygon)
         else:
             print('ERROR: TREE ARRAY IS EMPTY: %s' % raster_in)
+
+def VectorIntersections(vec1, vec2, vec_out):
+    ds1, lyr1 = get_lyr_by_path(vec1)
+    ds2, lyr2 = get_lyr_by_path(vec2)
+    if lyr1 and lyr2:
+        ds_out = json(vec_out, 1, lyr1.GetSpatialRef())
+        lyr_out = ds_out.GetLayer()
+        for lyr in (lyr1, lyr2):
+            for feat in lyr:
+                keys = feat.keys()
+                for key in keys:
+                    if lyr_out.FindFieldIndex(key, 1)!=(-1):
+                        field_defn = feat.GetFieldDefnRef(feat.GetFieldIndex(key))
+                        lyr_out.CreateField(field_defn)
+            lyr.ResetReading()
+        fid = 0
+        for feat1 in lyr1:
+            geom1 = feat1.GetGeometryRef()
+            for feat2 in lyr2:
+                geom2 = feat2.GetGeometryRef()
+                if geom1.Intersects(geom2):
+                    geom1 = geom1.Intersection(geom2)
+                    feat2.SetGeometry(geom1)
+                    feat2.SetFID(fid)
+                    print(feat1.GetField('id'))
+                    feat2.SetField('id', feat1.GetField('id'))
+                    lyr_out.CreateFeature(feat2)
+                    fid += 1
+        ds_out = None
+
+

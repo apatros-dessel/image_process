@@ -1,9 +1,11 @@
 from geodata import *
 
-path_raster = r'\\172.21.195.2\FTP-Share\ftp\Aligned_pms\tatarstan_pms'
-path_meta = r'\\172.21.195.2\FTP-Share\ftp\s3'
-path_s3 = r'e:\rks\s3\kanopus_pms'
+path_raster = r'd:\terratech\Voshod\Mihaylovka'
+path_meta = r'd:\terratech\Voshod\Mihaylovka'
+path_s3 = r'd:\terratech\Voshod\fin'
 prenom = ''
+
+suredir(path_s3)
 
 raster_paths = folder_paths(path_raster,1,'tif')
 raster_ids = flist(raster_paths, lambda x: prenom + split3(x)[1].replace('.REF',''))

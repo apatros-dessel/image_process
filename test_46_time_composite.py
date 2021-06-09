@@ -1,13 +1,18 @@
 from geodata import *
 
-raster_old = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\LES\ZAINSKOE_LESNICHESTVO\Zainskoe_lesnichestvo\Срезы\1\Zainskoe_lesnichestvo2019_may01.tif'
-raster_new = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\LES\ZAINSKOE_LESNICHESTVO\Zainskoe_lesnichestvo\Срезы\23\Zainskoe_lesnichestvo2020_jul26-28.tif'
-export_path = r'\\172.21.195.2\FTP-Share\ftp\planet_imgs\LES\ZAINSKOE_LESNICHESTVO\Zainskoe_lesnichestvo\Срезы\1-23\Zainskoe_lesnichestvo2020_may01-28.tif'
+raster_old = r'e:\rks\kantest\Kanopus_surface\PMS\img\img_check\KV1_32721_25999_01_KANOPUS_20180615_043415_043537.SCN09.PMS.L2.tif'
+raster_new = r'e:\rks\kantest\Kanopus_surface\PMS\img\img_check\KV3_12769_10030_01_KANOPUS_20200522_040148_040418.SCN09.PMS.L2.tif'
+export_path = r'e:\rks\kantest\Kanopus_surface\PMS\img\img_check\KV1_32721_25999_01_KANOPUS_20180615_043415_043537.SCN09.PMS.L2__KV3_12769_10030_01_KANOPUS_20200522_040148_040418.SCN09.PMS.L2__3CH.tif'
 
 path2raster_list = [
-    (raster_new, 1),
     (raster_old,1),
+    (raster_old,2),
+    (raster_old,3),
+    (raster_old,4),
+    (raster_new,1),
     (raster_new,2),
+    (raster_new,3),
+    (raster_new,4),
 ]
 
 t = datetime.now()

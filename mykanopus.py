@@ -15,6 +15,7 @@ from geodata import *
 # Templates for Kanopus metadata filenames
 templates = (
     r'KV.+_KANOPUS_.+SCN\d+.+.MD.xml$', # APOI?
+    r'KV.+_KANOPUS_.+\.MD.xml$', # APOI?
     # r'ETRIS.KV.+NTSOMS_MSK.xml$',     # Basic cover?
     r'fr_.+ORT_K.xml', # KTOI without ortho
     r'fr_.+\d.xml', # KTOI with ortho

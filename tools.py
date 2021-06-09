@@ -578,12 +578,12 @@ def winprint(obj, decoding = None):
     print(obj)
     return None
 
-def scroll(obj, print_type=True, decoding=None, header=None, lower=None, depth=0):
+def scroll(obj, print_type=True, decoding=None, header=None, lower=None, depth=0, counts=False):
     tab = '  '*depth
     if header is not None:
         print(header)
     elif print_type:
-        print('{}Object of {}:'.format(tab, type(obj)))
+        print('{}Object of type {}:'.format(tab, type(obj)))
     if hasattr(obj, '__iter__') and not isinstance(obj, str):
         try:
             len_ = len(obj)
@@ -593,14 +593,22 @@ def scroll(obj, print_type=True, decoding=None, header=None, lower=None, depth=0
             print('{}<empty>'.format(tab+'  '))
         elif isinstance(obj, (dict, OrderedDict)):
             for val in obj:
-                winprint('{}{}: {}'.format(tab+'  ', val, obj[val]), decoding=decoding)
+                if hasattr(obj[val], '__iter__') and not isinstance(obj, str):
+                    scroll(obj[val], header=tab+str(val)+':', depth=depth+1, print_type=print_type, counts=counts)
+                else:
+                    winprint('{}{}: {}'.format(tab+'  ', val, obj[val]), decoding=decoding)
         else:
             for val in obj:
-                winprint('{}{}'.format(tab+'  ',val), decoding=decoding)
+                scroll(val, depth=depth+1,  print_type=print_type, counts=counts)
+                # winprint('{}{}'.format(tab+'  ',val), decoding=decoding)
+        if lower is not None:
+            print('{}{}'.format(tab, lower))
+        elif counts:
+            print('{}Total length: {}'.format(tab, len(obj)))
     else:
-        winprint('{}{}'.format(tab+'  ',obj), decoding=decoding)
+        winprint('{}{}'.format(tab,obj), decoding=decoding)
     if lower is not None:
-        print(lower)
+        print('{}{}'.format(tab, lower))
 
 # Get datetime from string
 def get_date_from_string(date_str):

@@ -15,6 +15,7 @@ templates = (
     r'RP\d_\d+_\d+_GEOTON_\d+_\d+_\d+.SCN\d.PMS.L2.DC.xml',
     r'RP\d_\d+_\d+_GEOTON_\d+_\d+_\d+.SCN\d.MS.L2.DC.xml',
     r'RP\d_\d+_\d+_GEOTON_\d+_\d+_\d+.SCN\d.PAN.L2.DC.xml',
+    r'RP\d_\d+_\d+_GEOTON_\d+_.+RS.DC.xml',
 )
 
 # Raster files indices for Resurs-P scenes

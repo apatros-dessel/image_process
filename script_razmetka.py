@@ -358,7 +358,7 @@ def neuroid_extended(id, original=False, imgid=None):
             print('WRONG ID: %s' % id)
             return None
     vals = [globals()['imgid']]
-    # scroll(parts)
+    scroll(parts)
     for part_id in parts:
         part_neuroid = neuroid_extended(part_id, original=original)
         vals.append(part_neuroid[part_neuroid.index('-')+1:])
@@ -923,7 +923,10 @@ try:
                 minimum, maximum = RasterMinMax(img_out)
                 input[neuroid]['min'] = minimum
                 input[neuroid]['max'] = maximum
-                print('  %i -- MASKED: %s with: %s ; data range: %s-%s \n' % (i+1, neuroid, msk_values, int(minimum), int(maximum)))
+                x_m, y_m = RasterPixelSize(img_out)
+                if x_m and y_m:
+                    input[neuroid]['pixel_size'] = (x_m+y_m)/2
+                print('  %i -- MASKED: %s with: %s ; data range: %s-%s ; pixel size %s %s\n' % (i+1, neuroid, msk_values, int(minimum), int(maximum), str(x_m), str(y_m)))
             else:
                 print('  %i -- ERROR: %s\n' % (i + 1, neuroid))
         else:

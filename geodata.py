@@ -3300,6 +3300,14 @@ def RasterMinMax(path):
             maximum = MinMax(maximum, stats[1], True)
     return minimum, maximum
 
+def RasterPixelSize(path):
+    raster = gdal.Open(path)
+    if raster:
+        trans = raster.GetGeoTransform()
+        return abs(trans[1]), abs(trans[5])
+    else:
+        return None, None
+
 def ReorderBands(path_in, path_out, band_order):
     copyfile(path_in, path_out, overwrite=True)
     raster_in = gdal.Open(path_in)

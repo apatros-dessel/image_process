@@ -1,4 +1,5 @@
 from geodata import *
+from dotmap import DotMap
 
 bandclasses = ('MS','PAN','PMS','BANDS','BANDS_nir')
 datacats = {'img': ('tif'),
@@ -8,6 +9,15 @@ datacats = {'img': ('tif'),
             'shp_hand': ('shp', 'json','geojson'),
             'test_result': ('shp','json','geojson'),
             }
+satellite_types = {
+    'Sentinel-2': {'tmpt': r'S2[AB]', 'folder': 'sentinel', 'base_tmpt': '^S2[A,B]', 'band_num': 4},
+    'Sentinel-1': {'tmpt': r'S1[AB]', 'folder': 'sentinel-1', 'base_tmpt': '^S1[A,B]', 'band_num': 1},
+    'Kanopus': {'tmpt': r'KV[1-6I]', 'folder': 'kanopus', 'base_tmpt': '^KV[1-6I]', 'band_num': 4},
+    'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs', 'base_tmpt': '^RP\d', 'band_num': 4},
+    'Planet': {'tmpt': r'PLN.+', 'folder': 'planet', 'base_tmpt': 'Analytic', 'band_num': 4},
+    'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat', 'base_tmpt': '^LS\d', 'band_num': 4},
+    # 'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg', 'base_tmpt': r'[DW]?[GV]?', 'band_num': 4},
+}
 band_params = {
     'red': [1, 'BANDS'],
     'green': [2, 'BANDS'],
@@ -28,6 +38,22 @@ targets = {
     u'gari':    {'id': 'MFR', 'folder': 'gari'},
     'clouds': {'id': 'MCL', 'folder': 'clouds'},
     'mist': {'id': 'MMI', 'folder': 'mist'},
+}
+mask_types = {
+    u'quarry': {'id': 'MQR', 'folder': 'mines', },
+    u'water':    {'id': 'MWT', 'folder': 'water'},
+    u'forest':     {'id': 'MFS', 'folder': 'forest'},
+    u'change': {'id': 'MCHD', 'folder': 'change'},
+    u'full':    {'id': 'MSK', 'folder': 'full'},
+    u'svalki':  {'id': 'MWS', 'folder': 'svalki'},
+    u'fields_grow': {'id': 'MFG', 'folder': 'fields_grow'},
+    u'houses':    {'id': 'MBD', 'folder': 'houses'},
+    u'TBO':     {'id': 'MWS', 'folder': 'wastes'},
+    u'roads':  {'id': 'MRD', 'folder': 'roads'},
+    u'gari':    {'id': 'MFR', 'folder': 'gari'},
+    'clouds': {'id': 'MCL', 'folder': 'clouds'},
+    'mist': {'id': 'MMI', 'folder': 'mist'},
+    'snow': {'id': 'SNW', 'folder': 'snow'},
 }
 codes = {
     1:  'карьеры (любые)',
@@ -121,6 +147,28 @@ codes = {
 }
 objidval = 0
 
+options = DotMap()
+options['vin'] = None
+options['imgid'] = 'IM4'
+options['pms'] = False
+options['quicksizes'] = None
+options['empty'] = False
+options['original'] = True
+options['image_col'] = None
+options['code_col'] = 'gridcode'
+options['code_col_sec'] = None
+options['compress'] = 'DEFLATE'
+options['overwrite'] = True
+options['replace'] = None
+options['band_reposition'] = None
+options['mulltiply_band'] = None
+options['dg_metadata'] = None
+options['xls'] = None
+options['burn_value'] = None
+options['pathmark'] = None
+options['missmark'] = None
+options['maskid'] = 'full'
+
 class FolderDirs(dict):
 
     def __init__(self, folder, miss_tmpt=None):
@@ -128,9 +176,8 @@ class FolderDirs(dict):
             for name in os.listdir(folder):
                 path = fullpath(folder, name)
                 if os.path.isdir(path):
-                    if miss_tmpt:
-                        if re.search(miss_tmpt, name):
-                            continue
+                    if FindAny(path, miss_tmpt, default=False):
+                        continue
                     self[name] = path
 
 def FolderFiles(folder, miss_tmpt=None, type=None):
@@ -195,12 +242,12 @@ class MaskSubtypeFolderIndex(dict):
 
 class MaskTypeFolderIndex:
 
-    def __init__(self, corner, datacat='img'):
+    def __init__(self, corner, datacats='img'):
         self.corner = corner
         self.bandclasses = {}
         self.subtypes = {}
         self.FillMaskBandclasses()
-        self.FillMaskSubtypes(datacat=datacat)
+        self.FillMaskSubtypes(datacats=datacats)
 
     def FillMaskBandclasses(self):
         bandclasses = globals()['bandclasses']
@@ -208,31 +255,39 @@ class MaskTypeFolderIndex:
             bandclasspath = r'%s/%s' % (self.corner, bandclass)
             if os.path.exists(bandclasspath):
                 self.bandclasses[bandclass] = bandclasspath
+            else:
+                print('BANDCLASS NOT FOUND: %s' % bandclass)
 
-    def FillMaskSubtypes(self, datacat='img'):
-        datacats = globals()['datacats']
-        subtypes = {'': None}
+    def FillMaskSubtypes(self, datacats='img'):
+        if datacats is None:
+            datacats = globals()['datacats']
+        else:
+            datacats = obj2list(datacats)
+        self.subtypes[''] = {}
         for bandclass in self.bandclasses:
-            bandclasspath = self.bandclasses[bandclass]
-            datacatpath = r'%s/%s' % (bandclasspath, datacat)
-            subtypedirs = FolderDirs(datacatpath, miss_tmpt='[#]')
-            if subtypedirs is not None:
-                subtypes.update(subtypedirs)
-        for subtype in subtypes.keys():
-            self.subtypes[subtype] = {}
-            for bandclass in self.bandclasses:
-                subtype_index = MaskSubtypeFolderIndex().FillFromDisk(self.bandclasses[bandclass], subtype)
-                if subtype_index:
-                    self.subtypes[subtype][bandclass] = subtype_index
+            self.subtypes[''][bandclass] = {}
+            for datacat in datacats:
+                bandclasspath = self.bandclasses[bandclass]
+                datacatpath = r'%s/%s' % (bandclasspath, datacat)
+                self.subtypes[''][bandclass][datacat] = datacatpath
+                subtypedirs = FolderDirs(datacatpath, miss_tmpt=['#', 'set'])
+                for subtype_dir in subtypedirs:
+                    subtype = CorrectFolderName(subtype_dir, ['img', 'shp_hand', 'shp_auto', 'mask'])
+                    if subtype in self.subtypes:
+                        if bandclass in self.subtypes[subtype]:
+                            self.subtypes[subtype][bandclass][datacat] = subtypedirs[subtype_dir]
+                        else:
+                            self.subtypes[subtype][bandclass] = {datacat: subtypedirs[subtype_dir]}
+                    else:
+                        self.subtypes[subtype] = {bandclass: {datacat: subtypedirs[subtype_dir]}}
 
     def Subtype(self, subtype):
-        # scroll(self.subtypes, lower=subtype)
         if subtype in self.subtypes:
             return self.subtypes[subtype]
         else:
             print('SUBTYPE NOT FOUND: %s' % subtype)
 
-    def Images(self, subtype='', bandclass='MS', datacat='img'):
+    def DataFolder(self, subtype='', bandclass='MS', datacat='img'):
         subtype_dict = self.Subtype(subtype)
         if subtype_dict:
             if bandclass in subtype_dict:
@@ -245,8 +300,19 @@ class MaskTypeFolderIndex:
         else:
             print('SUBTYPE DICT IS EMPTY: %s' % subtype)
 
+    def Images(self, subtype='', bandclass='MS', datacat='img'):
+        image_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
+        if image_folder:
+            return FolderFiles(image_folder, miss_tmpt=None, type='tif')
+
+    def SubtypeFolderName(self, subtype='', bandclass='MS', datacat='img'):
+        image_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
+        if image_folder:
+            return os.path.split(image_folder)[1]
+
     def SaveBandsSeparated(self, subtype='', datacat='img'):
         full_imgs = self.Images(subtype, 'MS', datacat=datacat)
+        subtype_folder_name = self.SubtypeFolderName(subtype=subtype, datacat=datacat)
         if full_imgs:
             band_params = globals()['band_params']
             for ms_name in full_imgs:
@@ -254,18 +320,25 @@ class MaskTypeFolderIndex:
                 for channel in band_params:
                     band_num, bandclass = band_params[channel]
                     band_name = ms_name.replace('.tif', '_%s.tif' % channel)
-                    band_path = r'%s\%s\%s\%s\%s' % (self.corner, bandclass, datacat, subtype, band_name)
-                    band_folder = os.path.dirname(band_path)
-                    suredir(band_folder)
-                    SetImage(ms_path, band_path, band_num=1, band_reposition=[band_num], overwrite=False)
-                print('BANDS WRITTEN: %s' % ms_name)
+                    band_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
+                    if band_folder is None:
+                        band_folder = self.UpdateSubtype(bandclass, subtype, datacat, subtype_folder_name=subtype_folder_name)
+                    if band_folder is None:
+                        print('BAND FOLDER NOT FOUND: %s %s %s' % (bandclass, subtype, datacat))
+                    else:
+                        suredir(band_folder)
+                        band_path = fullpath(band_folder, band_name)
+                        SetImage(ms_path, band_path, band_num=1, band_reposition=[band_num], overwrite=False)
+                # print('BANDS WRITTEN: %s' % ms_name)
         else:
             print('FULL IMAGE DATA NOT FOUND: %s' % subtype)
 
-    def GetKanPath(self, kan_name, subtype='', type=None, geom_path=None, use_source_pms=True):
+    def GetKanPath(self, kan_name, subtype='', type=None, geom_path=None, use_source_pms=True, datacat='img'):
         if type is None:
             type = GetKanTypeFromID(kan_name)
-        kan_path = r'%s\%s\img\%s\%s' % (self.corner, type, subtype, kan_name)
+        kan_folder = self.DataFolder(subtype=subtype, bandclass=type, datacat=datacat)
+        print(' '.join(flist([subtype, kan_name, kan_folder], str)))
+        kan_path = fullpath(kan_folder, kan_name)
         if os.path.exists(kan_path):
             print('FILE EXISTS: %s' % kan_path)
             return kan_path
@@ -287,21 +360,21 @@ class MaskTypeFolderIndex:
                 if ms_path and pan_path:
                     pms_id = split3(pan_path)[1].replace('.PAN','.PMS')
                     pms_path = fullpath(kan_folder, pms_id, tif)
-                    # scroll((pan_path, ms_path, pms_path))
                     pms_path = Pansharp(pan_path, ms_path, pms_path)
                     if pms_path:
                         return pms_path
 
-    def GetVectorPath(self, name, dataclass, subtype='', type=None):
+    def GetVectorPath(self, name, datacat='shp_hand', subtype='', type=None):
         if type is None:
             type = GetKanTypeFromID(name)
-        vec_path_ = r'%s\%s\%s\%s\%s' % (self.corner, type, dataclass, subtype, name)
+        vec_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
+        vec_path_ = fullpath(vec_folder, name)
         vec_folder, vec_id, ext_ = split3(vec_path_)
         for ext in ['shp', 'json', 'geojson']:
             vec_path = fullpath(vec_folder, vec_id, ext)
             if os.path.exists(vec_path):
                 return vec_path
-        print('''VECTOR PATH NOT FOUND: %s with dataclass='%s' and subtype='%s' ''' % (name, dataclass, subtype))
+        print('''VECTOR PATH NOT FOUND: %s with dataclass='%s' and subtype='%s' ''' % (name, datacat, subtype))
 
     def ReprojectPanToMs(self, folder, subtype = ''):
         ms_imgs = self.Images(subtype, 'MS')
@@ -330,7 +403,8 @@ class MaskTypeFolderIndex:
         else:
             print('UNKNOWN TARGET: %s' % target)
             return None
-        msk_path_ = r'%s\%s\%s\%s\%s' % (self.corner, bandclass, dataclass, subtype, name)
+        msk_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat='mask')
+        msk_path_ = fullpath(msk_folder, name)
         msk_folder, msk_id_, ext_ = split3(msk_path_)
         neuro_id = Neuroid(msk_id_)
         if neuro_id:
@@ -424,7 +498,8 @@ class MaskTypeFolderIndex:
             final_datetime = str(datetime.now()).replace(' ', '_').replace(':', '-')
             report_name = 'report_%s.xls' % final_datetime
             for rep_id in reports:
-                rep_id_path = r'%s\%s\mask\%s\%s' % (self.corner, bandclass, subtype, report_name)
+                rep_id_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat='mask')
+                rep_id_path = fullpath(rep_id_folder, report_name)
                 dict_to_xls(rep_id_path, reports[rep_id])
                 SaveMaskValues(rep_id_path, reports[rep_id])
 
@@ -434,13 +509,184 @@ class MaskTypeFolderIndex:
             errors = []
             for ms_name in ms_imgs:
                 pan_name = ms_name.replace('.MS','.%s' % bandclass)
-                geom_path = RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=tempname('json'))
-                kan_path = self.GetKanPath(pan_name, subtype=subtype, type=bandclass, geom_path=geom_path, use_source_pms=use_source_pms)
-                delete(geom_path)
+                ms_folder = os.path.dirname(ms_imgs[ms_name])
+                pan_folder = self.UpdateSubtype(bandclass, subtype, datacat, subtype_folder_name=os.path.split(ms_folder)[1])
+                if pan_folder:
+                    geom_path = RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=tempname('json'))
+                    kan_path = self.GetKanPath(pan_name, subtype=subtype, type=bandclass, geom_path=geom_path, use_source_pms=use_source_pms)
+                    delete(geom_path)
+                else:
+                    kan_path = False
                 if not kan_path:
                     errors.append(ms_name)
             if errors:
                 scroll(errors, header='\nFAILED TO SAVE FILES:')
+
+    def UpdateSubtype(self, bandclass, subtype, datacat, subtype_folder_name = None):
+        if not bandclass in self.bandclasses:
+            print('BANDCLASS NOT FOUND: %s' % bandclass)
+            return None
+        if subtype_folder_name is None:
+            subtype_folder_name = subtype
+        subtype_folder_path = self.GetSubtypeFolderPath(bandclass, datacat, subtype_folder_name)
+        if subtype in self.subtypes:
+            if bandclass in self.subtypes[subtype]:
+                self.subtypes[subtype][bandclass][datacat] = subtype_folder_path
+            else:
+                self.subtypes[subtype][bandclass] = {datacat: subtype_folder_path}
+        else:
+            self.subtypes[subtype] = {bandclass: {datacat: subtype_folder_path}}
+        suredir(subtype_folder_path)
+        return subtype_folder_path
+
+    def GetSubtypeFolderPath(self, bandclass, datacat, subtype_folder_name):
+        return r'%s\%s\%s\%s' % (self.corner, bandclass, datacat, subtype_folder_name)
+
+class NeuroMasking(OrderedDict):
+
+    def __init__(self, setname = 'mask'):
+        self.setname = setname
+        self.options = globals()['options']
+
+    def UpdateInput(self, input):
+        if input:
+            for key in input:
+                if key in self:
+                    self[key].update(input[key])
+                else:
+                    self[key] = input[key]
+
+    def InputFromReport(self, xls_path, sheetnum=0):
+        self.UpdateInput(xls_to_dict(xls_path, sheetnum=sheetnum))
+
+    def InputFromPairs(self, pin):
+        o = self.options
+        self.UpdateInput(get_pair_paths(pin, pms=o.pms, original=o.original, pathmark=o.pathmark, missmark=o.missmark, imgid=o.imgid, dg_path=o.dg_metadata))
+
+    def InputFromVector(self, pin):
+        print('INPUT FROM VECTOR FUNCTION IS UNFINISHED')
+        return None
+        o = self.options
+        vecids = None
+        if vecids_path is not None:
+            if os.path.exists(vecids_path):
+                with open(vecids_path) as vecids_data:
+                    vecis = vecids_data.read().split('\n')
+        raster_paths = get_raster_paths(pin)
+        self.UpdateInput(get_pairs(raster_paths, vin, o.image_col, vecids=o.vecids, split_vector=o.split_vector, pms=o.pms, original=o.original, dg_path=o.dg_metadata))
+
+    def SetOptions(self, options_dict):
+        for key in options_dict:
+            if key in self.options:
+                self.options[key] = options_dict[key]
+            else:
+                print('UNKNOWN OPTION: %s' % str(key))
+
+    def SetRazmetka(self, pout):
+        msk_end_values = {}
+        o = self.options
+        for i, neuroid in enumerate(self):
+            if (neuroid is None):
+                print('  %i -- NEUROID ERROR: %s\n' % (i + 1, str(neuroid)))
+            elif self[neuroid]['pairing'] == False:
+                if o.empty_mask and os.path.exists(str(self[neuroid].get('r'))):
+                    # print('  %i -- VECTOR NOT FOUND, CREATING EMPTY MASK: %s\n' % (i, str(neuroid)))
+                    pass
+                else:
+                    print('  %i -- PAIRING ERROR: %s\n' % (i + 1, str(neuroid)))
+                    continue
+            paths = get_paths(pout, neuroid, o.maskid, o.imgid, o.quicksizes, original=o.original)
+            if paths:
+                img_out, msk_out, quickpaths = paths
+                img_in = self[neuroid]['r']
+                vec_in = self[neuroid].get('v', '')
+                if '&full_cloud' in img_in:
+                    empty_value = 201
+                elif 'no_cloud' in img_in:
+                    empty_value = 0
+                else:
+                    # print('UNKNOWN EMPTY VALUE: %s' % str(neuroid))
+                    empty_value = None
+                if (not vec_in) and (empty_value is None):
+                    self[neuroid]['report'] = 'FAILURE'
+                    print('  %i -- EMPTY VALUE ERROR: %s\n' % (i + 1, str(neuroid)))
+                    continue
+                img_out = set_image(img_in, img_out, overwrite=self.options.overwrite, band_reposition=self.options.band_reposition, multiply=self.options.multiply_band)
+                self[neuroid]['img_out'] = img_out
+                if vec_in:
+                    vals_mask, attr_mask = GetAttrVals(vec_in, self.options.code_col, func=None)
+                else:
+                    attr_mask = None
+                # !!! Add checking vals_mask
+                msk_out = set_mask(img_in, vec_in, msk_out, code_col=attr_mask, code_col_sec=self.options.code_col_sec,
+                                   empty_value=self.options.empty_value, burn_value=self.options.burn_value, overwrite=self.options.overwrite)
+                self[neuroid]['msk_out'] = msk_out
+                if self.options.quickpaths:
+                    for size in self.options.quickpaths:
+                        ql_img_out, ql_msk_out = self.options.quickpaths[size]
+                        set_quicklook(img_out, vec_in, ql_img_out, ql_msk_out, code_col=attr_mask,
+                                      code_col_sec=self.options.code_col_sec, pixelsize=size, method=gdal.GRA_Average,
+                                      empty_value=self.options.empty_value, overwrite=self.options.overwrite)
+                if not msk_out.startswith('ERROR'):
+                    replace = self.options.replace_vals
+                    if replace is not None:
+                        try:
+                            ReplaceValues(msk_out, replace)
+                            self[neuroid]['report'] = 'SUCCESS'
+                            if self.options.quickpaths:
+                                for size in self.options.quickpaths:
+                                    ReplaceValues(self.options.quickpaths[size][1], replace)
+                        except:
+                            print('Error replacing values: %s' % neuroid)
+                            self[neuroid]['report'] = 'ERROR: Mask names not replaced'
+                    else:
+                        self[neuroid]['report'] = 'SUCCESS'
+                    try:
+                        vals = list(np.unique(gdal.Open(msk_out).ReadAsArray()))
+                        # all_codes = check_type(vals)
+                        # max_type = max(all_codes, key=lambda key: all_codes[key])
+                        # if max_type != maskid:
+                            # print("Warning: masktype %s mismatch maskid %s" % (max_type, maskid))
+                        for val in vals:
+                            if val and (not val in msk_end_values):
+                                if val in codes:
+                                    msk_end_values[val] = codes[val]
+                                else:
+                                    print('Unknown code: %i' % val)
+                                    msk_end_values[val] = 'UNKNOWN'
+                        msk_values = ' '.join(flist(vals, str))
+                    except:
+                        print('Cannot get mask values for: %s' % neuroid)
+                        msk_values = ''
+                    self[neuroid]['msk_values'] = msk_values
+                    minimum, maximum = RasterMinMax(img_out)
+                    self[neuroid]['min'] = minimum
+                    self[neuroid]['max'] = maximum
+                    print('  %i -- MASKED: %s with: %s ; data range: %s-%s \n' % (i + 1, neuroid, msk_values, int(minimum), int(maximum)))
+                else:
+                    print('  %i -- ERROR: %s\n' % (i + 1, neuroid))
+            else:
+                self[neuroid]['report'] = 'ERROR: Source paths not found'
+                print('  %i -- ERROR: Source paths not found for %s\n' % (i + 1, neuroid))
+        report_name = 'report_{}.xls'.format(datetime.now()).replace(' ', '_').replace(':', '-')
+        report_path = fullpath(pout, report_name)
+        dict_to_xls(report_path, self)
+        scroll(msk_end_values, header='\nCODES USED:')
+        dict_to_csv(fullpath(pout, 'mask_values.csv'), msk_end_values)
+        print('\nFINISHED -- REPORT SAVED TO %s' % report_path)
+        if quicksizes:
+            for size in quicksizes:
+                ql_report = qlReport(r'%s\quicklook\%s' % (pout, size2str(size)), self, size)
+
+def CorrectFolderName(folder_out, types='img'):
+    folder = folder_out
+    types = obj2list(types)
+    for type in types:
+        if re.search('^%s_' % type, folder_out):
+            folder = folder_out[len(type)+1:]
+        elif re.search('^[&$#]%s_' % type, folder_out):
+            folder = folder_out[0]+folder_out[len(type)+2:]
+    return folder
 
 def GetKanTypeFromID(kan_id):
     if re.search('IM4-.+-.+', kan_id):
@@ -630,19 +876,37 @@ def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
     folder = tempname()
     raster_path = None
     band_id = ''
+    cut_id = ''
+    if re.search('_cut\d+$', id):
+        id, cut_num = id.split('cut')
+        id = id.strip('_')
+        cut_id = '__cut' + cut_num
     for part in ['_red','_green','_blue','_nir']:
         if part in id:
             id = id.split(part)[0]
             band_id = part
             break
+    if re.search('_cut\d+$', id):
+        id, cut_num = id.split('cut')
+        id = id.strip('_')
+        cut_id = '__cut' + cut_num
     if re.search(r'^KV.+SCN\d+.L2$', id):
         kan_id = id.replace('.L2', '.%s.L2' % type)
-    elif re.search('^KV.+L2$', id):
-        kan_id = id
-    elif re.search('^KV.+.P?MS$', id) or re.search('^KV.+.PAN$', id):
+    elif re.search('^KV.+L2', id):
+        kan_id = id.split('.L2')[0] + '.L2'
+    elif re.search('^RP.+.P?MS$', id) or re.search('^RP.+.PAN$', id):
         kan_id = id + '.L2'
     elif re.search('^KV.+SCN\d+$', id):
         kan_id = '%s.%s.L2' % (id, type)
+    elif re.search('^RP.+L2', id):
+        kan_id = id.split('.L2')[0] + '.L2'
+        print('Resurs found: %s' % kan_id)
+    elif re.search('^KV.+.P?MS$', id) or re.search('^KV.+.PAN$', id):
+        kan_id = id + '.L2'
+        print('Resurs found: %s' % kan_id)
+    elif re.search('^RP.+SCN\d+$', id):
+        kan_id = '%s.%s.L2' % (id, type)
+        print('Resurs found: %s' % kan_id)
     else:
         command = r'''gu_db_query -w %s -d %s''' % (KanCallSQL(id, type), folder)
         if geom_path is not None:
@@ -659,7 +923,7 @@ def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
             kan_id = None
             if l == 0:
                 # if type!='MS':
-                    # kan_id = GetKanopusId(id, type='MS', geom_path=geom_path)
+                # kan_id = GetKanopusId(id, type='MS', geom_path=geom_path)
                 if kan_id is None:
                     # print('SCENE DATA NOT FOUND: %s' % id)
                     pass
@@ -689,6 +953,8 @@ def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
     destroydir(folder)
     if kan_id is not None:
         kan_id += band_id
+    if cut_id is not None:
+        kan_id += cut_id
     return kan_id
 
 def Pansharp(pan_path, ms_path, pms_path):
@@ -854,3 +1120,537 @@ def SaveMaskValues(val_path, report):
         for val in values:
             fin[val] = codes.get(val, 'UNKNOWN')
         dict_to_csv(fullpath(val_path, 'mask_values.csv'), fin)
+
+# Получить пути к исходным данным для масок для разделённых векторных файлов (shp, json, geojson) и растровых снимков (tif)
+def get_pair_paths(pin, pms = False, original = False, pathmark = None, missmark = None, imgid = None, dg_path = None):
+    export = OrderedDict()
+    for folder in obj2list(pin):
+        paths = folder_paths(folder, 1)
+        for path in paths:
+            if (not FindAny(path, pathmark)) or FindAny(path, missmark, False):
+                continue
+            f,n,e = split3(path)
+            if not e in ['shp', 'json', 'geojson', 'tif']:
+                continue
+            id = neuroid_extended(n, original=original, imgid=imgid, dg_path=dg_path)
+            if id is None:
+                if e=='tif':
+                    print(path)
+                continue
+            if pms_exit(id, pms):
+                continue
+            if e == 'tif':
+                if id in export:
+                    export[id]['r'] = path
+                else:
+                    export[id] = {'r': path}
+            elif e in ('shp', 'json', 'geojson'):
+                if id in export:
+                    export[id]['v'] = path
+                else:
+                    export[id] = {'v': path}
+    for id in export:
+        if ('v' in export[id]) and ('r' in export[id]):
+            export[id]['pairing'] = True
+        else:
+            export[id]['pairing'] = False
+    return export
+
+def get_raster_paths(raster_path):
+    raster_path = obj2list(raster_path)
+    pinstr = '\n'.join(pin)
+    if os.path.exists(globals()['source_paths']):
+        with open(globals()['source_paths']) as path_data:
+            pin_, paths_ = path_data.read().split('\n\n')
+            if pin_ == pinstr:
+                return paths_.split('\n')
+    export = []
+    for folder in raster_path:
+        export.extend(folder_paths(folder, 1, 'tif'))
+    with open(globals()['source_paths'], 'w') as path_data:
+        path_data.write('{}\n\n{}'.format(pinstr, '\n'.join(export)))
+        print('Written source paths to: %s' % globals()['source_paths'])
+    return export
+
+# Получить пути к исходным данным для масок для цельных векторных файлов
+def get_pairs(raster_paths, vin, img_colname, vecids=None, split_vector=True, pms=False, original=False, pathmark=None, dg_path=None):
+    export = OrderedDict()
+    if vecids is None:
+        vecids = get_col_keys(vin, img_colname)
+    raster_names = flist(raster_paths, lambda x: split3(x)[1])
+    for vecid in vecids:
+        id = filter_id(vecid, pms=pms)
+        for i, rasterid in enumerate(raster_names):
+            if id == rasterid:
+                try:
+                    if not FindAny(raster_paths[i], pathmark):
+                        raise Exception
+                    neuroid = neuroid_extended(n, original=original, dg_path=dg_path)
+                    if split_vector:
+                        export[neuroid] = {'r': raster_paths[i], 'v': filter_dataset_by_col(vin, img_colname, vecid)}
+                    else:
+                        export[neuroid] = {'r': raster_paths[i], 'v': vin}
+                    export[neuroid]['pairing'] = True
+                except:
+                    if not ('neuroid' in locals()):
+                        neuroid = vecid
+                    if neuroid:
+                        if neuroid in export:
+                            export[neuroid]['pairing'] = False
+                        else:
+                            export[neuroid] = {'pairing': False}
+                finally:
+                    print('%s pairing %s' % (('ERROR', 'SUCCESS')[bool(neuroid)], vecid))
+                    break
+    return export
+
+# Расширенная функция расчёта neuroid, учитывающая готовые neuroid и названия разновременных композитов
+def neuroid_extended(id, original=False, imgid=None, dg_path=None):
+    cutsearch = re.search('__cut\d+$', id)
+    if imgid is None:
+        imgid = 'IM4'
+    if cutsearch is not None:
+        cut = cutsearch.group()
+        id = id.split('__cut')[0]
+    else:
+        # print('NoCut: %s' % id)
+        cut = ''
+    if re.search(r'^%s-.+-\d+-.+-.+$' % imgid, id) or re.search(r'^IM4-.+-\d+-.+-.+$', id):
+        return '%s-%s%s' % (imgid, '-'.join(id.split('-')[1:]), cut)
+    elif re.search(r'^S[12][AB]-\d+-.+-.+$', id):
+        return '%s-%s%s' % (imgid, id, cut)
+    elif re.search(r'IMCH\d+__.+__.+', id):
+        parts = id.split('__')[1:3]
+    elif len(id.split('__'))==2:
+        parts = id.split('__')
+    else:
+        newid = get_neuroid(id, original=original, dg_path=dg_path)
+        if newid is not None:
+            return newid + cut
+        else:
+            print('WRONG ID: %s' % id)
+            return None
+    vals = [globals()['imgid']]
+    # scroll(parts)
+    for part_id in parts:
+        part_neuroid = neuroid_extended(part_id, original=original, dg_path=dg_path)
+        vals.append(part_neuroid[part_neuroid.index('-')+1:])
+    return '__'.join(vals) + cut
+
+# Получить neuroid из исходного имени файла (для 4-х канального RGBN)
+def get_neuroid(id, original=False, dg_path=None):
+    if original:
+        return id
+    if dg_path:
+        dg_files = folder_paths(dg_path, 1, 'tif')
+    else:
+        dg_files = None
+    if re.search(r'^KV.+L2$', id):
+        id = re.search(r'KV.+L2', id).group()
+        satid, loc1, loc2, sentnum, date, num1, num2, scn, type, lvl = parse_kanopus(id)
+        loc = loc1+loc2+scn[3:]
+        if type == 'PMS':
+            lvl += type
+    # Ресурс-П обрабатывается только из гранул!
+    elif re.search(r'^RP.+L2.GRN\d+$', id):
+        id = re.search(r'RP.+L2.GRN\d+', id).group()
+        satid, loc1, sentnum, date, num1, num2, scn, type, lvl, grn = parse_resurs(id)
+        loc = loc1 + scn[3:] + grn[3:]
+        if type == 'PMS':
+            lvl += type
+    elif re.search(r'^RP.+L2', id):
+        id = re.search(r'^RP.+L2', id).group()
+        satid, loc1, sentnum, date, num1, num2, scn, type, lvl, grn = parse_resurs(id)
+        loc = loc1 + scn[3:]
+        if type == 'PMS':
+            lvl += type
+    elif re.search(r'^S2[AB]', id) or re.search(r'^S2.+cut\d+$', id):
+        satid, date, time, loc, lvl = parse_sentinel(id)
+    elif re.search(r'^S1[AB]', id) or re.search(r'^S2.+cut\d+$', id):
+        satid, date, time, loc, lvl = parse_sentinel1(id)
+    elif re.search(r'^LC08_', id):
+        satid, date, loc, lvl = parse_landsat8(id)
+    elif re.search(r'.+-S2AS.+_P\d+', id):
+        dg_id = re.search(r'^.+P\d+', id).group()
+        dg_metavals = GetMetaDG(dg_id, dg_files)
+        if dg_metavals is None:
+            return None
+        else:
+            satid, date, time, loc, lvl = dg_metavals
+    else:
+        print('Unknown imsys for: %s' % id)
+        return None
+    imgid = globals()['imgid']
+    neuroid = imgid+'-%s-%s-%s-%s' % (satid, date, loc, lvl)
+    # IM4 в начале -- условность, его можно будет изменить на этапе обработки изображения, если в нём больше 4 каналов
+    return neuroid
+
+# Parse Kanopus name
+def parse_kanopus(id):
+    satid, loc1, loc2, sentnum, kanopus, date, num1, ending = id.split('_')
+    num2, scn, type, lvl = ending.split('.')
+    return satid, loc1, loc2, sentnum, date, num1, num2, scn, type, lvl
+
+# Parse Resurs name
+def parse_resurs(id):
+    # RP1_28244_05_GEOTON_20180713_050017_050036.SCN3.MS.L2
+    satid, loc1, sentnum, geoton, date, num1, ending = id.split('_')
+    ending = ending.split('.')
+    if len(ending) == 4:
+        num2, scn, type, lvl = ending
+        return satid, loc1, sentnum, date, num1, num2, scn, type, lvl, ''
+    elif len(ending) == 5:
+        num2, scn, type, lvl, grn = ending
+        return satid, loc1, sentnum, date, num1, num2, scn, type, lvl, grn
+    else:
+        raise Exception('Wrong ending length for %s' % id)
+
+# Parse Sentinel name
+def parse_sentinel(id):
+    # S2B_MSIL1C_20190828T043709_N0208_R033_T48VUP_20190828T082130
+    # S2A_MSIL1C_20190828_T37VCD # shortid for time composits
+    vals = id.split('_')
+    if len(vals) == 7:
+        satid, lvl, datetime, col, row, tile, datetime2 = id.split('_')
+        cutid = ''
+    elif len(vals) == 8:
+        satid, lvl, datetime, col, row, tile, datetime2, cutid = id.split('_')
+        tile += cutid
+    elif len(vals) == 6:
+        satid, lvl, datetime, col, row, tile = id.split('_')
+    elif len(vals) == 4:
+        satid, lvl, datetime, tile = id.split('_')
+    else:
+        return '', '', '', '', ''
+    lvl = lvl[-3:]
+    dt = datetime.split('T')
+    if len(dt)==2:
+        date, time = dt
+    else:
+        date = dt[0]
+        time = ''
+    return satid, date, time, tile, lvl
+
+# Parse Sentinel-1 name
+def parse_sentinel1(id):
+    # S1B_IW_GRDH_1SDV_20190108T231417_20190108T231442_014409_01AD29_1DD8.SAFE
+    vals = id.split('_')
+    if len(vals) == 9:
+        satid, mode, typeclass, lvl, datetime1, datetime2, orbit, ad, dd = vals
+        lvl = mode+lvl+typeclass
+    else:
+        return '', '', '', '', ''
+    dt = datetime1.upper().split('T')
+    if len(dt)==2:
+        date, time = dt
+    else:
+        date = dt[0]
+        time = ''
+    return satid, date, time, orbit, lvl
+
+# Parse Landsat-8 name
+def parse_landsat8(id):
+    vals = id.split('_')
+    # LC08_L1TP_133019_20160830_20170321_01_T1
+    if len(vals)==4:
+        satid, lvl, date, loc = vals
+    elif len(vals)==7:
+        satid, lvl, loc, date, date2, lvl1, lvl2 = vals
+    else:
+        return '', '', '', ''
+    if satid=='LC08':
+        satid = 'LS8'
+    if not (bool(re.search(r'\d{6}', loc)) and bool(re.search(r'\d{8}', date))):
+        loc_ = date
+        date = loc
+        loc = loc_
+    return satid, date, loc, lvl
+
+def GetMetaDG(id, dg_files):
+    if dg_files:
+        names = flist(dg_files, lambda x: split3(x)[1])
+        if id in names:
+            file = dg_files[names.index(id)]
+            dg_proc = process().input(os.path.dirname(file))
+            # scroll(dg_proc.get_ids(), header=id)
+            dg_scene = dg_proc.scenes[0]
+            satid = dg_scene.meta.name('[sat]')
+            date = dg_scene.meta.name('[date]')
+            time = dg_scene.meta.name('[time]')
+            loc = dg_scene.meta.name('[location]')
+            lvl = dg_scene.meta.name('[lvl]')
+            # print(satid, date, time, loc, lvl)
+            return satid, date, time, loc, lvl
+    else:
+        return parse_dg(id)
+
+# Parse DG name
+def parse_dg(id):
+    print(id)
+    satid = 'DG'
+    lvl = 'LVL'
+    vals = id.split('_')
+    months = {'JAN':'01','FEB':'02','MAR':'03','APR':'04','MAY':'05','JUN':'06','JUL':'07','AUG':'08','SEP':'09','OCT':'10','NOV':'11','DEC':'12'}
+    if re.search(r'.+-S2AS-.+_\d+_P\d+', id):
+        datetime, sulvl, loc1 = vals[0].split('-')
+        loc = ''.join([loc1,vals[1],vals[2]])
+    elif re.search(r'.+-S2AS_R\d+C\d+.*-.+_\d+_P\d+', id):
+        datetime = vals[0].split('-')[0]
+        newlocs = vals[1].split('-')
+        loc4 = ''.join(newlocs[:-1])
+        loc1 = newlocs[-1]
+        loc = ''.join([loc1,vals[2],vals[3],loc4])
+    date = '20%s%s%s' % (datetime[:2], months[datetime[2:5]], datetime[5:7])
+    time = datetime[7:]
+    return satid, date, time, loc, lvl
+
+# Получить полные пути к растрам в разметке (автоматически создаётся нужная директория)
+def get_paths(pout, id, maskid, imgid, quicksizes, original=True):
+    satellite_types = globals()['satellite_types']
+    fail = True
+    if re.search(r'IMCH\d+__.+__.+', id) and re.search('^IMCH\d+$', imgid):
+        composite_types = globals()['composite_types']
+        nameparts = id.split('__')
+        # scroll(nameparts)
+        name1, name2 = nameparts[1:3]
+        for compid in composite_types:
+            sat1 = satellite_types[composite_types[compid]['sources'][0]]['tmpt']
+            sat2 = satellite_types[composite_types[compid]['sources'][1]]['tmpt']
+            if re.search(sat1, name1.split('-')[0]) and re.search(sat2, name2.split('-')[0]):
+                sat_folder = composite_types[compid]['folder']
+                nameparts[0] = imgid
+                imgname = '__'.join(nameparts)
+                fail = False
+                break
+        if fail:
+            print('Unknown time composite for %s')
+            return None
+    elif re.search(r'^IM[0-9RGBNP]+-.+-\d+-.+-.+$', id) and re.search('^IM[0-9RGBNP]+$', imgid):
+        for satid in satellite_types:
+            if re.search(satellite_types[satid]['tmpt'], id.split('-')[1]):
+                sat_folder = satellite_types[satid]['folder']
+                nameparts = id.split('-')
+                nameparts[0] = imgid
+                imgname = '-'.join(nameparts)
+                fail = False
+        if fail:
+            print('Unknown satellite for: %s' % id)
+            return None
+    else:
+        for satid in satellite_types:
+            if re.search(satellite_types[satid]['base_tmpt'], id):
+                sat_folder = satellite_types[satid]['folder']
+                imgname = id
+                fail = False
+        if fail:
+            print('Wrong id format: %s' % id)
+            return None
+    img_folder = r'%s\images\%s' % (pout, sat_folder)
+    msk_type = globals()['mask_types'].get(maskid)
+    if msk_type:
+        msk_folder = r'%s\masks\%s\%s' % (pout, msk_type['folder'], sat_folder)
+    else:
+        print('Unknown mask type: %s' % msk_type)
+        return None
+    for folder in (img_folder, msk_folder):
+        suredir(folder)
+    img_path = fullpath(img_folder, imgname, 'tif')
+    if original:
+        msk_name = imgname
+    else:
+        if len(imgid) == 3:
+            msk_name = msk_type['id']+id[3:]
+        else:
+            msk_name = msk_type['id'] + id[4:]
+    msk_path = fullpath(msk_folder, msk_name, 'tif')
+    if quicksizes:
+        quickpaths = OrderedDict()
+        for size in quicksizes:
+            strsize = size2str(size)
+            ql_img_folder = r'%s\quicklook\%s\images\%s' % (pout, strsize, sat_folder)
+            suredir(ql_img_folder)
+            ql_img_path = r'%s\%s__QL%s.tif' % (ql_img_folder, imgname, strsize)
+            ql_msk_folder = r'%s\quicklook\%s\masks\%s\%s' % (pout, strsize, msk_type['folder'], sat_folder)
+            suredir(ql_msk_folder)
+            ql_msk_path = r'%s\%s__QL%s.tif' % (ql_msk_folder, msk_name, strsize)
+            quickpaths[size] = (ql_img_path, ql_msk_path)
+    else:
+        quickpaths = None
+    return (img_path, msk_path, quickpaths)
+
+# Записать изображение, проверяя корректность его формата
+# Если overwrite==False, то изображения в корректном формате пропускаются
+def set_image(img_in, img_out, overwrite = False, band_reposition = None, multiply = None):
+    if os.path.exists(img_out):
+        repair, counter = check_image(img_out, split3(img_out)[1])
+        if not (repair or overwrite):
+            return img_out
+    if os.path.exists(img_in):
+        repair, counter = check_image(img_in, split3(img_out)[1], multiply=multiply)
+    else:
+        print('Path not found: %s' % img_in)
+        return 'ERROR: Source file not found'
+    if repair:
+        return repair_img(img_in, img_out, counter, band_order = band_reposition, multiply = multiply)
+    else:
+        shutil.copyfile(img_in, img_out)
+        return img_out
+
+# Check if the image needs repair
+def check_image(img_in, neuro, multiply = None):
+    raster = gdal.Open(img_in)
+    realBandNum = raster.RasterCount
+    metaBandNum = 0
+    img_type = neuro.split('__')[0].split('-')[0]
+    if re.search(r'^IM\d+$', img_type):
+        metaBandNum = int(img_type[2:])
+    elif re.search(r'IM[RGBNP]$', img_type):
+        metaBandNum = 1
+    elif re.search(r'IMCH\d+$', img_type):
+        metaBandNum = int(img_type[4:])
+    elif FindAny(neuro, ['.PAN','_red','_green','_blue','_nir']):
+        metaBandNum = 1
+    else:
+        satellite_types = globals()['satellite_types']
+        for satid in satellite_types:
+            if re.search(satellite_types[satid]['base_tmpt'], neuro):
+                metaBandNum = satellite_types[satid]['band_num']
+    counter = min((metaBandNum, realBandNum))
+    if multiply is not None:
+        return True, counter
+    if metaBandNum > realBandNum:
+        print('Not enough bands for: %s - got %i, need %i' % (img_in, realBandNum, metaBandNum))
+        raise Exception
+    elif metaBandNum < realBandNum:
+        print('Band count mismatch for: %s - got %i, need %i' % (img_in, realBandNum, metaBandNum))
+        return True, counter
+    counter = min((metaBandNum, realBandNum))
+    for i in range(1, counter + 1):
+        band = raster.GetRasterBand(i)
+        if band.DataType != 3 or band.GetNoDataValue() != 0:
+            return True, counter
+    return False, counter
+
+# Записать растр снимка в установленном формате
+def repair_img(img_in, img_out, count, band_order=None, multiply = None):
+    if band_order is None:
+        band_order = range(1, count+1)
+    raster = gdal.Open(img_in)
+    new_raster = ds(img_out, copypath=img_in, options={'bandnum':count, 'dt':3, 'compress':'DEFLATE', 'nodata':0}, editable=True)
+    for bin, bout in zip(band_order, range(1, count+1)):
+        init_band = raster.GetRasterBand(bin)
+        arr_ = init_band.ReadAsArray()
+        init_nodata = init_band.GetNoDataValue()
+        if init_nodata is None:
+            init_nodata=0
+            uniques, counts = np.unique(arr_, return_counts=True)
+            total_sum = np.sum(counts)
+            if counts[0]/total_sum>0.01:
+                init_nodata=uniques[0]
+            elif counts[-1]/total_sum>0.01:
+                init_nodata=uniques[-1]
+        arr_[arr_==init_nodata] = 0
+        if multiply is not None:
+            if bin in multiply.keys():
+                arr_ = arr_ * multiply[bin]
+        new_raster.GetRasterBand(bout).WriteArray(arr_)
+    raster = new_raster = None
+    return img_out
+
+# Создать растровую маску на основе вектора
+def set_mask(img_in, vec_in, msk_out, code_col='gridcode', code_col_sec=None, overwrite=False, empty_value=0, burn_value=None):
+    if check_exist(msk_out, ignore=overwrite):
+        return msk_out
+    if os.path.exists(vec_in):
+        crs = get_srs(gdal.Open(img_in))
+        vec_reprojected = tempname('shp')
+        vec_to_crs(ogr.Open(vec_in), crs, vec_reprojected)
+        if not os.path.exists(vec_reprojected):
+            vec_reprojected = vec_in
+        print(burn_value)
+        try:
+            if burn_value is None:
+                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
+            else:
+                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, burn_value=burn_value, compress=compress, overwrite=overwrite)
+            return msk_out
+        except:
+            # RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
+            print('Rasterizing error: %s %s' % (img_in, vec_in))
+            return 'ERROR: Rasterizing error'
+    elif empty_value is None:
+        print('Empty value is None: skipping')
+        return 'ERROR: Rasterizing error'
+    else:
+        try:
+            # ds(msk_out, copypath=img_in, options={'bandnum': 1, 'dt': 1, 'compress': 'DEFLATE'}, overwrite=overwrite)
+            CreateDataMask(img_in, msk_out, value=empty_value, nodata=0, bandnum=1)
+            return msk_out
+        except:
+            print('Rasterizing error: %s %s' % (img_in, vec_in))
+            return 'ERROR: Rasterizing error'
+
+# Создать загрублённые снимки и растровые маски на основе вектора
+def set_quicklook(img_in, vec_in, ql_out, msk_out, code_col='gridcode', code_col_sec=None, pixelsize=None, method=gdal.GRA_Average, empty_value=0, burn_value=None, overwrite=True):
+    MakeQuicklook(img_in, ql_out, epsg=None, pixelsize=pixelsize, method=method, overwrite=overwrite)
+    set_mask(ql_out, vec_in, msk_out, code_col=code_col, code_col_sec=code_col_sec, empty_value=empty_value, burn_value=burn_value, overwrite=overwrite)
+
+def qlReport(folder, input, size):
+    ql_input = OrderedDict()
+    strsize = size2str(size)
+    codes = globals()['codes']
+    msk_end_values = OrderedDict()
+    for line in input:
+        _dict = input[line]
+        new_line = '%s__QL%s' % (line, strsize)
+        new_dict = OrderedDict()
+        new_dict['r'] = _dict.get('r')
+        new_dict['v'] = _dict.get('v')
+        new_dict['pairing'] = _dict.get('pairing')
+        new_dict['img_out'] = img_out = QlPathStr(_dict.get('img_out'), strsize)
+        new_dict['msk_out'] = msk_out = QlPathStr(_dict.get('msk_out'), strsize)
+        if os.path.exists(str(msk_out)):
+            vals = list(np.unique(gdal.Open(msk_out).ReadAsArray()))
+            for val in vals:
+                if val and (not val in msk_end_values):
+                    if val in codes:
+                        msk_end_values[val] = codes[val]
+                    else:
+                        print('Unknown code: %i' % val)
+                        msk_end_values[val] = 'UNKNOWN'
+            msk_values = ' '.join(flist(vals, str))
+            new_dict['report'] = 'SUCCESS'
+            new_dict['msk_values'] = msk_values
+        else:
+            new_dict['report'] = 'FAILURE'
+            new_dict['msk_values'] = ''
+        if os.path.exists(str(img_out)):
+            minimum, maximum = RasterMinMax(img_out)
+            input[neuroid]['min'] = minimum
+            input[neuroid]['max'] = maximum
+        ql_input[new_line] = new_dict
+    dict_to_csv(fullpath(folder, 'mask_values.csv'), msk_end_values)
+    report_name = 'report_{}.xls'.format(datetime.now()).replace(' ', '_').replace(':', '-')
+    report_path = fullpath(folder, report_name)
+    dict_to_xls(report_path, ql_input)
+
+def QlPathStr(str0, ql_add):
+    if str0 is None:
+        return None
+    else:
+        for spliter in [r'\images', '\masks']:
+            pathparts = str0.split(spliter)
+            if len(pathparts)==2:
+                pout, partpath = pathparts
+                return '%s\quicklook\%s%s%s__QL%s.tif' % (pout, ql_add, spliter, partpath[:-4], ql_add)
+
+# Checks if name must be excluded as pansharpened or not pansharpened
+def pms_exit(id, pms = False):
+    if re.search('KV.+SCN\d+.+', id):
+        if id.endswith('PMS'):
+            if not pms:
+                return True
+        else:
+            if pms:
+                return True
+    return False

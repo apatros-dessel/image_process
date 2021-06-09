@@ -1,6 +1,6 @@
 from razmetka import *
 
-pout = r'd:\terratech\razmetka_source'
+pout = r'e:\rks\razmetka_source\resurs_surface_ms'
 type = 'MS'
 update = False
 

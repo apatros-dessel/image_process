@@ -444,13 +444,13 @@ class scene:
     # Returns a scene cover as a feature with standard set of attributes
     def json_feat(self, lyr_defn, add_path=True, cartesian_area = False, data_mask=False, srs=4326):
         feat = geodata.ogr.Feature(lyr_defn)
-        print(self.meta.id, self.datamask())
+        # print(self.meta.id, self.datamask())
         ds_mask, lyr_mask = geodata.get_lyr_by_path(self.datamask())
         t_crs = geodata.get_srs(srs)
         if lyr_mask is not None:
             geom_feat = lyr_mask.GetNextFeature()
             geom = geom_feat.GetGeometryRef()
-            print(geom.ExportToWkt())
+            # print(geom.ExportToWkt())
             v_crs = lyr_mask.GetSpatialRef()
             if (v_crs is None) and self.imsys=='PLD':
                 v_crs = geodata.osr.SpatialReference()
@@ -458,8 +458,8 @@ class scene:
                 geom = geodata.MultipolygonFromMeta(self.fullpath, v_crs)
             else:
                 if not geodata.ds_match(v_crs, t_crs):
-                    print(v_crs)
-                    print(t_crs)
+                    # print(v_crs)
+                    # print(t_crs)
                     coordTrans = geodata.osr.CoordinateTransformation(v_crs, t_crs)
                     geom.Transform(coordTrans)
                 if sys.version.startswith('3'):

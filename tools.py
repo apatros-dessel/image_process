@@ -1161,3 +1161,11 @@ def FindAny(str_, find_list, default=True):
             if re.search(part, str_):
                 return True
     return False
+
+def DictCounts(dict_, list_):
+    for val_ in list_:
+        if val_ in dict_:
+            dict_[val_] += 1
+        else:
+            dict_[val_] = 1
+    return dict_

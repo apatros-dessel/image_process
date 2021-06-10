@@ -910,12 +910,14 @@ try:
                     # if max_type != maskid:
                         # print("Warning: masktype %s mismatch maskid %s" % (max_type, maskid))
                     for val in vals:
-                        if val and (not val in msk_end_values):
-                            if val in codes:
-                                msk_end_values[val] = codes[val]
+                        if val:
+                            if val in msk_end_values:
+                                msk_end_values[val][0] += 1
+                            elif val in codes:
+                                msk_end_values[val] = [1, codes[val]]
                             else:
                                 print('Unknown code: %i' % val)
-                                msk_end_values[val] = 'UNKNOWN'
+                                msk_end_values[val] = [1, 'UNKNOWN']
                     msk_values = ' '.join(flist(vals, str))
                 except:
                     print('Cannot get mask values for: %s' % neuroid)

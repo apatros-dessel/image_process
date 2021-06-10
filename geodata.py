@@ -3386,4 +3386,15 @@ def VectorIntersections(vec1, vec2, vec_out):
                     fid += 1
         ds_out = None
 
-
+def AttrValCalculator(shp_in, attr_id):
+    ds_in, lyr_in = get_lyr_by_path(shp_in)
+    if lyr_in:
+        counts = {}
+        for feat in lyr_in:
+            val = feat.GetField(attr_id)
+            if val:
+                if val in counts:
+                    counts[val] += 1
+                else:
+                    counts[val] = 1
+        return counts

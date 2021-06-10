@@ -909,15 +909,27 @@ try:
                     # max_type = max(all_codes, key=lambda key: all_codes[key])
                     # if max_type != maskid:
                         # print("Warning: masktype %s mismatch maskid %s" % (max_type, maskid))
+                    if vec_in:
+                        vec_val_count = None
+                        if code_col_sec:
+                            vec_val_count = AttrValCalculator(vec_in, code_col_sec)
+                        if not vec_val_count:
+                            vec_val_count = AttrValCalculator(vec_in, attr_mask)
                     for val in vals:
                         if val:
                             if val in msk_end_values:
                                 msk_end_values[val][0] += 1
                             elif val in codes:
-                                msk_end_values[val] = [1, codes[val]]
+                                msk_end_values[val] = [1, 0, codes[val]]
                             else:
                                 print('Unknown code: %i' % val)
-                                msk_end_values[val] = [1, 'UNKNOWN']
+                                msk_end_values[val] = [1, 0, 'UNKNOWN']
+                            if vec_in:
+                                if vec_val_count:
+                                    if val in vec_val_count:
+                                        msk_end_values[val][1] += vec_val_count[val]
+                            elif empty_value is not None:
+                                msk_end_values[val][1] += 1
                     msk_values = ' '.join(flist(vals, str))
                 except:
                     print('Cannot get mask values for: %s' % neuroid)

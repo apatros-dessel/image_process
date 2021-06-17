@@ -27,7 +27,7 @@ parser.add_argument('--pathmark', default=None, dest='pathmark', help='Филь�
 parser.add_argument('--missmark', default=None, dest='missmark', help='Пропускать пути к файлам по отметке')
 parser.add_argument('pin', help='Путь к исходным файлам, растровым или растровым и векторным')
 parser.add_argument('pout', help='Путь для сохранения конечных файлов')
-parser.add_argument('maskid', help='Тип масок')
+parser.add_argument('-m', default='full', dest='maskid', help='Тип масок')
 args = parser.parse_args()
 
 pin = args.pin
@@ -765,25 +765,27 @@ def qlReport(folder, input, size):
         new_dict['pairing'] = _dict.get('pairing')
         new_dict['img_out'] = img_out = QlPathStr(_dict.get('img_out'), strsize)
         new_dict['msk_out'] = msk_out = QlPathStr(_dict.get('msk_out'), strsize)
-        if os.path.exists(str(msk_out)):
-            vals = list(np.unique(gdal.Open(msk_out).ReadAsArray()))
-            for val in vals:
-                if val and (not val in msk_end_values):
-                    if val in codes:
-                        msk_end_values[val] = codes[val]
-                    else:
-                        print('Unknown code: %i' % val)
-                        msk_end_values[val] = 'UNKNOWN'
+        if msk_out:
+            if os.path.exists(str(msk_out)):
+                vals = list(np.unique(gdal.Open(msk_out).ReadAsArray()))
+                for val in vals:
+                    if val and (not val in msk_end_values):
+                        if val in codes:
+                            msk_end_values[val] = codes[val]
+                        else:
+                            print('Unknown code: %i' % val)
+                            msk_end_values[val] = 'UNKNOWN'
             msk_values = ' '.join(flist(vals, str))
             new_dict['report'] = 'SUCCESS'
             new_dict['msk_values'] = msk_values
         else:
             new_dict['report'] = 'FAILURE'
             new_dict['msk_values'] = ''
-        if os.path.exists(str(img_out)):
-            minimum, maximum = RasterMinMax(img_out)
-            input[neuroid]['min'] = minimum
-            input[neuroid]['max'] = maximum
+        if img_out:
+            if os.path.exists(str(img_out)):
+                minimum, maximum = RasterMinMax(img_out)
+                input[neuroid]['min'] = minimum
+                input[neuroid]['max'] = maximum
         ql_input[new_line] = new_dict
     dict_to_csv(fullpath(folder, 'mask_values.csv'), msk_end_values)
     report_name = 'report_{}.xls'.format(datetime.now()).replace(' ', '_').replace(':', '-')
@@ -863,8 +865,11 @@ try:
         paths = get_paths(pout, neuroid, maskid, imgid, quicksizes, original=original)
         if paths:
             img_out, msk_out, quickpaths = paths
-            img_in = input[neuroid]['r']
+            img_in = input[neuroid].get('r', '')
             vec_in = input[neuroid].get('v', '')
+            if img_in == '':
+                print('INPUT IMAGE NOT FOUND: %s' % neuroid)
+                continue
             if '&full_cloud' in img_in:
                 empty_value = 201
             elif 'no_cloud' in img_in:
@@ -953,7 +958,7 @@ finally:
     report_name = 'report_{}.xls'.format(datetime.now()).replace(' ','_').replace(':','-')
     report_path = fullpath(pout, report_name)
     dict_to_xls(report_path, input)
-    scroll(msk_end_values, header='CODES USED:')
+    scroll(msk_end_values, header='CODES USED:', print_type = False)
     dict_to_csv(fullpath(pout, 'mask_values.csv'), msk_end_values)
     print('FINISHED -- REPORT SAVED TO %s' % report_path)
     if quicksizes:

@@ -1,8 +1,8 @@
 from tools import *
 
-razmetka_path = r'd:\terratech\razmetka'
-copy_mask_folder = r'd:\terratech\copymask'
-out_xls = r'd:\terratech\razmetka\razmetka_report.xls'
+razmetka_path = r'e:\rks\razmetka'
+copy_mask_folder = r'e:\rks\copymask'
+out_xls = r'e:\rks\razmetka\razmetka_report.xls'
 
 def ReadXlsMeta(xls_path, copy_mask_folder=None):
     data = xls_to_dict(xls_path)

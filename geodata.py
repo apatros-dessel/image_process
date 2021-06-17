@@ -1540,17 +1540,17 @@ def Unite(path2shp_list, path2export, proj=None, deafault_srs=4326, changexy=Fal
 
     # return Geom2Shape(path2export, t_geom, proj=proj)
 
-def ShapesIntersect(path2shp1, path2shp2):
+def ShapesIntersect(path2shp1, path2shp2, attr_filter = None):
 
     # print(path2shp1, path2shp2)
 
     shp1_ds, shp1_lyr = get_lyr_by_path(path2shp1)
     if shp1_lyr is None:
-        return 1
+        return None
 
     shp2_ds, shp2_lyr = get_lyr_by_path(path2shp2)
     if shp2_lyr is None:
-        return 1
+        return None
 
     if shp1_lyr.GetSpatialRef() != shp2_lyr.GetSpatialRef():
         shp2_ds = vec_to_crs(shp2_ds, shp1_lyr.GetSpatialRef(), tempname('shp'))
@@ -1559,6 +1559,15 @@ def ShapesIntersect(path2shp1, path2shp2):
     result = False
 
     for feat1 in shp1_lyr:
+        if attr_filter is not None:
+            pass_ = True
+            for key in attr_filter:
+                attr_val = feat1.GetField(key)
+                if attr_val==attr_filter[key]:
+                    pass_ = False
+                    break
+            if pass_:
+                continue
         geom1 = feat1.GetGeometryRef()
         shp2_lyr.ResetReading()
         for feat2 in shp2_lyr:
@@ -3286,7 +3295,7 @@ def GetRasterDataParams(path):
         params = [raster.RasterXSize, raster.RasterYSize]
         for num in range(1, raster.RasterCount+1):
             band = raster.GetRasterBand(num)
-            params.append(flist(band.GetStatistics(1,1), round))
+            params.append(flist(band.GetStatistics(1,1), round) + [band.DataType])
         return params
 
 def RasterMinMax(path):

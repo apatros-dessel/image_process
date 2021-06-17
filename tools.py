@@ -578,7 +578,7 @@ def winprint(obj, decoding = None):
     print(obj)
     return None
 
-def scroll(obj, print_type=True, decoding=None, header=None, lower=None, depth=0, counts=False):
+def scroll(obj, print_type=False, decoding=None, header=None, lower=None, depth=0, counts=False):
     tab = '  '*depth
     if header is not None:
         print(header)
@@ -1161,3 +1161,11 @@ def FindAny(str_, find_list, default=True):
             if re.search(part, str_):
                 return True
     return False
+
+def DictCounts(dict_, list_):
+    for val_ in list_:
+        if val_ in dict_:
+            dict_[val_] += 1
+        else:
+            dict_[val_] = 1
+    return dict_

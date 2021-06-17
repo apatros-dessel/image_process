@@ -1,7 +1,7 @@
 from razmetka import *
 
-pout = r'e:\rks\razmetka_source\resurs_surface_ms'
-type = 'MS'
+pout = r'e:\rks\razmetka_source\kanopus_full_pms'
+type = 'PMS'
 update = False
 
 files = folder_paths(pout,1,['shp','tif','json'])
@@ -42,5 +42,5 @@ for file in folder_paths(pout,1):
 
 scroll(vals)
 
-if len(name_duplicates)>0:
-    scroll(name_duplicates)
+# if len(name_duplicates)>0:
+    # scroll(name_duplicates)

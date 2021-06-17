@@ -844,7 +844,7 @@ def DownloadKanopusFromS3(id, pout, type=None, geom_path = None):
     command = r'''gu_db_query -w %s -d %s''' % (KanCallSQL(id, type), folder)
     if geom_path is not None:
         command += ' -v %s' % geom_path
-    # print(command)
+    print(command)
     os.system(command)
     kan_dirs = FolderDirs(folder)
     l = len(kan_dirs)

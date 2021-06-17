@@ -3398,3 +3398,14 @@ def AttrValCalculator(shp_in, attr_id):
                 else:
                     counts[val] = 1
         return counts
+
+def RasterGridParams(ds):
+    srs = get_srs(ds)
+    trans = ds.GetGeoTransform()
+    return (srs, trans)
+
+def RasterArrayMatch(pin1, pin2):
+    ds1 = gdal.Open(pin1)
+    ds2 = gdal.Open(pin2)
+    return RasterGridParams(ds1) == RasterGridParams(ds2)
+

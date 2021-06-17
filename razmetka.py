@@ -844,7 +844,7 @@ def DownloadKanopusFromS3(id, pout, type=None, geom_path = None):
     command = r'''gu_db_query -w %s -d %s''' % (KanCallSQL(id, type), folder)
     if geom_path is not None:
         command += ' -v %s' % geom_path
-    # print(command)
+    print(command)
     os.system(command)
     kan_dirs = FolderDirs(folder)
     l = len(kan_dirs)
@@ -912,11 +912,11 @@ def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
         else:
             kan_id = None
             if l == 0:
-                # if type!='MS':
-                # kan_id = GetKanopusId(id, type='MS', geom_path=geom_path)
-                if kan_id is None:
-                    # print('SCENE DATA NOT FOUND: %s' % id)
-                    pass
+                if type=='PMS':
+                    kan_id = GetKanopusId(id, type='PAN', geom_path=geom_path)
+                    if kan_id is not None:
+                        kan_id = kan_id.replace('.PAN', '.%s' % type)
+                        pass
             elif l > 1:
                 print('MULTIPLE SCENES FOUND FOR: %s - %i scenes' % (id, l))
                 files = folder_paths(folder,1,'tif')

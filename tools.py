@@ -578,7 +578,7 @@ def winprint(obj, decoding = None):
     print(obj)
     return None
 
-def scroll(obj, print_type=True, decoding=None, header=None, lower=None, depth=0, counts=False):
+def scroll(obj, print_type=False, decoding=None, header=None, lower=None, depth=0, counts=False):
     tab = '  '*depth
     if header is not None:
         print(header)

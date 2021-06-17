@@ -1,6 +1,6 @@
 from geodata import *
 
-pin = r'e:\rks\razmetka_source\kanopus_surface_pan'
+pin = r'e:\rks\razmetka_source\kanopus_full_pms'
 attr = 'gridcode'
 replace = {203:2033,204:2031,205:2032}
 

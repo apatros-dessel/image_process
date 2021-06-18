@@ -1170,9 +1170,12 @@ def DictCounts(dict_, list_):
             dict_[val_] = 1
     return dict_
 
-def NumberRus(val, one, many):
+def NumRus(val, one, two, many):
     str_val = str(val)
     if str_val.endswith('1'):
         if not str_val.endswith('11'):
             return '%i %s' % (val, one)
+    if re.search('[234]$', str_val):
+        if not re.search('1[234]$', str_val):
+            return '%i %s' % (val, two)
     return '%i %s' % (val, many)

@@ -820,6 +820,12 @@ def check_type(codes):
             type_dict[u"gari"] += 1
     return type_dict
 
+def StrPixelSize(x, y):
+    if max([x,y])/min([x,y])>1.05:
+        return '%.2f %.2f' % (x, y)
+    else:
+        return '%.2f' % ((x+y)/2)
+
 ###################################################################################
 
 t = datetime.now()
@@ -946,7 +952,7 @@ try:
                 x_m, y_m = RasterPixelSize(img_out)
                 if x_m and y_m:
                     input[neuroid]['pixel_size'] = (x_m+y_m)/2
-                print('  %i -- MASKED: %s with: %s ; data range: %s-%s ; pixel size %s %s\n' % (i+1, neuroid, msk_values, int(minimum), int(maximum), str(x_m), str(y_m)))
+                print('  %i -- MASKED: %s with: %s ; data range: %s-%s ; pixel size %s\n' % (i+1, neuroid, msk_values, int(minimum), int(maximum), StrPixelSize(x_m, y_m)))
             else:
                 print('  %i -- ERROR: %s\n' % (i + 1, neuroid))
         else:
@@ -958,9 +964,14 @@ finally:
     report_name = 'report_{}.xls'.format(datetime.now()).replace(' ','_').replace(':','-')
     report_path = fullpath(pout, report_name)
     dict_to_xls(report_path, input)
-    scroll(msk_end_values, header='CODES USED:', print_type = False)
+    # scroll(msk_end_values, header='CODES USED:', print_type = False)
+    print('CODES USED:')
+    for key in msk_end_values:
+        scn_num, obj_num, legend = msk_end_values[key]
+        print('%i:\t%s: %s, %s' % (int(key), legend, NumRus(scn_num, 'сцена', 'сцены', 'сцен'), NumRus(obj_num, 'объект', 'объекта', 'объектов')))
+        msk_end_values[key] = legend
     dict_to_csv(fullpath(pout, 'mask_values.csv'), msk_end_values)
-    print('FINISHED -- REPORT SAVED TO %s' % report_path)
+    print('\nFINISHED -- REPORT SAVED TO %s' % report_path)
     if quicksizes:
         for size in quicksizes:
             ql_report = qlReport(r'%s\quicklook\%s' % (pout, size2str(size)), input, size)

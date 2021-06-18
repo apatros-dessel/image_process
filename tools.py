@@ -1169,3 +1169,10 @@ def DictCounts(dict_, list_):
         else:
             dict_[val_] = 1
     return dict_
+
+def NumberRus(val, one, many):
+    str_val = str(val)
+    if str_val.endswith('1'):
+        if not str_val.endswith('11'):
+            return '%i %s' % (val, one)
+    return '%i %s' % (val, many)

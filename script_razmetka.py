@@ -24,7 +24,8 @@ parser.add_argument('--dg_metadata', default=None, dest='dg_metadata', help='П�
 parser.add_argument('--xls', default=None, dest='input_from_report', help='Путь к таблице xls с путями к источникам данных, если None, то пары снимок-вектор строятся заново. Менять источники можно вручную, формат xlsx не читает')
 parser.add_argument('--burn_value', default=None, dest='burn_value', help='Единое значение для всех масок')
 parser.add_argument('--pathmark', default=None, dest='pathmark', help='Фильтровать пути к файлам по отметке')
-parser.add_argument('--missmark', default=None, dest='missmark', help='Пропускать пути к файлам по отметке')
+parser.add_argument('--missmark', default='#', dest='missmark', help='Пропускать пути к файлам по отметке')
+parser.add_argument('--filter_nodata', default=True, dest='filter_nodata', help='Удалять из маски значения растра nodata')
 parser.add_argument('pin', help='Путь к исходным файлам, растровым или растровым и векторным')
 parser.add_argument('pout', help='Путь для сохранения конечных файлов')
 parser.add_argument('-m', default='full', dest='maskid', help='Тип масок')
@@ -52,6 +53,7 @@ input_from_report = args.input_from_report
 empty_mask = boolstr(args.empty)
 pathmark = liststr(args.pathmark)
 missmark = liststr(args.missmark)
+filter_nodata = boolstr(args.filter_nodata)
 
 if dg_metadata is not None:
     dg_files = folder_paths(dg_metadata,1,'tif')
@@ -699,7 +701,7 @@ def repair_img(img_in, img_out, count, band_order=None, multiply = None):
     return img_out
 
 # Создать растровую маску на основе вектора
-def set_mask(img_in, vec_in, msk_out, code_col='gridcode', code_col_sec=None, overwrite=False, empty_value=0, burn_value=None):
+def set_mask(img_in, vec_in, msk_out, code_col='gridcode', code_col_sec=None, overwrite=False, empty_value=0, burn_value=None, filter_nodata=True):
     if check_exist(msk_out, ignore=overwrite):
         return msk_out
     if os.path.exists(vec_in):
@@ -710,9 +712,9 @@ def set_mask(img_in, vec_in, msk_out, code_col='gridcode', code_col_sec=None, ov
             vec_reprojected = vec_in
         try:
             if burn_value is None:
-                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
+                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, filter_nodata=filter_nodata, compress=compress, overwrite=overwrite)
             else:
-                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, burn_value=burn_value, compress=compress, overwrite=overwrite)
+                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, burn_value=burn_value, filter_nodata=filter_nodata, compress=compress, overwrite=overwrite)
             return msk_out
         except:
             # RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
@@ -731,9 +733,9 @@ def set_mask(img_in, vec_in, msk_out, code_col='gridcode', code_col_sec=None, ov
             return 'ERROR: Rasterizing error'
 
 # Создать загрублённые снимки и растровые маски на основе вектора
-def set_quicklook(img_in, vec_in, ql_out, msk_out, code_col='gridcode', code_col_sec=None, pixelsize=None, method=gdal.GRA_Average, empty_value=0, burn_value=None, overwrite=True):
+def set_quicklook(img_in, vec_in, ql_out, msk_out, code_col='gridcode', code_col_sec=None, pixelsize=None, method=gdal.GRA_Average, empty_value=0, burn_value=None, filter_nodata=True, overwrite=True):
     MakeQuicklook(img_in, ql_out, epsg=None, pixelsize=pixelsize, method=method, overwrite=overwrite)
-    set_mask(ql_out, vec_in, msk_out, code_col=code_col, code_col_sec=code_col_sec, empty_value=empty_value, burn_value=burn_value, overwrite=overwrite)
+    set_mask(ql_out, vec_in, msk_out, code_col=code_col, code_col_sec=code_col_sec, empty_value=empty_value, burn_value=burn_value, filter_nodata=filter_nodata, overwrite=overwrite)
 
 def size2str(size):
     strsize = str(size).strip(' 0')
@@ -848,7 +850,7 @@ else:
 
 # Создать пути для размещения изображений и масок
 suredir(pout)
-scroll(input, header='\nTotal input:')
+# scroll(input, header='\nTotal input:')
 # sys.exit()
 
 # Создавать маски из найденных пар
@@ -894,12 +896,12 @@ try:
             else:
                 attr_mask = None
             # !!! Add checking vals_mask
-            msk_out = set_mask(img_in, vec_in, msk_out, code_col=attr_mask, code_col_sec=code_col_sec, empty_value=empty_value, burn_value=burn_value, overwrite=overwrite)
+            msk_out = set_mask(img_in, vec_in, msk_out, code_col=attr_mask, code_col_sec=code_col_sec, empty_value=empty_value, burn_value=burn_value, filter_nodata=filter_nodata, overwrite=overwrite)
             input[neuroid]['msk_out'] = msk_out
             if quickpaths:
                 for size in quickpaths:
                     ql_img_out, ql_msk_out = quickpaths[size]
-                    set_quicklook(img_out, vec_in, ql_img_out, ql_msk_out, code_col=attr_mask, code_col_sec=code_col_sec, pixelsize=size, method=gdal.GRA_Average, empty_value=empty_value, overwrite=overwrite)
+                    set_quicklook(img_out, vec_in, ql_img_out, ql_msk_out, code_col=attr_mask, code_col_sec=code_col_sec, pixelsize=size, method=gdal.GRA_Average, empty_value=empty_value, filter_nodata=filter_nodata, overwrite=overwrite)
             if not msk_out.startswith('ERROR'):
                 replace = replace_vals
                 if replace is not None:

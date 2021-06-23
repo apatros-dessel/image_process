@@ -1,7 +1,7 @@
 from razmetka import *
 
-pout = r'e:\rks\razmetka_source\kanopus_full_pms'
-type = 'PMS'
+pout = r'e:\rks\razmetka_source\kanopus_ms_add_train'
+type = 'MS'
 update = False
 
 files = folder_paths(pout,1,['shp','tif','json'])

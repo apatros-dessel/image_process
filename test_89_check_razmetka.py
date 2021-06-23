@@ -69,8 +69,8 @@ folders = FolderDirs(razmetka_path)
 final_report = OrderedDict()
 
 for razmetka_id in folders:
-    if ('__QL' in razmetka_id) and not ('resurs' in razmetka_id):
-        continue
+    # if ('__QL' in razmetka_id) and not ('resurs' in razmetka_id):
+        # continue
     folder = folders[razmetka_id]
     razmetka_report = OrderedDict()
     xls_files = folder_paths(folder,1,'xls',filter_folder='quicklook')

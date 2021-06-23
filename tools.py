@@ -578,7 +578,7 @@ def winprint(obj, decoding = None):
     print(obj)
     return None
 
-def scroll(obj, print_type=False, decoding=None, header=None, lower=None, depth=0, counts=False):
+def scroll(obj, print_type=False, decoding=None, header=None, lower=None, depth=0, counts=False, empty=True):
     tab = '  '*depth
     if header is not None:
         print(header)
@@ -594,7 +594,10 @@ def scroll(obj, print_type=False, decoding=None, header=None, lower=None, depth=
         elif isinstance(obj, (dict, OrderedDict)):
             for val in obj:
                 if hasattr(obj[val], '__iter__') and not isinstance(obj, str):
-                    scroll(obj[val], header=tab+str(val)+':', depth=depth+1, print_type=print_type, counts=counts)
+                    if len(obj[val])==0 and not empty:
+                        print(tab+val)
+                    else:
+                        scroll(obj[val], header=tab+str(val)+':', depth=depth+1, print_type=print_type, counts=counts, empty=empty)
                 else:
                     winprint('{}{}: {}'.format(tab+'  ', val, obj[val]), decoding=decoding)
         else:
@@ -1045,7 +1048,7 @@ def dict_max_key(dict_):
     return fin_key
 
 def boolstr(val):
-    if val:
+    if isinstance(val, str):
         if val.lower() == 'false':
             val = False
         else:

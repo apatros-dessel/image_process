@@ -301,10 +301,10 @@ class MaskTypeFolderIndex:
         else:
             print('SUBTYPE DICT IS EMPTY: %s' % subtype)
 
-    def Images(self, subtype='', bandclass='MS', datacat='img'):
+    def Images(self, subtype='', bandclass='MS', datacat='img', miss_tmpt=None):
         image_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
         if image_folder:
-            return FolderFiles(image_folder, miss_tmpt=None, type='tif')
+            return FolderFiles(image_folder, miss_tmpt=miss_tmpt, type='tif')
 
     def SubtypeFolderName(self, subtype='', bandclass='MS', datacat='img'):
         image_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
@@ -333,6 +333,25 @@ class MaskTypeFolderIndex:
                 # print('BANDS WRITTEN: %s' % ms_name)
         else:
             print('FULL IMAGE DATA NOT FOUND: %s' % subtype)
+
+    def VectorizeRasterMasks(self, bandclass='MS', subtype='', datacat='shp_auto', replace=None, delete_vals=0):
+        band_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
+        if band_folder is None:
+            subtype_folder_name = self.SubtypeFolderName(subtype=subtype, datacat=datacat)
+            band_folder = self.UpdateSubtype(bandclass, subtype, datacat, subtype_folder_name=subtype_folder_name)
+        if band_folder is None:
+            print('CANNOT FIND BAND FOLDER: %s' % subtype)
+            return 1
+        full_imgs = self.Images(subtype, bandclass, datacat=datacat, miss_tmpt='archive')
+        if full_imgs is not None:
+            for name in full_imgs:
+                msk_path = full_imgs[name]
+                vec_path = fullpath(band_folder, name[:-4], 'shp')
+                VectorizeRaster(msk_path, vec_path, index_id='gridcode', bandnum=1, overwrite=True)
+                ReplaceAttrVals(vec_path, 'gridcode', replace, func=lambda x: (0, x)[x>0], delete_vals=delete_vals)
+                print('VECTOR WRITTEN: %s' % name)
+        else:
+            print('MASK DATA NOT FOUND: %s' % subtype)
 
     def GetKanPath(self, kan_name, subtype='', type=None, geom_path=None, use_source_pms=True, datacat='img'):
         if type is None:

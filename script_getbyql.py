@@ -3,37 +3,46 @@ import pandas as pd
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('index_path', help='Путь к папке с квиклуками')
-parser.add_argument('final_dir', help='Путь для сохранения данных')
+parser.add_argument('-r', default='16', dest='region', help='Индекс региона')
+parser.add_argument('-f', default = r'\\172.21.195.160\thematic\S3_temp', dest = 'final_dir', help='Путь для сохранения данных')
 parser.add_argument('-d', default=None, dest='dout', help='Путь для сохранения сцен с метаданными')
-parser.add_argument('-r', default=None, dest='rdir', help='Путь к папке с растровыми файлами, пересечение с которыми тоже выкачивать безотносительно имени')
+
 args = parser.parse_args()
-dout = args.dout
-rdir = args.rdir
-index_path = args.index_path
+index_path = r'\\172.21.195.2\thematic\!SPRAVKA\S3\\' + args.region
+if not os.path.exists(index_path):
+    print('PATH NOT FOUND: %s\nUNABLE TO FIND QL' % index_path)
 final_dir = args.final_dir
 
-class GetFolder:
+class Downloader:
 
     def __init__(self, path, sat='KV', sensor='MS'):
         self.path = path
-        self.name = Name(path)
+        self.name = os.path.split(path)[1]
         self.sat = sat
         self.sensor = sensor
         self.categories = {'':[]}
+        self.satname = {'KV': 'kanopus', 'RP': 'resurs'}.get(sat, 'kanopus')
+        self.skip = []
+        self.miss_categories = ['used']
 
     def xls(self):
         xls_path = fullpath(self.path, self.name, 'xls')
         if os.path.exists(xls_path):
             return xls_to_dict(xls_path)
 
+    def xls_out(self, dict_):
+        xls_path = r'%s/%s_%s_%s.xls' % (self.path, self.name, self.sat, self.sensor)
+        dict_to_xls(xls_path, dict_)
+
     def ql_paths(self):
-        corner_path = r'%s/%s/%s' % (self.path, self.sat, self.cat)
+        corner_path = r'%s/%s/%s' % (self.path, self.sat, self.sensor)
         return folder_paths(corner_path,1,'jpg')
 
     def update_category(self, cat, id):
         if cat in self.categories:
             self.categories[cat].append(id)
+        elif re.search('^%s' % self.sat, cat):
+            return None
         else:
             self.categories[cat] = [id]
 
@@ -42,100 +51,81 @@ class GetFolder:
         ql_paths = self.ql_paths()
         for ql_path in ql_paths:
             dir, id = os.path.split(ql_path)
-            cat = Name(dir)
+            cat = os.path.split(dir)[1]
             if cat==self.sensor:
                 cat = ''
             self.update_category(cat, id)
 
+    def set_skip(self, txt_path=r'\\172.21.195.2\thematic\!razmetka\id_list.txt'):
+        txt = open(txt_path)
+        if txt is not None:
+            self.skip.append(txt.read().split('\n'))
 
+    def download(self, folder, part=0.1):
+        xls_dict = self.xls()
+        for cat in self.categories:
+            if cat in self.miss_categories:
+                print('CATEGORY MISSED: %s' % cat)
+                continue
+            cat_length = len(self.categories[cat])
+            upload_length = int(cat_length*part)
+            i = 0
+            for ql_id in self.categories[cat]:
+                params = xls_dict.get(ql_id)
+                if params is None:
+                    print('ID NOT FOUND: %s' % ql_id)
+                    continue
+                params['Category'] = cat
+                scene_id = '_'.join(ql_id.split('_')[:-1]) + '.L2'
+                if i>= upload_length:
+                    params['Status'] = 'PASSED'
+                elif scene_id in self.skip:
+                    params['Status'] = 'SKIPPED'
+                else:
+                    path = params.get('Path')
+                    if path is None:
+                        params['Status'] = 'ERROR 1'
+                    else:
+                        short_path, folder_id = os.path.split(path)
+                        postavka = re.search(r'natarova', short_path)
+                        if postavka is None:
+                            params['Status'] = 'ERROR 2'
+                        else:
+                            # postavka = postavka.group()
+                            # upload_folder = r'%s%s%s' % (folder, postavka, short_path.split(postavka)[-1])
+                            upload_folder = r'%s%s' % (folder, short_path.split('natarova')[-1])
+                            suredir(upload_folder)
+                            result =  DownloadFromDB(scene_id, self.satname, upload_folder, check_folder=folder_id)
+                            if result:
+                                params['Status'] = 'DOWNLOADED'
+                                i += result
+                            else:
+                                params['Status'] = 'ERROR 3'
+                xls_dict[ql_id] = params
+        self.xls_out(xls_dict)
 
-def ExtractKanId(line):
-    if re.search('^KV.+L2$', line):
-        return line
+def DownloadFromDB(id, sat, folder, check_folder=None):
+    # gu_db_query -w "source='kanopus' and hashless_id='KV1_31707_25285_00_KANOPUS_20180409_091320_091401.SCN2.MS.L2'" - d \\172.21.195.160\thematic\S3_temp
+    result = 0
+    if check_folder is None:
+        command = r'''gu_db_query -w "source='%s' and hashless_id='%s'" -d %s''' % (sat, id, folder)
+        os.system(command)
+        result = 1
     else:
-        for type in ['.MS', '.PAN', '.PMS']:
-            if type in line:
-                return line.split(type)[0]+type+'.L2'
+        temp_folder = tempname()
+        command = r'''gu_db_query -w "source='%s' and hashless_id='%s'" -d %s''' % (sat, id, temp_folder)
+        os.system(command)
+        for n in os.listdir(temp_folder):
+            if n==check_folder:
+                copydir(fullpath(temp_folder, n), folder)
+                result = 1
+                break
+        destroydir(temp_folder)
+    return result
 
-def KanCallSQL(kan_id, type=False):
-    if re.search('IM4-.+-.+', kan_id):
-        if type:
-            date = kan_id.split('-')[2]
-            kan_date = '%s-%s-%s' % (date[:4], date[4:6], date[6:])
-            return '''"source='kanopus' and date(datetime)='%s' and type='%s'"''' % (kan_date, type.lower())
-        else:
-            print('KANOPUS TYPE NOT DEFINED, CANNOT DOWNLOAD DATA: %s' % kan_id)
-    else:
-        return '''"source='kanopus' and hashless_id='%s'"''' % kan_id
-
-def DownloadKanopusFromS3(pout, type=None, geom_path = None):
-    command = r'''gu_db_query -w "source='kanopus' and type='ms'" -d %s''' % pout
-    if geom_path is not None:
-        command += ' -v %s' % geom_path
-    print(command)
-    os.system(command)
-
-class FolderDirs(dict):
-
-    def __init__(self, folder, miss_tmpt=None):
-        for name in os.listdir(folder):
-            path = fullpath(folder, name)
-            if os.path.isdir(path):
-                if miss_tmpt:
-                    if re.search(miss_tmpt, name):
-                        continue
-                self[name] = path
-
-suredir(final_dir)
-
-if index_path.endswith('txt'):
-    with open(index_path) as txt:
-        lines = txt.read().split('\n')
-elif index_path.endswith('xls'):
-    lines = []
-    for xls_line in xls_to_dict(index_path):
-        id_source = xls_line.get('ID')
-        if id_source:
-            lines.append(id_source)
-elif index_path.endswith('xlsx'):
-    lines = []
-    for id_source in pd.read_excel(index_path).get('ID'):
-        if id_source:
-            lines.append(id_source)
-
-for line in lines:
-    id = ExtractKanId(line)
-    path0 = tempname()
-    raster_fin = fullpath(final_dir,id,'tif')
-    if os.path.exists(raster_fin):
-        print('FILE EXISTS: %s' % id)
-        continue
-    command = r'''gu_db_query -w "source='kanopus' and hashless_id='%s'" -d %s''' % (id, path0)
-    os.system(command)
-    dirs = FolderDirs(path0)
-    if dirs:
-        for folder in dirs:
-            imgid = ExtractKanId(folder)
-            raster = folder_paths(dirs[folder],1,'tif')[0]
-            raster_fin = fullpath(final_dir,imgid,'tif')
-            copyfile(raster, raster_fin)
-            if dout is not None:
-                copydir(dirs[folder], dout)
-            print('WRITTEN: %s\n' % id)
-    else:
-        print('EMPTY DIRS: %s\n' % id)
-    destroydir(path0)
-
-if rdir and dout:
-    rfiles = folder_paths(rdir,1,'tif')
-    scroll(rfiles)
-    for rfile in rfiles:
-        rmask = tempname('json')
-        RasterLimits(gdal.Open(rfile), reference=None, vector_path=rmask)
-        if os.path.exists(rmask):
-            f = r'%s\!_new' % (dout)
-            suredir(f)
-            DownloadKanopusFromS3(f, geom_path = rmask)
-            print('UPLOADED: %s' % rfile)
-        delete(rmask)
-
+# DownloadFromDB('KVI_15015_10756_01_KANOPUS_20200329_071237_071317.SCN8.MS.L2', 'kanopus', final_dir, check_folder='KVI_15015_10756_01_KANOPUS_20200329_071237_071317.SCN8.MS_dc07baffd20359244af5f8e84509e4de6cd49a1d')
+downloader = Downloader(index_path)
+downloader.set_skip()
+downloader.update_categories()
+downloader.download(final_dir)
+sys.exit()

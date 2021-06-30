@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 
-import os, sys, argparse
-try:
-    from image_processor import *
-except:
-    print('Cannot import image_processor')
-    sys.exit(1)
+# import os, sys, argparse
+# try:
+    # from image_processor import *
+# except:
+    # print('Cannot import image_processor')
+    # sys.exit(1)
 from PIL import Image
+from image_processor import *
+import argparse
 
 parser = argparse.ArgumentParser(description='Given 2 geotiff images finds transformation between')
 parser.add_argument('-d', default=None, dest='dir_in',  help='Input folder')
@@ -15,6 +17,7 @@ parser.add_argument('-x', default='report.xls', dest='xls', help='Excel report t
 parser.add_argument('-v', default=None, dest='v_cover', help='Vector cover path')
 parser.add_argument('-t', default=None, dest='type', help='Scene type')
 parser.add_argument('-i', default=None, dest='imsys', help='image systems separated by space')
+parser.add_argument('-a', default=None, dest='area_cover', help='Area to search objects')
 args = parser.parse_args()
 if args.dir_in is None:
     dir_in = 'None'
@@ -44,6 +47,7 @@ if args.imsys is not None:
             imsys_list.append(isId)
 else:
     imsys_list = list(metalib.keys())
+area_cover = args.area_cover
 
 '''
 # Пути к сценам
@@ -66,7 +70,7 @@ vector_cover_path_list = [
 
 print(u'Исходные данные загружены')
 
-proc = process().input(dir_in, skip_duplicates=False, imsys_list=imsys_list)
+proc = process().input(dir_in, skip_duplicates=True, imsys_list=imsys_list)
 
 if v_cover is None:
     v_cover = tempname('json')
@@ -102,23 +106,46 @@ print(u'Отфильтровано сцен для ручной обработк
 ''' MANUAL FILTER BY QUICKLOOKS '''
 
 # Returns a matrix of intersections between features in a list of shapefiles and image processor
-def layers_intersection_array(shapes_list, proc):
-    export_array = None
-    for shp1 in shapes_list:
-        result_array = None
-        for ascene in proc.scenes:
-            if result_array is None:
-                result_array = geodata.intersect_array(shp1, ascene.datamask())
-            else:
-                new_array = geodata.intersect_array(shp1, ascene.datamask())
-                if new_array is not None:
-                    result_array = np.hstack([result_array, new_array])
-        if export_array is None:
-            export_array = result_array
-        else:
-            if result_array is not None:
-                export_array = np.vstack([export_array, result_array])
-    return export_array
+def layers_intersection_dict(cover_in, area_in, id_key='id'):
+    ds1, lyr1 = geodata.get_lyr_by_path(cover_in)
+    ds2, lyr2 = geodata.get_lyr_by_path(area_in)
+    if (lyr1 is None) or (lyr2 is None):
+        return None
+    elif lyr1.GetSpatialRef() != lyr2.GetSpatialRef():
+        ds2 = geodata.vec_to_crs(ds2, lyr1.GetSpatialRef(), tempname('shp'))
+        lyr2 = ds2.GetLayer()
+    print(len(lyr1), ' ', len(lyr2))
+    export_dict = {}
+    feat2 = lyr2.GetNextFeature()
+    geom2 = feat2.GetGeometryRef()
+    for feat1 in lyr1:
+        id = feat1.GetField(id_key)
+        if(id is not None) and (id!=(-1)):
+            geom1 = feat1.GetGeometryRef()
+            if geom1 and geom2:
+                export_dict[id] = geom2.Intersect(geom1)
+    return export_dict
+
+
+# Returns a matrix of intersections between features in two shapefiles
+def intersect_array(shp1, shp2):
+    ds1, lyr1 = get_lyr_by_path(shp1)
+    if lyr1 is None:
+        return None
+    ds2, lyr2 = get_lyr_by_path(shp2)
+    if lyr2 is None:
+        return None
+    int_arr = np.zeros((lyr1.GetFeatureCount(), lyr2.GetFeatureCount())).astype(bool)
+    if lyr1.GetSpatialRef() != lyr2.GetSpatialRef():
+        ds2 = vec_to_crs(ds2, lyr1.GetSpatialRef(), tempname('shp'))
+        lyr2 = ds2.GetLayer()
+    for i, feat1 in enumerate(lyr1):
+        geom1 = feat1.GetGeometryRef()
+        lyr2.ResetReading()
+        for j, feat2 in enumerate(lyr2):
+            geom2 = feat2.GetGeometryRef()
+            int_arr[i,j] = geom1.Intersects(geom2)
+    return int_arr
 
 def input_parameters(dir_out, xls, type):
     print('Введите новый параметр проверки, с указанием индекса:\n  -o <путь к конечному файлу>\n  -x <название файла отчёта (xls)>\n  -t <тип данных (PAN, MS, PMS)>')
@@ -143,16 +170,15 @@ marks_dict = OrderedDict()
 qual_dict = {}
 error_list = []
 code_list = []
-'''
-if v_cover:
-	intersection_array = layers_intersection_array([v_cover], proc)
-else:
-	intersection_array = np.ones((1, len(proc.scenes))).astype(bool)
-'''
 scene_ids = np.array(proc.get_ids())
 
 finish = False
 
+if (v_cover is not None) and (area_cover is not None):
+    intersection_dict = layers_intersection_dict(v_cover, area_cover, id_key='id')
+else:
+    intersection_dict = None
+scroll(intersection_dict)
 for i, ascene in enumerate(proc.scenes):
 
     if finish:
@@ -162,6 +188,11 @@ for i, ascene in enumerate(proc.scenes):
 
         id = ascene.meta.id
         path = ascene.fullpath
+
+        if intersection_dict:
+            if not intersection_dict.get(id, False):
+                print('PASS OUTSIDE SCENE: %s' % id)
+                continue
 
         approved = False
 

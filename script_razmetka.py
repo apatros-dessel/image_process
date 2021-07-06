@@ -106,11 +106,11 @@ mask_types = {
 }
 
 codes = {
-    1:  'карьеры (любые)',
-    10: 'карьеры, без воды и растительности',
-    11: 'карьеры, с растительностью, без воды',
-    12: 'карьеры, с водой, без растительности',
-    13: 'карьеры, с водой и растительностью',
+    1:  'открытые грунты и пустыни',
+    # 10: 'карьеры, без воды и растительности',
+    # 11: 'карьеры, с растительностью, без воды',
+    # 12: 'карьеры, с водой, без растительности',
+    # 13: 'карьеры, с водой и растительностью',
     2:  'вскрытые грунты (любые)',
     20: 'вскрытые грунты, без воды и растительности',
     21: 'вскрытые грунты, с растительностью, без воды',
@@ -119,7 +119,7 @@ codes = {
     24: 'свалки (отдельные маски для свалок с префиксом MDP)',
     25: 'полигоны ТБО',
     26: 'нарушенные земли',
-    27: 'гольцы',
+    17: 'гольцы',
     3:  'площадки строительства (любые)',
     30: 'площадки строительства, без воды и растительности',
     31: 'площадки строительства, с растительностью, без воды',
@@ -204,7 +204,18 @@ codes = {
     2032:'плотная дымка',
     2033:'радужная дымка (несведение каналов)',
     209:'тень от холмов, деревьев, зданий и прочего',
+    220:'малые дефекты съёмки (засветки, блюминг)',
+    221:'крупные белые блики',
+    222:'засветки',
+    223:'блюминг',
+    230:'крупные дефекты съёмки (полосы, разрывы, зубцы)',
+    231:'полосы неравномерной яркости',
+    232:'разрывы в данных',
+    250:'разъезд каналов',
+    255:'изображения, пригодные для дешифрирования',
 }
+
+col_names = ['', 'r', 'v', 'pairing', 'img_out', 'pixel_size', 'min', 'max', 'x_size', 'y_size', 'msk_out', 'report', 'msk_values']
 
 while not maskid in mask_types.keys():
     scroll(mask_types.keys(), header='Неизвестный тип разметки - "%s", используйте один из списка:' % maskid)
@@ -635,11 +646,14 @@ def check_image(img_in, neuro, multiply = None):
         metaBandNum = int(img_type[4:])
     elif FindAny(neuro, ['.PAN','_red','_green','_blue','_nir']):
         metaBandNum = 1
+    elif FindAny(neuro, ['KSHMSA-VR', 'KSHMSA-SR']):
+        metaBandNum = 5
     else:
         satellite_types = globals()['satellite_types']
         for satid in satellite_types:
             if re.search(satellite_types[satid]['base_tmpt'], neuro):
                 metaBandNum = satellite_types[satid]['band_num']
+    # print(img_in, metaBandNum, realBandNum)
     counter = min((metaBandNum, realBandNum))
     if multiply is not None:
         return True, counter
@@ -679,7 +693,9 @@ def repair_img(img_in, img_out, count, band_order=None, multiply = None):
     if band_order is None:
         band_order = range(1, count+1)
     raster = gdal.Open(img_in)
+    # print(img_in, raster.GetGeoTransform(), '"', raster.GetProjection(), '"')
     new_raster = ds(img_out, copypath=img_in, options={'bandnum':count, 'dt':3, 'compress':'DEFLATE', 'nodata':0}, editable=True)
+    # print(img_out, new_raster.GetGeoTransform(), new_raster.GetProjection())
     for bin, bout in zip(band_order, range(1, count+1)):
         init_band = raster.GetRasterBand(bin)
         arr_ = init_band.ReadAsArray()
@@ -786,13 +802,17 @@ def qlReport(folder, input, size):
         if img_out:
             if os.path.exists(str(img_out)):
                 minimum, maximum = RasterMinMax(img_out)
-                input[neuroid]['min'] = minimum
-                input[neuroid]['max'] = maximum
+                new_dict['min'] = minimum
+                new_dict['max'] = maximum
+                ql_img = gdal.Open(img_out)
+                new_dict['pixel_size'] = ql_img.GetGeoTransform()[1]
+                new_dict['x_size'] = ql_img.RasterXSize
+                new_dict['y_size'] = ql_img.RasterYSize
         ql_input[new_line] = new_dict
     dict_to_csv(fullpath(folder, 'mask_values.csv'), msk_end_values)
     report_name = 'report_{}.xls'.format(datetime.now()).replace(' ', '_').replace(':', '-')
     report_path = fullpath(folder, report_name)
-    dict_to_xls(report_path, ql_input)
+    dict_to_xls(report_path, ql_input, col_list=globals()['col_names'])
 
 def check_type(codes):
     type_dict = {a: 0 for a in mask_types}
@@ -882,6 +902,8 @@ try:
                 empty_value = 201
             elif 'no_cloud' in img_in:
                 empty_value = 0
+            elif 'full_zasvet' in img_in:
+                empty_value = 220
             else:
                 # print('UNKNOWN EMPTY VALUE: %s' % str(neuroid))
                 empty_value = None
@@ -891,6 +913,13 @@ try:
                 continue
             img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=band_reposition, multiply=multiply_band)
             input[neuroid]['img_out'] = img_out
+            if img_out:
+                if os.path.exists(img_out):
+                    raster = gdal.Open(img_out)
+                    if raster is not None:
+                        input[neuroid]['x_size'] = raster.RasterXSize
+                        input[neuroid]['y_size'] = raster.RasterYSize
+                    raster = None
             if vec_in:
                 vals_mask, attr_mask = GetAttrVals(vec_in, code_col, func=None)
             else:
@@ -965,7 +994,7 @@ except:
 finally:
     report_name = 'report_{}.xls'.format(datetime.now()).replace(' ','_').replace(':','-')
     report_path = fullpath(pout, report_name)
-    dict_to_xls(report_path, input)
+    dict_to_xls(report_path, input, col_list=col_names)
     # scroll(msk_end_values, header='CODES USED:', print_type = False)
     print('CODES USED:')
     for key in msk_end_values:

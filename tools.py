@@ -746,17 +746,18 @@ def xls_to_dict(path2xls, sheetnum=0):
 
 
 # Export data to xls
-def dict_to_xls(path2xls, adict): # It's better to use OrderedDict to preserve the order of rows and columns
+def dict_to_xls(path2xls, adict, col_list=None): # It's better to use OrderedDict to preserve the order of rows and columns
 
     wb = xlwt.Workbook()
     ws = wb.add_sheet('New_Sheet')
 
     # Find all column names
-    col_list = ['']
-    for row_key in adict:
-        for key in adict.get(row_key).keys():
-            if not key in col_list:
-                col_list.append(key)
+    if col_list is None:
+        col_list = ['']
+        for row_key in adict:
+            for key in adict.get(row_key).keys():
+                if not key in col_list:
+                    col_list.append(key)
 
     # Write column names
     row = ws.row(0)

@@ -193,7 +193,7 @@ class FolderDirs(dict):
                         continue
                     self[name] = path
 
-def FolderFiles(folder, miss_tmpt=None, type=None):
+def FolderFiles(folder, miss_tmpt=None, type=None, full_name=True):
     dict_ = {}
     if type is not None:
         typelist = obj2list(type)
@@ -211,7 +211,12 @@ def FolderFiles(folder, miss_tmpt=None, type=None):
                 new_paths = FolderFiles(path, type=type)
                 if new_paths is not None:
                     for new_name in new_paths:
-                        dict_[r'%s/%s' % (name, new_name)] = new_paths[new_name]
+                        if full_name:
+                            dict_[r'%s/%s' % (name, new_name)] = new_paths[new_name]
+                        elif new_name in dict_:
+                            print('FILE NAME DUPLICATE: %s' % new_name)
+                        else:
+                            dict_[os.path.basename(new_name)] = new_paths[new_name]
     return dict_
 
 class MaskSubtypeFolderIndex(dict):
@@ -261,6 +266,7 @@ class MaskTypeFolderIndex:
         self.subtypes = {}
         self.FillMaskBandclasses()
         self.FillMaskSubtypes(datacats=datacats)
+        self.connected = []
 
     def FillMaskBandclasses(self):
         bandclasses = globals()['bandclasses']
@@ -299,6 +305,13 @@ class MaskTypeFolderIndex:
             return self.subtypes[subtype]
         else:
             print('SUBTYPE NOT FOUND: %s' % subtype)
+
+    def UpdateFolderTif(self, corner=None):
+        if corner is None:
+            self.connected = {}
+        elif os.path.exists(corner):
+            self.connected.extend(FolderFiles(corner, miss_tmpt=None, type='tif', full_name=False))
+        return self.connected
 
     def DataFolder(self, subtype='', bandclass='MS', datacat='img'):
         subtype_dict = self.Subtype(subtype)
@@ -379,6 +392,11 @@ class MaskTypeFolderIndex:
         else:
             kan_folder, kan_id, tif = split3(kan_path)
             suredir(kan_folder)
+            if kan_id in self.connected:
+                if IntersectRaster(self.connected[kan_id], geom_path):
+                    copyfile(self.connected[kan_id], kan_path)
+                    print('EXTRACT FROM CONNECTED: %s' % kan_id)
+                    return kan_path
             if type=='PMS' and (not use_source_pms):
                 pass
             else:

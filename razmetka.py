@@ -16,6 +16,7 @@ satellite_types = {
     'Resurs': {'tmpt': r'RP\d.+_GEOTON_', 'folder': 'resurs', 'base_tmpt': '^RP\d', 'band_num': 4},
     'KSHMSA-VR': {'tmpt': r'RP\d.+_KSHMSA-VR_', 'folder': 'kshmsa_vr', 'base_tmpt': r'^RP\d.+_KSHMSA-VR_', 'band_num': 5, 'band_list': ['red', 'green', 'blue', 'nir1', 'nir2']},
     'KSHMSA-SR': {'tmpt': r'RP\d.+_KSHMSA-SR_', 'folder': 'kshmsa_sr', 'base_tmpt': r'^RP\d.+_KSHMSA-SR_', 'band_num': 5, 'band_list': ['red', 'green', 'blue', 'nir1', 'nir2']},
+    'Meteor': {'tmpt': r'M\d.+_MSU-MR_', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_MSU-MR_', 'band_num': 6, 'band_list': ['nirr','rred','swir1','swir2','tir1','tir2']},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet', 'base_tmpt': 'Analytic', 'band_num': 4},
     'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat', 'base_tmpt': '^LS\d', 'band_num': 4},
     # 'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg', 'base_tmpt': r'[DW]?[GV]?', 'band_num': 4},
@@ -28,6 +29,12 @@ band_params = {
     'nir': [4, 'BANDS_nir'],
     'nir1': [4, 'BANDSnir1'],
     'nir2': [5, 'BANDSnir2'],
+    'nirr': [1, 'BANDS'],
+    'rred': [2, 'BANDS'],
+    'swir1': [3, 'BANDS'],
+    'swir2': [4, 'BANDS'],
+    'tir1': [5, 'BANDS'],
+    'tir2': [6, 'BANDS'],
 }
 targets = {
     u'quarry': {'id': 'MQR', 'folder': 'mines', },
@@ -186,7 +193,7 @@ class FolderDirs(dict):
                         continue
                     self[name] = path
 
-def FolderFiles(folder, miss_tmpt=None, type=None):
+def FolderFiles(folder, miss_tmpt=None, type=None, full_name=True):
     dict_ = {}
     if type is not None:
         typelist = obj2list(type)
@@ -204,7 +211,12 @@ def FolderFiles(folder, miss_tmpt=None, type=None):
                 new_paths = FolderFiles(path, type=type)
                 if new_paths is not None:
                     for new_name in new_paths:
-                        dict_[r'%s/%s' % (name, new_name)] = new_paths[new_name]
+                        if full_name:
+                            dict_[r'%s/%s' % (name, new_name)] = new_paths[new_name]
+                        elif new_name in dict_:
+                            print('FILE NAME DUPLICATE: %s' % new_name)
+                        else:
+                            dict_[os.path.basename(new_name)] = new_paths[new_name]
     return dict_
 
 class MaskSubtypeFolderIndex(dict):
@@ -254,6 +266,7 @@ class MaskTypeFolderIndex:
         self.subtypes = {}
         self.FillMaskBandclasses()
         self.FillMaskSubtypes(datacats=datacats)
+        self.connected = []
 
     def FillMaskBandclasses(self):
         bandclasses = globals()['bandclasses']
@@ -292,6 +305,13 @@ class MaskTypeFolderIndex:
             return self.subtypes[subtype]
         else:
             print('SUBTYPE NOT FOUND: %s' % subtype)
+
+    def UpdateFolderTif(self, corner=None):
+        if corner is None:
+            self.connected = {}
+        elif os.path.exists(corner):
+            self.connected.extend(FolderFiles(corner, miss_tmpt=None, type='tif', full_name=False))
+        return self.connected
 
     def DataFolder(self, subtype='', bandclass='MS', datacat='img'):
         subtype_dict = self.Subtype(subtype)
@@ -372,6 +392,11 @@ class MaskTypeFolderIndex:
         else:
             kan_folder, kan_id, tif = split3(kan_path)
             suredir(kan_folder)
+            if kan_id in self.connected:
+                if IntersectRaster(self.connected[kan_id], geom_path):
+                    copyfile(self.connected[kan_id], kan_path)
+                    print('EXTRACT FROM CONNECTED: %s' % kan_id)
+                    return kan_path
             if type=='PMS' and (not use_source_pms):
                 pass
             else:

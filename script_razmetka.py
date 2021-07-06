@@ -24,7 +24,8 @@ parser.add_argument('--dg_metadata', default=None, dest='dg_metadata', help='П�
 parser.add_argument('--xls', default=None, dest='input_from_report', help='Путь к таблице xls с путями к источникам данных, если None, то пары снимок-вектор строятся заново. Менять источники можно вручную, формат xlsx не читает')
 parser.add_argument('--burn_value', default=None, dest='burn_value', help='Единое значение для всех масок')
 parser.add_argument('--pathmark', default=None, dest='pathmark', help='Фильтровать пути к файлам по отметке')
-parser.add_argument('--missmark', default=None, dest='missmark', help='Пропускать пути к файлам по отметке')
+parser.add_argument('--missmark', default='#', dest='missmark', help='Пропускать пути к файлам по отметке')
+parser.add_argument('--filter_nodata', default=True, dest='filter_nodata', help='Удалять из маски значения растра nodata')
 parser.add_argument('pin', help='Путь к исходным файлам, растровым или растровым и векторным')
 parser.add_argument('pout', help='Путь для сохранения конечных файлов')
 parser.add_argument('-m', default='full', dest='maskid', help='Тип масок')
@@ -52,6 +53,7 @@ input_from_report = args.input_from_report
 empty_mask = boolstr(args.empty)
 pathmark = liststr(args.pathmark)
 missmark = liststr(args.missmark)
+filter_nodata = boolstr(args.filter_nodata)
 
 if dg_metadata is not None:
     dg_files = folder_paths(dg_metadata,1,'tif')
@@ -104,11 +106,11 @@ mask_types = {
 }
 
 codes = {
-    1:  'карьеры (любые)',
-    10: 'карьеры, без воды и растительности',
-    11: 'карьеры, с растительностью, без воды',
-    12: 'карьеры, с водой, без растительности',
-    13: 'карьеры, с водой и растительностью',
+    1:  'открытые грунты и пустыни',
+    # 10: 'карьеры, без воды и растительности',
+    # 11: 'карьеры, с растительностью, без воды',
+    # 12: 'карьеры, с водой, без растительности',
+    # 13: 'карьеры, с водой и растительностью',
     2:  'вскрытые грунты (любые)',
     20: 'вскрытые грунты, без воды и растительности',
     21: 'вскрытые грунты, с растительностью, без воды',
@@ -117,7 +119,7 @@ codes = {
     24: 'свалки (отдельные маски для свалок с префиксом MDP)',
     25: 'полигоны ТБО',
     26: 'нарушенные земли',
-    27: 'гольцы',
+    17: 'гольцы',
     3:  'площадки строительства (любые)',
     30: 'площадки строительства, без воды и растительности',
     31: 'площадки строительства, с растительностью, без воды',
@@ -202,7 +204,18 @@ codes = {
     2032:'плотная дымка',
     2033:'радужная дымка (несведение каналов)',
     209:'тень от холмов, деревьев, зданий и прочего',
+    220:'малые дефекты съёмки (засветки, блюминг)',
+    221:'крупные белые блики',
+    222:'засветки',
+    223:'блюминг',
+    230:'крупные дефекты съёмки (полосы, разрывы, зубцы)',
+    231:'полосы неравномерной яркости',
+    232:'разрывы в данных',
+    250:'разъезд каналов',
+    255:'изображения, пригодные для дешифрирования',
 }
+
+col_names = ['', 'r', 'v', 'pairing', 'img_out', 'pixel_size', 'min', 'max', 'x_size', 'y_size', 'msk_out', 'report', 'msk_values']
 
 while not maskid in mask_types.keys():
     scroll(mask_types.keys(), header='Неизвестный тип разметки - "%s", используйте один из списка:' % maskid)
@@ -633,11 +646,14 @@ def check_image(img_in, neuro, multiply = None):
         metaBandNum = int(img_type[4:])
     elif FindAny(neuro, ['.PAN','_red','_green','_blue','_nir']):
         metaBandNum = 1
+    elif FindAny(neuro, ['KSHMSA-VR', 'KSHMSA-SR']):
+        metaBandNum = 5
     else:
         satellite_types = globals()['satellite_types']
         for satid in satellite_types:
             if re.search(satellite_types[satid]['base_tmpt'], neuro):
                 metaBandNum = satellite_types[satid]['band_num']
+    # print(img_in, metaBandNum, realBandNum)
     counter = min((metaBandNum, realBandNum))
     if multiply is not None:
         return True, counter
@@ -677,7 +693,9 @@ def repair_img(img_in, img_out, count, band_order=None, multiply = None):
     if band_order is None:
         band_order = range(1, count+1)
     raster = gdal.Open(img_in)
+    # print(img_in, raster.GetGeoTransform(), '"', raster.GetProjection(), '"')
     new_raster = ds(img_out, copypath=img_in, options={'bandnum':count, 'dt':3, 'compress':'DEFLATE', 'nodata':0}, editable=True)
+    # print(img_out, new_raster.GetGeoTransform(), new_raster.GetProjection())
     for bin, bout in zip(band_order, range(1, count+1)):
         init_band = raster.GetRasterBand(bin)
         arr_ = init_band.ReadAsArray()
@@ -699,7 +717,7 @@ def repair_img(img_in, img_out, count, band_order=None, multiply = None):
     return img_out
 
 # Создать растровую маску на основе вектора
-def set_mask(img_in, vec_in, msk_out, code_col='gridcode', code_col_sec=None, overwrite=False, empty_value=0, burn_value=None):
+def set_mask(img_in, vec_in, msk_out, code_col='gridcode', code_col_sec=None, overwrite=False, empty_value=0, burn_value=None, filter_nodata=True):
     if check_exist(msk_out, ignore=overwrite):
         return msk_out
     if os.path.exists(vec_in):
@@ -710,9 +728,9 @@ def set_mask(img_in, vec_in, msk_out, code_col='gridcode', code_col_sec=None, ov
             vec_reprojected = vec_in
         try:
             if burn_value is None:
-                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
+                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, filter_nodata=filter_nodata, compress=compress, overwrite=overwrite)
             else:
-                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, burn_value=burn_value, compress=compress, overwrite=overwrite)
+                RasterizeVector(vec_reprojected, img_in, msk_out, data_type=2, burn_value=burn_value, filter_nodata=filter_nodata, compress=compress, overwrite=overwrite)
             return msk_out
         except:
             # RasterizeVector(vec_reprojected, img_out, msk_out, data_type=2, value_colname=code_col, value_colname_sec=code_col_sec, compress=compress, overwrite=overwrite)
@@ -731,9 +749,9 @@ def set_mask(img_in, vec_in, msk_out, code_col='gridcode', code_col_sec=None, ov
             return 'ERROR: Rasterizing error'
 
 # Создать загрублённые снимки и растровые маски на основе вектора
-def set_quicklook(img_in, vec_in, ql_out, msk_out, code_col='gridcode', code_col_sec=None, pixelsize=None, method=gdal.GRA_Average, empty_value=0, burn_value=None, overwrite=True):
+def set_quicklook(img_in, vec_in, ql_out, msk_out, code_col='gridcode', code_col_sec=None, pixelsize=None, method=gdal.GRA_Average, empty_value=0, burn_value=None, filter_nodata=True, overwrite=True):
     MakeQuicklook(img_in, ql_out, epsg=None, pixelsize=pixelsize, method=method, overwrite=overwrite)
-    set_mask(ql_out, vec_in, msk_out, code_col=code_col, code_col_sec=code_col_sec, empty_value=empty_value, burn_value=burn_value, overwrite=overwrite)
+    set_mask(ql_out, vec_in, msk_out, code_col=code_col, code_col_sec=code_col_sec, empty_value=empty_value, burn_value=burn_value, filter_nodata=filter_nodata, overwrite=overwrite)
 
 def size2str(size):
     strsize = str(size).strip(' 0')
@@ -784,13 +802,17 @@ def qlReport(folder, input, size):
         if img_out:
             if os.path.exists(str(img_out)):
                 minimum, maximum = RasterMinMax(img_out)
-                input[neuroid]['min'] = minimum
-                input[neuroid]['max'] = maximum
+                new_dict['min'] = minimum
+                new_dict['max'] = maximum
+                ql_img = gdal.Open(img_out)
+                new_dict['pixel_size'] = ql_img.GetGeoTransform()[1]
+                new_dict['x_size'] = ql_img.RasterXSize
+                new_dict['y_size'] = ql_img.RasterYSize
         ql_input[new_line] = new_dict
     dict_to_csv(fullpath(folder, 'mask_values.csv'), msk_end_values)
     report_name = 'report_{}.xls'.format(datetime.now()).replace(' ', '_').replace(':', '-')
     report_path = fullpath(folder, report_name)
-    dict_to_xls(report_path, ql_input)
+    dict_to_xls(report_path, ql_input, col_list=globals()['col_names'])
 
 def check_type(codes):
     type_dict = {a: 0 for a in mask_types}
@@ -820,6 +842,12 @@ def check_type(codes):
             type_dict[u"gari"] += 1
     return type_dict
 
+def StrPixelSize(x, y):
+    if max([x,y])/min([x,y])>1.05:
+        return '%.2f %.2f' % (x, y)
+    else:
+        return '%.2f' % ((x+y)/2)
+
 ###################################################################################
 
 t = datetime.now()
@@ -842,7 +870,7 @@ else:
 
 # Создать пути для размещения изображений и масок
 suredir(pout)
-scroll(input, header='\nTotal input:')
+# scroll(input, header='\nTotal input:')
 # sys.exit()
 
 # Создавать маски из найденных пар
@@ -874,6 +902,8 @@ try:
                 empty_value = 201
             elif 'no_cloud' in img_in:
                 empty_value = 0
+            elif 'full_zasvet' in img_in:
+                empty_value = 220
             else:
                 # print('UNKNOWN EMPTY VALUE: %s' % str(neuroid))
                 empty_value = None
@@ -883,17 +913,24 @@ try:
                 continue
             img_out = set_image(img_in, img_out, overwrite=overwrite, band_reposition=band_reposition, multiply=multiply_band)
             input[neuroid]['img_out'] = img_out
+            if img_out:
+                if os.path.exists(img_out):
+                    raster = gdal.Open(img_out)
+                    if raster is not None:
+                        input[neuroid]['x_size'] = raster.RasterXSize
+                        input[neuroid]['y_size'] = raster.RasterYSize
+                    raster = None
             if vec_in:
                 vals_mask, attr_mask = GetAttrVals(vec_in, code_col, func=None)
             else:
                 attr_mask = None
             # !!! Add checking vals_mask
-            msk_out = set_mask(img_in, vec_in, msk_out, code_col=attr_mask, code_col_sec=code_col_sec, empty_value=empty_value, burn_value=burn_value, overwrite=overwrite)
+            msk_out = set_mask(img_in, vec_in, msk_out, code_col=attr_mask, code_col_sec=code_col_sec, empty_value=empty_value, burn_value=burn_value, filter_nodata=filter_nodata, overwrite=overwrite)
             input[neuroid]['msk_out'] = msk_out
             if quickpaths:
                 for size in quickpaths:
                     ql_img_out, ql_msk_out = quickpaths[size]
-                    set_quicklook(img_out, vec_in, ql_img_out, ql_msk_out, code_col=attr_mask, code_col_sec=code_col_sec, pixelsize=size, method=gdal.GRA_Average, empty_value=empty_value, overwrite=overwrite)
+                    set_quicklook(img_out, vec_in, ql_img_out, ql_msk_out, code_col=attr_mask, code_col_sec=code_col_sec, pixelsize=size, method=gdal.GRA_Average, empty_value=empty_value, filter_nodata=filter_nodata, overwrite=overwrite)
             if not msk_out.startswith('ERROR'):
                 replace = replace_vals
                 if replace is not None:
@@ -946,7 +983,7 @@ try:
                 x_m, y_m = RasterPixelSize(img_out)
                 if x_m and y_m:
                     input[neuroid]['pixel_size'] = (x_m+y_m)/2
-                print('  %i -- MASKED: %s with: %s ; data range: %s-%s ; pixel size %s %s\n' % (i+1, neuroid, msk_values, int(minimum), int(maximum), str(x_m), str(y_m)))
+                print('  %i -- MASKED: %s with: %s ; data range: %s-%s ; pixel size %s\n' % (i+1, neuroid, msk_values, int(minimum), int(maximum), StrPixelSize(x_m, y_m)))
             else:
                 print('  %i -- ERROR: %s\n' % (i + 1, neuroid))
         else:
@@ -957,10 +994,15 @@ except:
 finally:
     report_name = 'report_{}.xls'.format(datetime.now()).replace(' ','_').replace(':','-')
     report_path = fullpath(pout, report_name)
-    dict_to_xls(report_path, input)
-    scroll(msk_end_values, header='CODES USED:', print_type = False)
+    dict_to_xls(report_path, input, col_list=col_names)
+    # scroll(msk_end_values, header='CODES USED:', print_type = False)
+    print('CODES USED:')
+    for key in msk_end_values:
+        scn_num, obj_num, legend = msk_end_values[key]
+        print('%i:\t%s: %s, %s' % (int(key), legend, NumRus(scn_num, 'сцена', 'сцены', 'сцен'), NumRus(obj_num, 'объект', 'объекта', 'объектов')))
+        msk_end_values[key] = legend
     dict_to_csv(fullpath(pout, 'mask_values.csv'), msk_end_values)
-    print('FINISHED -- REPORT SAVED TO %s' % report_path)
+    print('\nFINISHED -- REPORT SAVED TO %s' % report_path)
     if quicksizes:
         for size in quicksizes:
             ql_report = qlReport(r'%s\quicklook\%s' % (pout, size2str(size)), input, size)

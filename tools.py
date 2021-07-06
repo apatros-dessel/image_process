@@ -578,7 +578,7 @@ def winprint(obj, decoding = None):
     print(obj)
     return None
 
-def scroll(obj, print_type=False, decoding=None, header=None, lower=None, depth=0, counts=False):
+def scroll(obj, print_type=False, decoding=None, header=None, lower=None, depth=0, counts=False, empty=True):
     tab = '  '*depth
     if header is not None:
         print(header)
@@ -594,7 +594,10 @@ def scroll(obj, print_type=False, decoding=None, header=None, lower=None, depth=
         elif isinstance(obj, (dict, OrderedDict)):
             for val in obj:
                 if hasattr(obj[val], '__iter__') and not isinstance(obj, str):
-                    scroll(obj[val], header=tab+str(val)+':', depth=depth+1, print_type=print_type, counts=counts)
+                    if len(obj[val])==0 and not empty:
+                        print(tab+val)
+                    else:
+                        scroll(obj[val], header=tab+str(val)+':', depth=depth+1, print_type=print_type, counts=counts, empty=empty)
                 else:
                     winprint('{}{}: {}'.format(tab+'  ', val, obj[val]), decoding=decoding)
         else:
@@ -743,17 +746,18 @@ def xls_to_dict(path2xls, sheetnum=0):
 
 
 # Export data to xls
-def dict_to_xls(path2xls, adict): # It's better to use OrderedDict to preserve the order of rows and columns
+def dict_to_xls(path2xls, adict, col_list=None): # It's better to use OrderedDict to preserve the order of rows and columns
 
     wb = xlwt.Workbook()
     ws = wb.add_sheet('New_Sheet')
 
     # Find all column names
-    col_list = ['']
-    for row_key in adict:
-        for key in adict.get(row_key).keys():
-            if not key in col_list:
-                col_list.append(key)
+    if col_list is None:
+        col_list = ['']
+        for row_key in adict:
+            for key in adict.get(row_key).keys():
+                if not key in col_list:
+                    col_list.append(key)
 
     # Write column names
     row = ws.row(0)
@@ -1045,7 +1049,7 @@ def dict_max_key(dict_):
     return fin_key
 
 def boolstr(val):
-    if val:
+    if isinstance(val, str):
         if val.lower() == 'false':
             val = False
         else:
@@ -1169,3 +1173,13 @@ def DictCounts(dict_, list_):
         else:
             dict_[val_] = 1
     return dict_
+
+def NumRus(val, one, two, many):
+    str_val = str(val)
+    if str_val.endswith('1'):
+        if not str_val.endswith('11'):
+            return '%i %s' % (val, one)
+    if re.search('[234]$', str_val):
+        if not re.search('1[234]$', str_val):
+            return '%i %s' % (val, two)
+    return '%i %s' % (val, many)

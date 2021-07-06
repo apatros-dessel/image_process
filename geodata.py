@@ -710,6 +710,21 @@ def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_
     write_prj(path_out[:-4] + '.prj', data_ds.GetProjection())
     return 0
 
+def VectorizeRaster(pin, pout, index_id='id', bandnum=1, overwrite=True):
+    if check_exist(pout, ignore=overwrite):
+        return 1
+    mask_ds = gdal.Open(pin)
+    if mask_ds is None:
+        print('RASTER NOT FOUND: %s' % pin)
+        return 1
+    dst_ds = shp(path_out, 1)
+    dst_layer = dst_ds.GetLayer()
+    dst_layer.CreateField(ogr.FieldDefn(index_id, ogr.OFTInteger))
+    gdal.Polygonize(data_ds.GetRasterBand(1), mask_ds.GetRasterBand(1), dst_layer, 0)
+    dst_ds = None
+    write_prj(path_out[:-4] + '.prj', data_ds.GetProjection())
+    return 0
+
 # Returns data on raster projection and geotransform parameters
 def getrastershape(raster_ds):
     crs = osr.SpatialReference()

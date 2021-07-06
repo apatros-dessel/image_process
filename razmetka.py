@@ -1,7 +1,7 @@
 from geodata import *
 from dotmap import DotMap
 
-bandclasses = ('MS','PAN','PMS','BANDS','BANDS_nir')
+bandclasses = ('MS','PAN','PMS','BANDS','BANDS_nir','BANDSnir1','BANDSnir2')
 datacats = {'img': ('tif'),
             'img_check': ('tif'),
             'mask': ('tif'),
@@ -11,18 +11,23 @@ datacats = {'img': ('tif'),
             }
 satellite_types = {
     'Sentinel-2': {'tmpt': r'S2[AB]', 'folder': 'sentinel', 'base_tmpt': '^S2[A,B]', 'band_num': 4},
-    'Sentinel-1': {'tmpt': r'S1[AB]', 'folder': 'sentinel-1', 'base_tmpt': '^S1[A,B]', 'band_num': 1},
+    'Sentinel-1': {'tmpt': r'S1[AB]', 'folder': 'sentinel-1', 'base_tmpt': '^S1[A,B]', 'band_num': 1, 'band_list': ['pan']},
     'Kanopus': {'tmpt': r'KV[1-6I]', 'folder': 'kanopus', 'base_tmpt': '^KV[1-6I]', 'band_num': 4},
-    'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs', 'base_tmpt': '^RP\d', 'band_num': 4},
-    'Planet': {'tmpt': r'PLN.+', 'folder': 'planet', 'base_tmpt': 'Analytic', 'band_num': 4},
-    'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat', 'base_tmpt': '^LS\d', 'band_num': 4},
+    'Resurs': {'tmpt': r'RP\d.+_GEOTON_', 'folder': 'resurs', 'base_tmpt': '^RP\d', 'band_num': 4},
+    'KSHMSA-VR': {'tmpt': r'RP\d.+_KSHMSA-VR_', 'folder': 'kshmsa_vr', 'base_tmpt': r'^RP\d.+_KSHMSA-VR_', 'band_num': 5, 'band_list': ['red', 'green', 'blue', 'nir1', 'nir2']},
+    'KSHMSA-SR': {'tmpt': r'RP\d.+_KSHMSA-SR_', 'folder': 'kshmsa_sr', 'base_tmpt': r'^RP\d.+_KSHMSA-SR_', 'band_num': 5, 'band_list': ['red', 'green', 'blue', 'nir1', 'nir2']},
+    'Planet': {'tmpt': r'PLN.+', 'folder': 'planet', 'base_tmpt': 'Analytic', 'band_num': 4, 'band_list': ['blue', 'green', 'red', 'nir']},
+    'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat', 'base_tmpt': '^LS\d', 'band_num': 4, 'band_list': ['red', 'green', 'blue', 'nir']},
     # 'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg', 'base_tmpt': r'[DW]?[GV]?', 'band_num': 4},
 }
 band_params = {
+    'pan': [1, 'PAN'],
     'red': [1, 'BANDS'],
     'green': [2, 'BANDS'],
     'blue': [3, 'BANDS'],
     'nir': [4, 'BANDS_nir'],
+    'nir1': [4, 'BANDSnir1'],
+    'nir2': [5, 'BANDSnir2'],
 }
 targets = {
     u'quarry': {'id': 'MQR', 'folder': 'mines', },
@@ -290,6 +295,7 @@ class MaskTypeFolderIndex:
 
     def DataFolder(self, subtype='', bandclass='MS', datacat='img'):
         subtype_dict = self.Subtype(subtype)
+        print(subtype_dict)
         if subtype_dict:
             if bandclass in subtype_dict:
                 if datacat in subtype_dict[bandclass]:
@@ -297,7 +303,7 @@ class MaskTypeFolderIndex:
                 else:
                     print('MS IMG FOLDER NOT FOUND: %s' % subtype)
             else:
-                print('MS DATA NOT FOUND: %s' % subtype)
+                print('MS DATA NOT FOUND: %s %s' % (subtype, bandclass))
         else:
             print('SUBTYPE DICT IS EMPTY: %s' % subtype)
 
@@ -311,14 +317,15 @@ class MaskTypeFolderIndex:
         if image_folder:
             return os.path.split(image_folder)[1]
 
-    def SaveBandsSeparated(self, subtype='', datacat='img'):
+    def SaveBandsSeparated(self, subtype='', datacat='img', satellite='Kanopus'):
         full_imgs = self.Images(subtype, 'MS', datacat=datacat)
         subtype_folder_name = self.SubtypeFolderName(subtype=subtype, datacat=datacat)
         if full_imgs:
+            band_list = globals()['satellite_types'].get(satellite, {}).get('band_list', ['red', 'green', 'blue', 'nir'])
             band_params = globals()['band_params']
             for ms_name in full_imgs:
                 ms_path = full_imgs[ms_name]
-                for channel in band_params:
+                for channel in band_list:
                     band_num, bandclass = band_params[channel]
                     band_name = ms_name.replace('.tif', '_%s.tif' % channel)
                     band_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
@@ -330,7 +337,7 @@ class MaskTypeFolderIndex:
                         suredir(band_folder)
                         band_path = fullpath(band_folder, band_name)
                         SetImage(ms_path, band_path, band_num=1, band_reposition=[band_num], overwrite=False)
-                # print('BANDS WRITTEN: %s' % ms_name)
+                print('BANDS WRITTEN: %s' % ms_name)
         else:
             print('FULL IMAGE DATA NOT FOUND: %s' % subtype)
 
@@ -904,9 +911,9 @@ def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
             id = id.split(part)[0]
             band_id = part
             break
-    if re.search('_cut\d+$', id):
-        id, cut = id.split('_cut')
-        id = id.strip('_')
+    if re.search('cut\d+$', id):
+        id, cut = id.split('cut')
+        id = id.rstrip('_')
         cut = '_cut' + cut
     if re.search(r'^KV.+SCN\d+.L2$', id) or re.search(r'^RP.+SCN\d+.L2$', id):
         kan_id = id.replace('.L2', '.%s.L2' % type)
@@ -916,6 +923,8 @@ def GetKanopusId(id, type='MS', geom_path=None, raster_dir=None):
         kan_id = id + '.L2'
     elif re.search('^KV.+SCN\d+$', id) or re.search('^RP.+SCN\d+$', id):
         kan_id = '%s.%s.L2' % (id, type)
+    elif re.search('^KV.+RS$', id):
+        kan_id = id
     else:
         command = r'''gu_db_query -w %s -d %s''' % (KanCallSQL(id, type), folder)
         if geom_path is not None:

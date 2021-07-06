@@ -78,6 +78,7 @@ satellite_types = {
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet', 'base_tmpt': 'Analytic', 'band_num': 4},
     'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat', 'base_tmpt': '^LS\d', 'band_num': 4},
     # 'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg', 'base_tmpt': r'[DW]?[GV]?', 'band_num': 4},
+    'Meteor': {'tmpt': r'M\d.+_MSU-MR_', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_MSU-MR_', 'band_num': 6},
 }
 
 composite_types = {
@@ -213,6 +214,7 @@ codes = {
     232:'разрывы в данных',
     250:'разъезд каналов',
     255:'изображения, пригодные для дешифрирования',
+    10000:'различимая поверхность суши',
 }
 
 col_names = ['', 'r', 'v', 'pairing', 'img_out', 'pixel_size', 'min', 'max', 'x_size', 'y_size', 'msk_out', 'report', 'msk_values']
@@ -461,7 +463,7 @@ def filter_id(id, pms=False):
             return report
 
 def check_nonzeros(path):
-    l = len(np.unique(gdal.Open(path),GetRasterBand(1).ReadAsArray()))
+    l = len(np.unique(gdal.Open(path).GetRasterBand(1).ReadAsArray()))
     return bool(l)
 
 def get_raster_paths(raster_path):
@@ -644,10 +646,12 @@ def check_image(img_in, neuro, multiply = None):
         metaBandNum = 1
     elif re.search(r'IMCH\d+$', img_type):
         metaBandNum = int(img_type[4:])
-    elif FindAny(neuro, ['.PAN','_red','_green','_blue','_nir']):
+    elif FindAny(neuro, ['.PAN','_red','_green','_blue','_nir','_swir','_tir']):
         metaBandNum = 1
     elif FindAny(neuro, ['KSHMSA-VR', 'KSHMSA-SR']):
         metaBandNum = 5
+    elif FindAny(neuro, ['MSU-MR']):
+        metaBandNum = 6
     else:
         satellite_types = globals()['satellite_types']
         for satid in satellite_types:

@@ -2,7 +2,7 @@ from geodata import *
 # gdalwarp -s_srs EPSG:4326 -t_srs EPSG:32631 -dstnodata 0.0 -tr 23.5 23.5 -r cubicspline -of GTiff -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 E:/rks/razmetka_source/resurs_kshmsa_ms_clouds/img_clouds_vr/RP1_15523_02_KSHMSA-VR_20160403_083342_083414.MS.RS.tif E:/temp/rgb2.tif
 command_template = r'gdalwarp {path_in} {path_out} -s_srs EPSG:{epsg_in} -t_srs EPSG:{epsg_out} -dstnodata {nodata} -tr {pix} {pix} -r {method} -of GTiff -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9'
 
-folder_in = r'e:\rks\!razmetka\Resurs_KSHMSA_CP_clouds\MS\img'
+folder_in = r'e:\rks\!razmetka\Meteor_MSU\MS\img\img_total'
 path_out = r''
 # json_out = r'E:/temp/test.json'
 
@@ -64,7 +64,7 @@ for path_in in folder_paths(folder_in, 1, 'tif', filter_folder=['#отсеяно
         else:
             print('\nMETADATA NOT FOUND: %s' % id)
             size = 24
-        command = GetCommand(path_in, path_out, pixel_size=23.8)
+        command = GetCommand(path_in, path_out, pixel_size=120)
         # print(command)
         if command is not None:
             os.system(command)

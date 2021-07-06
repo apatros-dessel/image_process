@@ -1,6 +1,6 @@
 from razmetka import *
 
-pout = r'e:\rks\razmetka_source\kanopus_ms_add_train'
+pout = r'e:\rks\razmetka_source\kanopus_ms_artifacts'
 type = 'MS'
 update = False
 

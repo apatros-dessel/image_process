@@ -13,9 +13,12 @@ class FolderDirs(OrderedDict):
 
 def ScriptFolder(corner):
     folders = FolderDirs(corner)
-    result = OrderedDict()
-    for name in folders:
-        result[name] = ScriptFolder(folders[name])
-    return result
+    if folders:
+        result = OrderedDict()
+        for name in folders:
+            result[name] = ScriptFolder(folders[name])
+        return result
+    else:
+        return len(folder_paths(corner, 1, ['shp', 'tif']))
 
-scroll(ScriptFolder(r'\\172.21.195.2\thematic\!razmetka\Kanopus'), empty=False)
+scroll(ScriptFolder(r'\\172.21.195.2\thematic\!razmetka\database'), empty=False)

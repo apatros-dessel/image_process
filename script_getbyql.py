@@ -5,13 +5,16 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('-r', default='16', dest='region', help='Индекс региона')
 parser.add_argument('-f', default = r'\\172.21.195.160\thematic\S3_temp', dest = 'final_dir', help='Путь для сохранения данных')
-parser.add_argument('-d', default=None, dest='dout', help='Путь для сохранения сцен с метаданными')
+parser.add_argument('--sat', default='KV', dest='sat', help='Тип спутника (KV, RP)')
+parser.add_argument('--sen', default='MS', dest='sensor', help='Тип сенсора (MS, PAN, отсутствует PMS)')
+parser.add_argument('--part', default=0.1, dest='part', help='Доля загружаемых снимков')
 
 args = parser.parse_args()
-index_path = r'\\172.21.195.2\thematic\!SPRAVKA\S3\\' + args.region
-if not os.path.exists(index_path):
-    print('PATH NOT FOUND: %s\nUNABLE TO FIND QL' % index_path)
+index_list = args.region.split(',')
 final_dir = args.final_dir
+sat = args.sat
+sensor = args.sensor
+part = float(args.part)
 
 class Downloader:
 
@@ -100,6 +103,7 @@ class Downloader:
                                 params['Status'] = 'DOWNLOADED'
                                 i += result
                             else:
+                                print('ERROR DOWNLOADING: %s' % scene_id)
                                 params['Status'] = 'ERROR 3'
                 xls_dict[ql_id] = params
         self.xls_out(xls_dict)
@@ -124,8 +128,13 @@ def DownloadFromDB(id, sat, folder, check_folder=None):
     return result
 
 # DownloadFromDB('KVI_15015_10756_01_KANOPUS_20200329_071237_071317.SCN8.MS.L2', 'kanopus', final_dir, check_folder='KVI_15015_10756_01_KANOPUS_20200329_071237_071317.SCN8.MS_dc07baffd20359244af5f8e84509e4de6cd49a1d')
-downloader = Downloader(index_path)
-downloader.set_skip()
-downloader.update_categories()
-downloader.download(final_dir)
+for index in index_list:
+    index_path = r'\\172.21.195.2\thematic\!SPRAVKA\S3\\' + index
+    if not os.path.exists(index_path):
+        print('PATH NOT FOUND: %s\nUNABLE TO FIND QL' % index_path)
+        continue
+    downloader = Downloader(index_path, sat=sat, sensor=sensor)
+    downloader.set_skip()
+    downloader.update_categories()
+    downloader.download(final_dir, part=part)
 sys.exit()

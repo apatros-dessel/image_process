@@ -3422,3 +3422,15 @@ def AttrValCalculator(shp_in, attr_id):
                 else:
                     counts[val] = 1
         return counts
+
+def RasterDataArea(path):
+    raster = gdal.Open(path)
+    if raster:
+        geotrans = raster.GetGeoTransform()
+        total_count = raster.RasterXSize * raster.RasterYSize
+        # mask = np.ones((raster.RasterYSize, raster.RasterXSize)).astype(np.bool)
+        count = np.unique(raster.GetRasterBand(1).ReadAsArray(), return_counts=True)[1][0]
+        # for i in range(1, raster.RasterCount + 1):
+            # band = raster.GetRasterBand(i)
+            # mask[band.ReadAsArray()==band.GetNoDataValue()] = 0
+        return abs( (total_count - count) * geotrans[1] * geotrans[5] )

@@ -3,10 +3,10 @@
 from geodata import *
 from shutil import copyfile
 
-path_in = r'\\172.21.195.2\FTP-Share\ftp\images\region69' # Путь к исходным сценам Ресурс-П
+path_in = r'e:\test' # Путь к исходным сценам Ресурс-П
 raster_fullcover = r'\\172.21.195.2\FTP-Share\ftp\images\region69\RP_Tver_cover.json'      # Путь к файлу покрытия Ресурс-П
 aoi_path =  None#r'\\172.21.195.2\FTP-Share\ftp\!region_shows\krym\Эко\Свалки\KRYM_SIMFEROPOLSKIY_border.shp'
-vector_path = r'\\172.21.195.2\FTP-Share\ftp\images\granules_grid.shp'                                         # Путь к файлу сетки гранул
+vector_path = r'\\172.21.195.2\thematic\Sadkov_SA\tiles_gshmsa.json'                                         # Путь к файлу сетки гранул
 out_dir = r'\\172.21.195.2\FTP-Share\ftp\images\region69'                                                             # Путь к готовым гранулам
 ms2pms = True
 

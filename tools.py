@@ -767,6 +767,9 @@ def dict_to_xls(path2xls, adict, col_list=None): # It's better to use OrderedDic
     # Write data
     for id, row_key in enumerate(adict):
         row_num = id+1
+        if row_num >= 65536:
+            print('ERROR: ROW NUM > 65536')
+            break
         row = ws.row(row_num)
         rowdata = adict.get(row_key)
         if isinstance(rowdata, dict):

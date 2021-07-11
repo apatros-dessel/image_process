@@ -3433,3 +3433,21 @@ def RasterArrayMatch(pin1, pin2):
     ds2 = gdal.Open(pin2)
     return RasterGridParams(ds1) == RasterGridParams(ds2)
 
+
+def RasterDataArea(path):
+    raster = gdal.Open(path)
+    if raster:
+        geotrans = raster.GetGeoTransform()
+        total_count = raster.RasterXSize * raster.RasterYSize
+        # mask = np.ones((raster.RasterYSize, raster.RasterXSize)).astype(np.bool)
+        count = np.unique(raster.GetRasterBand(1).ReadAsArray(), return_counts=True)[1][0]
+        # for i in range(1, raster.RasterCount + 1):
+            # band = raster.GetRasterBand(i)
+            # mask[band.ReadAsArray()==band.GetNoDataValue()] = 0
+        return abs( (total_count - count) * geotrans[1] * geotrans[5] )
+
+def BackMask(mask_in, img_in, img_out):
+    path2bands = []
+    for i in range(gdal.Open(img_in).RasterCount):
+        path2bands.append((img_in, i+1))
+    raster2raster(path2bands, img_out, path2target=mask_in,  method = gdal.GRA_NearestNeighbour, exclude_nodata = True, enforce_nodata = None, compress = 'DEFLATE', overwrite = True)

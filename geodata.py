@@ -3435,3 +3435,10 @@ def RasterArrayMatch(pin1, pin2):
     ds2 = gdal.Open(pin2)
     return RasterGridParams(ds1) == RasterGridParams(ds2)
 
+def RasterDataArea(path):
+    raster = gdal.Open(path)
+    if raster:
+        geotrans = raster.GetGeoTransform()
+        total_count = raster.RasterXSize * raster.RasterYSize
+        count = np.unique(raster.GetRasterBand(1).ReadAsArray(), return_counts = True)[1][0]
+        return abs( (total_count - count) * geotrans[1] * geotrans[5] )

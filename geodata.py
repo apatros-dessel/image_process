@@ -336,7 +336,6 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
     prj = ''
     geotrans = (0,1,0,0,0,1)
     nodata = None
-
     if copypath is not None:
         copy_ds = gdal.Open(copypath)
         if copy_ds is not None:
@@ -345,9 +344,18 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
             bandnum = copy_ds.RasterCount
             dt = copy_ds.GetRasterBand(1).DataType
             prj = copy_ds.GetProjection()
-            geotrans = copy_ds.GetGeoTransform()
+            geotrans = copy_ds.GetGeoTransform(can_return_null=True)
+            # if geotrans is None:
+            if False:
+                gcp = copy_ds.GetGCPs()
+                if gcp is None:
+                    print('WARNING: CANNOT EXTRACT GEOTRANSFORM FROM: %s' % copypath)
+                else:
+                    extent = GetExtentFromGCP(gcp)
+                    x_m = (extent[0] - extent[1]) / xsize
+                    y_m = (extent[3] - extent[2]) / ysize
+                    geotrans = (extent[1], x_m, 0, extent[2], 0, y_m)
             nodata = copy_ds.GetRasterBand(1).GetNoDataValue()
-
     options = deepcopy(options)
     if options is not None:
         xsize = options.pop('xsize', xsize)
@@ -357,7 +365,6 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
         prj = options.pop('prj', prj)
         geotrans = options.pop('geotrans', geotrans)
         nodata = options.pop('nodata', nodata)
-
         if 'compress' in options:
             options = gdal_options(options.get('compress'))
         else:
@@ -366,7 +373,8 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
         options = []
     options.extend(['BIGTIFF=YES', 'NUM_THREADS=ALL_CPUS'])
     # options.extend(['BIGTIFF=YES'])
-
+    # scroll([xsize, ysize, geotrans, prj])
+    # sys.exit()
     driver = gdal.GetDriverByName(driver_name)
     raster_ds = driver.Create(path, xsize, ysize, bandnum, dt, options = options)
     raster_ds.SetProjection(prj)
@@ -381,6 +389,31 @@ def ds(path = None, driver_name = 'GTiff', copypath = None, options = None, edit
 
     return raster_ds
 
+def GetExtentFromGCP(gcp):
+    if gcp is not None:
+        extent = [None, None, None, None]
+        maxvals = [0, 0, 0, 0]
+        for t in gcp:
+            x = t.GCPPixel
+            y = t.GCPLine
+            if x==1:
+                if y==1:
+                    extent[0] = (t.GCPX, t.GCPY)
+                elif y>maxvals[0]:
+                    extent[3] = (t.GCPX, t.GCPY)
+                    maxvals[0] = y
+            if x>maxvals[1]:
+                if y==1:
+                    extent[1] = (t.GCPX, t.GCPY)
+                    maxvals[1] = x
+            if x>maxvals[2] and y>maxvals[3]:
+                extent[2] = (t.GCPX, t.GCPY)
+                maxvals[3] = y
+                maxvals[2] = x
+        return extent
+    else:
+        print('GCP NOT FOUND')
+        return None
 
 # Create shapefile vector dataset
 def shp(path2shp, editable = False, copy_ds = None):
@@ -715,16 +748,29 @@ def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_
 def VectorizeRaster(pin, pout, index_id='id', bandnum=1, overwrite=True):
     if check_exist(pout, ignore=overwrite):
         return 1
-    mask_ds = gdal.Open(pin)
-    if mask_ds is None:
+    data_ds = gdal.Open(pin)
+    if data_ds is None:
         print('RASTER NOT FOUND: %s' % pin)
         return 1
-    dst_ds = shp(path_out, 1)
+    data_band = data_ds.GetRasterBand(1)
+    dst_ds = shp(pout, 1)
     dst_layer = dst_ds.GetLayer()
     dst_layer.CreateField(ogr.FieldDefn(index_id, ogr.OFTInteger))
-    gdal.Polygonize(data_ds.GetRasterBand(1), mask_ds.GetRasterBand(1), dst_layer, 0)
+    if data_band.GetNoDataValue()!=0:
+        mask_in = tempname('tif')
+        mask_ds = ds(mask_in, copypath=pin, options={'bandnum': 1, 'dt': 1}, editable=True)
+        mask_band = mask_ds.GetRasterBand(1)
+        mask_band.WriteArray(data_band.ReadAsArray()!=data_band.GetNoDataValue())
+        mask_ds = None
+        mask_ds = gdal.Open(mask_in)
+        mask_band = mask_ds.GetRasterBand(1)
+        gdal.Polygonize(data_band, mask_band, dst_layer, 0)
+        mask_ds = None
+        delete(mask_in)
+    else:
+        gdal.Polygonize(data_band, None, dst_layer, 0)
     dst_ds = None
-    write_prj(path_out[:-4] + '.prj', data_ds.GetProjection())
+    write_prj(pout[:-4] + '.prj', data_ds.GetProjection())
     return 0
 
 # Returns data on raster projection and geotransform parameters
@@ -1446,12 +1492,11 @@ def MakeQuicklook(path_in, path_out, epsg = None, pixelsize = None, method = gda
         t_raster_base = gdal.AutoCreateWarpedVRT(ds_in, srs_in.ExportToWkt(), srs_out.ExportToWkt())
         x_0, x, x_ang, y_0, y_ang, y = t_raster_base.GetGeoTransform()
         newXcount = int(math.ceil(t_raster_base.RasterXSize * (x / pixelsize)))
-        newYcount = - int(math.ceil(t_raster_base.RasterYSize * (y / pixelsize)))
+        newYcount = abs(int(math.ceil(t_raster_base.RasterYSize * (y / pixelsize))))
     else:
         x_0, x, x_ang, y_0, y_ang, y = ds_in.GetGeoTransform()
         newXcount = int(math.ceil(ds_in.RasterXSize * (x / pixelsize)))
-        newYcount = - int(math.ceil(ds_in.RasterYSize * (y / pixelsize)))
-
+        newYcount = abs(int(math.ceil(ds_in.RasterYSize * (y / pixelsize))))
     options = {
         'dt':       ds_in.GetRasterBand(1).DataType,
         'prj':      srs_out.ExportToWkt(),
@@ -1461,7 +1506,7 @@ def MakeQuicklook(path_in, path_out, epsg = None, pixelsize = None, method = gda
         'ysize':    newYcount,
         'compress': 'DEFLATE',
     }
-
+    # scroll(options)
     if ds_in.RasterCount>0:
         nodata = ds_in.GetRasterBand(1).GetNoDataValue()
         if nodata is not None:
@@ -2895,6 +2940,15 @@ def MultipolygonFromMeta(metapath, srs = None, coord_start = '<Dataset_Extent>',
     geom = ogr.CreateGeometryFromWkt(wkt, srs)
     return geom
 
+# Make multipolygon from point list
+def MultipolygonFromList(points_list, srs = None):
+    wkt = 'MULTIPOLYGON ((('
+    for point in points_list:
+        wkt += '%s %s,' % (point[0], point[1])
+    wkt += '%s %s)))' % (points_list[0][0], points_list[0][1])
+    geom = ogr.CreateGeometryFromWkt(wkt, srs)
+    return geom
+
 def StripRaster(file, nodata = None, new_file = None, compress = 'NONE'):
     raster = gdal.Open(file,1)
     if raster is None:
@@ -3236,6 +3290,18 @@ def RasterCentralPoint(ds_, reference=None, vector_path=None):
             ds_out = None
         return vector_path
 
+def ShapeFromGCP(path, gcp, srs=None):
+    if srs is None:
+        srs = get_srs(4326)
+    json(path, srs=srs)
+    ds_out, lyr_out = get_lyr_by_path(path, True)
+    feat_defn = lyr_out.GetLayerDefn()
+    feat = ogr.Feature(feat_defn)
+    geom = GeomFromPoints()
+    feat.SetGeometry(center_geom)
+    lyr_out.SetFeature(feat)
+    ds_out = None
+
 def RasterLimits(ds_, reference=None, vector_path=None):
     if ds_:
         geom = RasterGeometry(ds_, reference)
@@ -3276,7 +3342,7 @@ def GetAttrVals(shp_path, attr, func=None):
         vals.sort()
     return vals, attr_fin
 
-def ReplaceAttrVals(shp_path, attr, replace, func=None):
+def ReplaceAttrVals(shp_path, attr, replace, func=None, delete_vals=None):
     din, lyr = get_lyr_by_path(shp_path, 1)
     for feat in lyr:
         val = feat.GetField(attr)
@@ -3285,10 +3351,15 @@ def ReplaceAttrVals(shp_path, attr, replace, func=None):
                 val = func(val)
             except:
                 continue
-        if val in replace:
-            new_val = replace[val]
-            feat.SetField(attr, new_val)
-            lyr.SetFeature(feat)
+        if delete_vals:
+            if val in delete_vals:
+                lyr.DeleteFeature(feat.GetFID())
+                continue
+        if replace:
+            if val in replace:
+                new_val = replace[val]
+                feat.SetField(attr, new_val)
+                lyr.SetFeature(feat)
     din = None
 
 def SelectFromVectorByAttribute(vec_list, attr, vals, pout, proj=get_srs(4326), single = True):

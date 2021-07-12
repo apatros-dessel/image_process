@@ -1,7 +1,7 @@
 from geodata import *
 
-pin = r'e:\test\basic'
-pout = r'e:\test\tiles'
+pin = r'e:\test\bands\basic'
+pout = r'e:\test\bands\tiles'
 # iout = r'e:\test\basic'
 suredir(pout)
 tile_source = r'\\172.21.195.2\thematic\Sadkov_SA\tiles_gshmsa.json'
@@ -49,6 +49,13 @@ td, tl = get_lyr_by_path(tile_source)
 for file in folder_paths(pin,1,'tif'):
     name = Name(file)
     # ifile = fullpath(iout, name, 'tif')
+    if FindAny(name, ['_red', 'green', '_blue', '_nir', '_nir1', '_nir2'], False):
+        parts = name.split('_')
+        id = '_'.join(parts[:-1])
+        color = '_' + parts[-1]
+    else:
+        id = name
+        color = ''
     ofile = tempname('json')
     image_area(file, ofile, srs=get_srs(4326))
     dar,lar = get_lyr_by_path(ofile)
@@ -59,7 +66,8 @@ for file in folder_paths(pin,1,'tif'):
     tl.ResetReading()
     for tf in tl:
         grn = tf.GetField('granule')
-        grn_name = '%s.GRN%s' % (name, grn)
+        # grn_name = '%s.GRN%s' % (name, grn)
+        grn_name = '%s.GRN%s%s' % (id, grn, color)
         grn_file = fullpath(pout, grn_name, 'tif')
         if os.path.exists(grn_file):
             continue

@@ -1,18 +1,62 @@
 from geodata import *
+from dotmap import DotMap
 
-def MakeTileWktOld(row, col):
-    x1 = col * 13860 + 139640 - 420
-    x2 = (col + 1) * 13860 + 139640 + 420
-    y1 = row * (-13860) + 9993060 - 420
-    y2 = (row - 1) * (-13860) + 9993060 + 420
-    wkt = 'MULTIPOLYGON ((( {0} {2}, {1} {2}, {1} {3}, {0} {3}, {0} {2} )))'.format(x1, x2, y1, y2)
-    return wkt
+tile_step = 13860
+tile_start_x = 139640
+tile_start_y = 9993060
+buffer = 420
 
-def MakeTileWkt(row, col):
-    x1 = col * 138600 + 139640 - 4200
-    x2 = (col + 1) * 138600 + 139640 + 4200
-    y1 = row * (-138600) + 9993060 - 4200
-    y2 = (row - 1) * (-138600) + 9993060 + 4200
+tile_args_old = DotMap({
+    'step': 13860,
+    'start_x': 139640,
+    'start_y': 9993060,
+    'buffer': 420,
+})
+
+tile_args_new = DotMap({
+    'step': 13860,
+    'start_x': 139640,
+    'start_y': 9993060,
+    'buffer': 420,
+})
+
+tile_args_new = DotMap({
+    'step':     138600,
+    'start_x':  139640,
+    'start_y':  9993060,
+    'buffer':   4200,
+    'x_min':    0,
+    'x_max':    6,
+    'y_min':    5,
+    'y_max':    145,
+})
+
+tile_args_new_new = DotMap({
+    'step':     69300,
+    'start_x':  139640,
+    'start_y':  9993060,
+    'buffer':   2100,
+    'x_min':    0,
+    'x_max':    13,
+    'y_min':    5,
+    'y_max':    291,
+    'x_len':    2,
+    'y_len':    3,
+})
+
+tile_args_new = DotMap({
+    'step': 138600,
+    'start_x': 139640,
+    'start_y': 9993060,
+    'buffer': 4200,
+})
+
+
+def MakeTileWkt(row, col, p):
+    x1 = p.start_x  + col * p.step          - p.buffer
+    x2 = p.start_x  + (col + 1) * p.step    + p.buffer
+    y1 = p.start_y  - row * p.step          - p.buffer
+    y2 = p.start_y  - (row - 1) * p.step    + buffer
     wkt = 'MULTIPOLYGON ((( {0} {2}, {1} {2}, {1} {3}, {0} {3}, {0} {2} )))'.format(x1, x2, y1, y2)
     return wkt
 
@@ -40,12 +84,12 @@ def ZoneGeometry(zone, south):
     x1 = zone * 6 - 186
     x2 = zone * 6 - 180
     y2 = (84,-84)[south]
-    wkt = 'MULTIPOLYGON ((( {0} -85, {1} -85, {1} 84, {0} 84, {0} -85 )))'.format(x1, x2, y2)
+    wkt = 'MULTIPOLYGON ((( {0} -84, {1} -84, {1} 84, {0} 84, {0} -84 )))'.format(x1, x2, y2)
     # wkt = 'MULTIPOLYGON ((( {0} 0, {1} 0, {1} {2}, {0} {2}, {0} 0 )))'.format(x1, x2, y2)
     geom = ogr.CreateGeometryFromWkt(wkt, reference=get_srs(4326))
     return geom
 
-def MakeTile(path):
+def MakeTile(path, p):
     json(path, srs = get_srs(4326))
     dout, lout = get_lyr_by_path(path, 1)
     lout.CreateField(ogr.FieldDefn('zone', 4))
@@ -61,10 +105,10 @@ def MakeTile(path):
             # lout.CreateFeature(feat)
             zone_srs = get_srs(32600 + 100 * south + zone)
             # print(32600 + 100 * south + zone)
-            for col in range(0, 61):
-                for row in range(50, 1451):
+            for col in range(p.x_min, p.x_max):
+                for row in range(p.y_min, p.y_max):
                     # wkt = MakeTileWkt(row, col)
-                    wkt = MakeTileWktOld(row, col)
+                    wkt = MakeTileWkt(row, col, p)
                     geom = ogr.CreateGeometryFromWkt(wkt, reference = zone_srs)
                     geom.TransformTo(get_srs(4326))
                     # print(geom.ExportToWkt())
@@ -79,7 +123,7 @@ def MakeTile(path):
                         feat = ogr.Feature(defn)
                         feat.SetGeometry(new_geom)
                         feat.SetField('zone', str(zone))
-                        feat.SetField('granule', str(zone*10**4+row*10+col))
+                        feat.SetField('granule', str(zone*10**(p.x_len+p.y_len)+row*10**p.x_len+col))
                         lout.CreateFeature(feat)
             print('FINISHED ZONE %i' % zone)
     # feat = ogr.Feature(defn)
@@ -113,7 +157,7 @@ def ControlLimits(geom, right):
 
 
 # MakeTileZone(37, r'e:\rks\new_tiles_s%i.json' % 37, south=1)
-MakeTile(r'e:\rks\new_tiles_geoton.json')
+MakeTile(r'e:\rks\new_tiles_pan_geoton.json', tile_args_new_new)
 
 sys.exit()
 din, lin = get_lyr_by_path(r'e:\rks\tiles_rus.geojson')

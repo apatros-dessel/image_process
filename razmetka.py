@@ -17,6 +17,7 @@ satellite_types = {
     'KSHMSA-VR': {'tmpt': r'RP\d.+_KSHMSA-VR_', 'folder': 'kshmsa_vr', 'base_tmpt': r'^RP\d.+_KSHMSA-VR_', 'band_num': 5, 'band_list': ['red', 'green', 'blue', 'nir1', 'nir2']},
     'KSHMSA-SR': {'tmpt': r'RP\d.+_KSHMSA-SR_', 'folder': 'kshmsa_sr', 'base_tmpt': r'^RP\d.+_KSHMSA-SR_', 'band_num': 5, 'band_list': ['red', 'green', 'blue', 'nir1', 'nir2']},
     'Meteor': {'tmpt': r'M\d.+_MSU-MR_', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_MSU-MR_', 'band_num': 6, 'band_list': ['nirr','rred','swir1','swir2','tir1','tir2']},
+    'Meteor-KMSS': {'tmpt': r'M\d.+_KMSS\d', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_KMSS\d', 'band_num': 3, 'band_list': ['red','green','blue','tir1','tir2']},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet', 'base_tmpt': 'Analytic', 'band_num': 4},
     'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat', 'base_tmpt': '^LS\d', 'band_num': 4},
     # 'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg', 'base_tmpt': r'[DW]?[GV]?', 'band_num': 4},
@@ -219,6 +220,12 @@ def FolderFiles(folder, miss_tmpt=None, type=None, full_name=True):
                             dict_[os.path.basename(new_name)] = new_paths[new_name]
     return dict_
 
+def Files(folder, extension=None):
+    dict_ = {}
+    for file in folder_paths(folder,1,extension=extension):
+        dict_[Name(file)] = file
+    return dict_
+
 class MaskSubtypeFolderIndex(dict):
 
     def __init__(self):
@@ -266,16 +273,20 @@ class MaskTypeFolderIndex:
         self.subtypes = {}
         self.FillMaskBandclasses()
         self.FillMaskSubtypes(datacats=datacats)
-        self.connected = []
+        self.connected = {}
 
-    def FillMaskBandclasses(self):
+    def FillMaskBandclasses(self, bandclass_list=[]):
         bandclasses = globals()['bandclasses']
         for bandclass in bandclasses:
             bandclasspath = r'%s/%s' % (self.corner, bandclass)
             if os.path.exists(bandclasspath):
                 self.bandclasses[bandclass] = bandclasspath
+            elif bandclass in bandclass_list:
+                suredir(bandclasspath)
+                self.bandclasses[bandclass] = bandclasspath
             else:
-                print('BANDCLASS NOT FOUND: %s' % bandclass)
+                # print('BANDCLASS NOT FOUND: %s' % bandclass)
+                pass
 
     def FillMaskSubtypes(self, datacats='img'):
         if datacats is None:
@@ -310,7 +321,10 @@ class MaskTypeFolderIndex:
         if corner is None:
             self.connected = {}
         elif os.path.exists(corner):
-            self.connected.extend(FolderFiles(corner, miss_tmpt=None, type='tif', full_name=False))
+            print('START CONNECTED')
+            files = Files(corner, extension='tif')
+            scroll(files, header='FILES:')
+            self.connected.update(files)
         return self.connected
 
     def DataFolder(self, subtype='', bandclass='MS', datacat='img'):
@@ -318,10 +332,11 @@ class MaskTypeFolderIndex:
         # print(subtype_dict)
         if subtype_dict:
             if bandclass in subtype_dict:
+                # print(datacat, subtype_dict[bandclass])
                 if datacat in subtype_dict[bandclass]:
                     return subtype_dict[bandclass][datacat]
                 else:
-                    print('MS IMG FOLDER NOT FOUND: %s' % subtype)
+                    print('MS IMG FOLDER NOT FOUND: "%s"' % subtype)
             else:
                 print('MS DATA NOT FOUND: %s %s' % (subtype, bandclass))
         else:
@@ -402,7 +417,9 @@ class MaskTypeFolderIndex:
         if type is None:
             type = GetKanTypeFromID(kan_name)
         kan_folder = self.DataFolder(subtype=subtype, bandclass=type, datacat=datacat)
-        print(' '.join(flist([subtype, kan_name, kan_folder], str)))
+        # print('" "'.join(flist([subtype, kan_name, kan_folder], str)))
+        if not kan_folder:
+            sys.exit()
         kan_path = fullpath(kan_folder, kan_name)
         if os.path.exists(kan_path):
             print('FILE EXISTS: %s' % kan_path)
@@ -425,8 +442,8 @@ class MaskTypeFolderIndex:
                 print('FILE EXISTS: %s' % kan_path)
                 return kan_path
             elif type=='PMS':
-                ms_path = self.GetKanPath(kan_name.replace('.PMS','.MS'), subtype=subtype, type='MS', geom_path=geom_path)
-                pan_path = self.GetKanPath(kan_name.replace('.PMS','.PAN'), subtype=subtype, type='PAN', geom_path=geom_path)
+                ms_path = self.GetKanPath(kan_name.replace('.PMS','.MS'), subtype=subtype, type='MS', geom_path=geom_path, datacat=datacat)
+                pan_path = self.GetKanPath(kan_name.replace('.PMS','.PAN'), subtype=subtype, type='PAN', geom_path=geom_path, datacat=datacat)
                 if ms_path and pan_path:
                     pms_id = split3(pan_path)[1].replace('.PAN','.PMS')
                     pms_path = fullpath(kan_folder, pms_id, tif)
@@ -578,13 +595,18 @@ class MaskTypeFolderIndex:
         ms_imgs = self.Images(subtype=subtype, bandclass='MS', datacat=datacat)
         if ms_imgs:
             errors = []
+            if subtype:
+                subtype_folder_name = os.path.split(self.DataFolder(subtype=subtype, bandclass='MS', datacat=datacat))[1]
+            else:
+                subtype_folder_name = subtype
+            pan_folder = self.UpdateSubtype(bandclass, subtype, datacat, subtype_folder_name=subtype_folder_name)
+            if bandclass=='PMS': print(pan_folder)
+            # sys.exit()
             for ms_name in ms_imgs:
                 pan_name = ms_name.replace('.MS','.%s' % bandclass)
-                ms_folder = os.path.dirname(ms_imgs[ms_name])
-                pan_folder = self.UpdateSubtype(bandclass, subtype, datacat, subtype_folder_name=os.path.split(ms_folder)[1])
                 if pan_folder:
                     geom_path = RasterCentralPoint(gdal.Open(ms_imgs[ms_name]), reference=None, vector_path=tempname('json'))
-                    kan_path = self.GetKanPath(pan_name, subtype=subtype, type=bandclass, geom_path=geom_path, use_source_pms=use_source_pms)
+                    kan_path = self.GetKanPath(pan_name, subtype=subtype, type=bandclass, geom_path=geom_path, use_source_pms=use_source_pms, datacat=datacat)
                     delete(geom_path)
                 else:
                     kan_path = False
@@ -608,7 +630,7 @@ class MaskTypeFolderIndex:
         else:
             self.subtypes[subtype] = {bandclass: {datacat: subtype_folder_path}}
         suredir(subtype_folder_path)
-        return subtype_folder_path
+        return subtype_folder_path.rstrip('\\')
 
     def GetSubtypeFolderPath(self, bandclass, datacat, subtype_folder_name):
         return r'%s\%s\%s\%s' % (self.corner, bandclass, datacat, subtype_folder_name)
@@ -890,8 +912,6 @@ def RepairImage(img_in, img_out, count, band_order=None, multiply = None):
     new_raster = ds(img_out, copypath=img_in, options={'bandnum':count, 'dt':3, 'compress':'DEFLATE', 'nodata':0}, editable=True)
     for bin, bout in zip(band_order, range(1, count+1)):
         init_band = raster.GetRasterBand(bin)
-        if init_band is None:
-            continue
         arr_ = init_band.ReadAsArray()
         init_nodata = init_band.GetNoDataValue()
         if init_nodata is None:

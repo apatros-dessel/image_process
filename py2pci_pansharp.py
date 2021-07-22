@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tools import *
-from geodata import copydeflate
+from geodata import *
 import argparse
 
 try:
@@ -12,6 +11,8 @@ except:
     sys.exit(1)
 
 def StringToListInteger(str_):
+    if str_ is None:
+        return None
     if isinstance(str_, list):
         return flist(str_, int)
     list0 = str_.split(' ')
@@ -55,8 +56,8 @@ def image_psh(ms, pan, psh, bands, bands_ref, enhanced):
                 os.remove(file)
 
 parser = argparse.ArgumentParser(description='Given 2 geotiff images finds transformation between')
-parser.add_argument('-b', default=[1,2,3,4], dest='bands', help='Bands order')
-parser.add_argument('-br', default=[1,2,3,4], dest='bands_ref', help='Bands ref order')
+parser.add_argument('-b', default=None, dest='bands', help='Bands order')
+# parser.add_argument('-br', default=[1,2,3,4], dest='bands_ref', help='Bands ref order')
 parser.add_argument('-e', default='YES', dest='enhanced', help='Enhanced ("YES"/"NO")')
 parser.add_argument('-d', default=False, dest='deflate', help='File compression')
 parser.add_argument('pan_in', help='Input PAN tif')
@@ -67,9 +68,18 @@ pan_in = args.pan_in.replace('!!!!!!!','&')
 ms_in = args.ms_in.replace('!!!!!!!','&')
 pms_out = args.pms_out.replace('!!!!!!!','&')
 bands = StringToListInteger(args.bands)
-bands_ref = StringToListInteger(args.bands_ref)
+# bands_ref = StringToListInteger(args.bands_ref)
 enhanced = args.enhanced.upper()
 deflate = bool(args.deflate)
+
+if bands is None:
+    raster = gdal.Open(ms_in)
+    if raster is None:
+        print('CANNOT OPEN FILE: %s' % ms_in)
+        sys.exit()
+    bands = list(range(1, raster.RasterCount + 1))
+    del raster
+bands_ref = bands
 
 if deflate:
     t_pms = tempname('tif')

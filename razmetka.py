@@ -315,7 +315,7 @@ class MaskTypeFolderIndex:
 
     def DataFolder(self, subtype='', bandclass='MS', datacat='img'):
         subtype_dict = self.Subtype(subtype)
-        print(subtype_dict)
+        # print(subtype_dict)
         if subtype_dict:
             if bandclass in subtype_dict:
                 if datacat in subtype_dict[bandclass]:
@@ -333,9 +333,14 @@ class MaskTypeFolderIndex:
             return FolderFiles(image_folder, miss_tmpt=miss_tmpt, type='tif')
 
     def SubtypeFolderName(self, subtype='', bandclass='MS', datacat='img'):
-        image_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
-        if image_folder:
-            return os.path.split(image_folder)[1]
+        if subtype:
+            image_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
+            if image_folder:
+                return os.path.split(image_folder)[1]
+            else:
+                raise
+        else:
+            return ''
 
     def SaveBandsSeparated(self, subtype='', datacat='img', satellite='Kanopus'):
         full_imgs = self.Images(subtype, 'MS', datacat=datacat)
@@ -360,6 +365,19 @@ class MaskTypeFolderIndex:
                 print('BANDS WRITTEN: %s' % ms_name)
         else:
             print('FULL IMAGE DATA NOT FOUND: %s' % subtype)
+
+    def CreateQuicklookSubtype(self, ql_size, bandclass = 'MS', subtype='', datacat='img', satellite='Kanopus'):
+        full_imgs = self.Images(subtype, bandclass, datacat=datacat)
+        if full_imgs:
+            full_folder_name = self.SubtypeFolderName(subtype=subtype, datacat=datacat)
+            ql_appendix = '_%sm' % str(float(ql_size)).rstrip('0').rstrip('.')
+            ql_folder_name = os.path.splitext(full_folder_name)[0] + ql_appendix
+            ql_folder = self.UpdateSubtype(bandclass, subtype, datacat, subtype_folder_name=ql_folder_name)
+            for full_name in full_imgs:
+                full_path = full_imgs[full_name]
+                ql_path = fullpath(ql_folder, Name(full_path) + ql_appendix, 'tif')
+                MakeQuicklook(full_path, ql_path, pixelsize=ql_size, overwrite=False)
+                print('WRITTEN: %s' % full_name)
 
     def VectorizeRasterMasks(self, bandclass='MS', subtype='', datacat='shp_auto', replace=None, delete_vals=0):
         band_folder = self.DataFolder(subtype=subtype, bandclass=bandclass, datacat=datacat)
@@ -872,6 +890,8 @@ def RepairImage(img_in, img_out, count, band_order=None, multiply = None):
     new_raster = ds(img_out, copypath=img_in, options={'bandnum':count, 'dt':3, 'compress':'DEFLATE', 'nodata':0}, editable=True)
     for bin, bout in zip(band_order, range(1, count+1)):
         init_band = raster.GetRasterBand(bin)
+        if init_band is None:
+            continue
         arr_ = init_band.ReadAsArray()
         init_nodata = init_band.GetNoDataValue()
         if init_nodata is None:

@@ -2,7 +2,7 @@ from geodata import *
 # gdalwarp -s_srs EPSG:4326 -t_srs EPSG:32631 -dstnodata 0.0 -tr 23.5 23.5 -r cubicspline -of GTiff -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 E:/rks/razmetka_source/resurs_kshmsa_ms_clouds/img_clouds_vr/RP1_15523_02_KSHMSA-VR_20160403_083342_083414.MS.RS.tif E:/temp/rgb2.tif
 command_template = r'gdalwarp {path_in} {path_out} -s_srs EPSG:{epsg_in} -t_srs EPSG:{epsg_out} -dstnodata {nodata} -tr {pix} {pix} -r {method} -of GTiff -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9'
 
-folder_in = r'\\172.21.195.2\thematic\!razmetka\Resurs_KSHMSA\Resurs_KSHMSA_BP\Resurs_KSHMSA_BP_clouds\MS\img\img_clouds_vr\#original_deg'
+folder_in = r'\\172.21.195.2\thematic\!razmetka\Resurs_KSHMSA\Resurs_KSHMSA_BP\Resurs_KSHMSA_BP_clouds\MS\img_check'
 pixel_size = 23.8
 # json_out = r'E:/temp/test.json'
 
@@ -43,12 +43,12 @@ def GetCommand(path_in, path_out, pixel_size = 24):
     delete(json_out)
     return command.replace('&','^&')
 
-meta_file = folder_paths(r'e:\rks\source\Ресурс_КШМСА\KSHMSA_VR\selected_vr',1,'xml')
+# meta_file = folder_paths(r'e:\rks\source\Ресурс_КШМСА\KSHMSA_VR\selected_vr',1,'xml')
 meta_list = {}
-for file in meta_file:
-    name = Name(file)
-    if name.endswith('.MD'):
-        meta_list[name[:-3]] = file
+# for file in meta_file:
+    # name = Name(file)
+    # if name.endswith('.MD'):
+        # meta_list[name[:-3]] = file
 
 for path_in in folder_paths(folder_in, 1, 'tif', filter_folder=['#original_deg']):
     corner, name, ext = split3(path_in)

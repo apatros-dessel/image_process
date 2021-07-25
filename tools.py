@@ -409,7 +409,7 @@ def copydir(path_in, dir_out):
     for folder in folders:
         suredir(fullpath(dir_out, folder[len(dir_in):]))
     for file in files:
-        shutil.copyfile(file, fullpath(dir_out, file[len(dir_in):]))
+        copyfile(file, fullpath(dir_out, file[len(dir_in):]))
 
 # Copy file
 def copyfile(path_in, path_out, overwrite=False):

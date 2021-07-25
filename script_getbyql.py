@@ -64,7 +64,7 @@ class Downloader:
         if txt is not None:
             self.skip.append(txt.read().split('\n'))
 
-    def download(self, folder, part=0.1):
+    def download(self, folder, part=0.1, direct=None):
         xls_dict = self.xls()
         for cat in self.categories:
             if cat in self.miss_categories:
@@ -93,12 +93,61 @@ class Downloader:
                         postavka = re.search(r'natarova', short_path)
                         if postavka is None:
                             params['Status'] = 'ERROR 2'
+                        elif direct is not None:
+                            direct_path = fullpath(direct, path)
+                            upload_folder = r'%s%s' % (folder, short_path.split('natarova')[-1])
+                            print(upload_folder)
+                            #copydir(direct_path, upload_folder)
                         else:
                             # postavka = postavka.group()
                             # upload_folder = r'%s%s%s' % (folder, postavka, short_path.split(postavka)[-1])
                             upload_folder = r'%s%s' % (folder, short_path.split('natarova')[-1])
                             suredir(upload_folder)
                             result =  DownloadFromDB(scene_id, self.satname, upload_folder, check_folder=folder_id)
+                            if result:
+                                params['Status'] = 'DOWNLOADED'
+                                i += result
+                            else:
+                                print('ERROR DOWNLOADING: %s' % scene_id)
+                                params['Status'] = 'ERROR 3'
+                xls_dict[ql_id] = params
+        self.xls_out(xls_dict)
+
+    def DirectDownload(self, folder, part = 0.1):
+        xls_dict = self.xls()
+        for cat in self.categories:
+            if cat in self.miss_categories:
+                print('CATEGORY MISSED: %s' % cat)
+                continue
+            cat_length = len(self.categories[cat])
+            upload_length = int(cat_length * part)
+            i = 0
+            for ql_id in self.categories[cat]:
+                params = xls_dict.get(ql_id)
+                if params is None:
+                    print('ID NOT FOUND: %s' % ql_id)
+                    continue
+                params['Category'] = cat
+                scene_id = '_'.join(ql_id.split('_')[:-1]) + '.L2'
+                if i >= upload_length:
+                    params['Status'] = 'PASSED'
+                elif scene_id in self.skip:
+                    params['Status'] = 'SKIPPED'
+                else:
+                    path = params.get('Path')
+                    if path is None:
+                        params['Status'] = 'ERROR 1'
+                    else:
+                        short_path, folder_id = os.path.split(path)
+                        postavka = re.search(r'natarova', short_path)
+                        if postavka is None:
+                            params['Status'] = 'ERROR 2'
+                        else:
+                            # postavka = postavka.group()
+                            # upload_folder = r'%s%s%s' % (folder, postavka, short_path.split(postavka)[-1])
+                            upload_folder = r'%s%s' % (folder, short_path.split('natarova')[-1])
+                            suredir(upload_folder)
+                            result = DownloadFromDB(scene_id, self.satname, upload_folder, check_folder=folder_id)
                             if result:
                                 params['Status'] = 'DOWNLOADED'
                                 i += result

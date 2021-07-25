@@ -79,6 +79,7 @@ satellite_types = {
     'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat', 'base_tmpt': '^LS\d', 'band_num': 4},
     # 'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg', 'base_tmpt': r'[DW]?[GV]?', 'band_num': 4},
     'Meteor': {'tmpt': r'M\d.+_MSU-MR_', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_MSU-MR_', 'band_num': 6},
+    'Meteor-KMSS': {'tmpt': r'M\d.+_KMSS\d', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_KMSS\d', 'band_num': 3, 'band_list': ['red','green','blue']},
 }
 
 composite_types = {
@@ -650,6 +651,8 @@ def check_image(img_in, neuro, multiply = None):
         metaBandNum = 1
     elif FindAny(neuro, ['KSHMSA-VR', 'KSHMSA-SR']):
         metaBandNum = 5
+    elif FindAny(neuro, ['KMSS']):
+        metaBandNum = 3
     elif FindAny(neuro, ['MSU-MR']):
         metaBandNum = 6
     else:

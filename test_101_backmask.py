@@ -1,10 +1,10 @@
 from razmetka import *
 
-img_folder_out = r'e:\rks\razmetka\set090__20210706__resurs_kshmsa_vr_clouds_bands_nir2\images\resurs'
+img_folder_out = r'e:\rks\razmetka\set087__20210712__resurs_kshmsa_vr_clouds_bands_green__edit001\images\resurs'
 msk_in = r'e:\test\tiles'
 img_tiles_folder = r'e:\test\tiles_img'
 # img_in = r'e:\rks\razmetka\set087__20210706__resurs_kshmsa_vr_clouds_bands_green\images\resurs'
-msk_folder_out = r'e:\rks\razmetka\set090__20210706__resurs_kshmsa_vr_clouds_bands_nir2\masks\full\resurs'
+msk_folder_out = r'e:\rks\razmetka\set087__20210712__resurs_kshmsa_vr_clouds_bands_green__edit001\masks\full\resurs'
 msk_match_folder = r'e:\test\basic'
 
 def GetMaskOut(msk_in):

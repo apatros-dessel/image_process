@@ -4,12 +4,24 @@ import sys
 from image_processor import *
 from shutil import copyfile
 
-path_in = [
-    r'e:\rks\new_data\102_2021_1266',
-]
-path_cover = r'e:\rks\new_data\102_2021_1266\vector_cover.json'
+path_in = FolderDirs(r'e:\rks\source\CLOUD_AND_BAD\CLOUD_AND_BAD').values()
+path_out = r'\\172.21.195.2\thematic\Sadkov_SA\covers\cloud_and_bad'
+suredir(path_out)
 
-proc = process().input(path_in)
-#scroll(flist(proc.scenes, lambda x: x.meta.id), counts=True)
-
-proc.GetCoverJSON(path_cover, add_path=True, cartezian_area=False, data_mask=False)
+for path in path_in:
+    try:
+        path_cover = fullpath(path_out, os.path.split(path)[1], 'json')
+        if os.path.exists(path_cover):
+            print('FILE_EXISTS: %s' % path_cover)
+        else:
+            proc = process().input(path, imsys_list = None, skip_duplicates = False)
+            print(len(proc))
+            sys.exit()
+            if len(proc)>0:
+                #scroll(flist(proc.scenes, lambda x: x.meta.id), counts=True
+                proc.GetCoverJSON(path_cover, add_path=True, cartezian_area=False, data_mask=False)
+                print('FINISHED: %s' % path_cover)
+            else:
+                print('SKIPPED: %s' %  os.path.split(path)[1])
+    except e:
+        print('ERROR PROCESSING: %s %s' % (path, e))

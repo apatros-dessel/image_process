@@ -1,6 +1,6 @@
 from razmetka import *
 
-pout = r'e:\rks\razmetka_source\resurs_clouds_fix'
+pout = r'e:\rks\razmetka_source\resurs_clouds_fix_bands'
 type = 'MS'
 update = False
 
@@ -43,4 +43,4 @@ for file in folder_paths(pout,1):
 scroll(vals)
 
 if len(name_duplicates)>0:
-    scroll(name_duplicates)
+    scroll(name_duplicates, counts=True)

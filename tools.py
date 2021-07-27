@@ -744,6 +744,13 @@ def xls_to_dict(path2xls, sheetnum=0):
     print('PATH NOT FOUND: %s' % path2xls)
     return None
 
+def XLSDict(xls_path_list):
+    xls_dict = OrderedDict()
+    for xls_path in xls_path_list:
+        new = xls_to_dict(xls_path)
+        if new:
+            xls_dict.update(new)
+    return xls_dict
 
 # Export data to xls
 def dict_to_xls(path2xls, adict, col_list=None): # It's better to use OrderedDict to preserve the order of rows and columns

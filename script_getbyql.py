@@ -8,17 +8,19 @@ parser.add_argument('-f', default = r'\\172.21.195.160\thematic\S3_temp', dest =
 parser.add_argument('--sat', default='KV', dest='sat', help='Тип спутника (KV, RP)')
 parser.add_argument('--sen', default='MS', dest='sensor', help='Тип сенсора (MS, PAN, отсутствует PMS)')
 parser.add_argument('--part', default=0.1, dest='part', help='Доля загружаемых снимков')
+parser.add_argument('--dir', default=None, dest='direct', help='Путь к локальному хранилищу данных')
 
 args = parser.parse_args()
 index_list = args.region.split(',')
 final_dir = args.final_dir
 sat = args.sat
 sensor = args.sensor
+direct = args.direct
 part = float(args.part)
 
 class Downloader:
 
-    def __init__(self, path, sat='KV', sensor='MS'):
+    def __init__(self, path, sat='KV', sensor='MS', direct=None):
         self.path = path
         self.name = os.path.split(path)[1]
         self.sat = sat
@@ -27,6 +29,7 @@ class Downloader:
         self.satname = {'KV': 'kanopus', 'RP': 'resurs'}.get(sat, 'kanopus')
         self.skip = []
         self.miss_categories = ['used']
+        self.direct = direct
 
     def xls(self):
         xls_path = fullpath(self.path, self.name, 'xls')
@@ -64,7 +67,7 @@ class Downloader:
         if txt is not None:
             self.skip.append(txt.read().split('\n'))
 
-    def download(self, folder, part=0.1, direct=None):
+    def download(self, folder, part=0.1):
         xls_dict = self.xls()
         for cat in self.categories:
             if cat in self.miss_categories:
@@ -80,7 +83,7 @@ class Downloader:
                     continue
                 params['Category'] = cat
                 scene_id = '_'.join(ql_id.split('_')[:-1]) + '.L2'
-                if i>= upload_length:
+                if i>upload_length:
                     params['Status'] = 'PASSED'
                 elif scene_id in self.skip:
                     params['Status'] = 'SKIPPED'
@@ -93,61 +96,22 @@ class Downloader:
                         postavka = re.search(r'natarova', short_path)
                         if postavka is None:
                             params['Status'] = 'ERROR 2'
-                        elif direct is not None:
-                            direct_path = fullpath(direct, path)
+                        elif self.direct is not None:
+                            direct_path = fullpath(direct, path.split('natarova')[-1])
                             upload_folder = r'%s%s' % (folder, short_path.split('natarova')[-1])
-                            print(upload_folder)
-                            #copydir(direct_path, upload_folder)
+                            print(direct_path, upload_folder)
+                            copydir(direct_path, upload_folder)
+                            if os.path.exists(fullpath(upload_folder, folder_id)):
+                                params['Status'] = 'DOWNLOADED'
+                                i += 1
+                            else:
+                                print('ERROR COPYING: %s' % scene_id)
                         else:
                             # postavka = postavka.group()
                             # upload_folder = r'%s%s%s' % (folder, postavka, short_path.split(postavka)[-1])
                             upload_folder = r'%s%s' % (folder, short_path.split('natarova')[-1])
                             suredir(upload_folder)
                             result =  DownloadFromDB(scene_id, self.satname, upload_folder, check_folder=folder_id)
-                            if result:
-                                params['Status'] = 'DOWNLOADED'
-                                i += result
-                            else:
-                                print('ERROR DOWNLOADING: %s' % scene_id)
-                                params['Status'] = 'ERROR 3'
-                xls_dict[ql_id] = params
-        self.xls_out(xls_dict)
-
-    def DirectDownload(self, folder, part = 0.1):
-        xls_dict = self.xls()
-        for cat in self.categories:
-            if cat in self.miss_categories:
-                print('CATEGORY MISSED: %s' % cat)
-                continue
-            cat_length = len(self.categories[cat])
-            upload_length = int(cat_length * part)
-            i = 0
-            for ql_id in self.categories[cat]:
-                params = xls_dict.get(ql_id)
-                if params is None:
-                    print('ID NOT FOUND: %s' % ql_id)
-                    continue
-                params['Category'] = cat
-                scene_id = '_'.join(ql_id.split('_')[:-1]) + '.L2'
-                if i >= upload_length:
-                    params['Status'] = 'PASSED'
-                elif scene_id in self.skip:
-                    params['Status'] = 'SKIPPED'
-                else:
-                    path = params.get('Path')
-                    if path is None:
-                        params['Status'] = 'ERROR 1'
-                    else:
-                        short_path, folder_id = os.path.split(path)
-                        postavka = re.search(r'natarova', short_path)
-                        if postavka is None:
-                            params['Status'] = 'ERROR 2'
-                        else:
-                            # postavka = postavka.group()
-                            # upload_folder = r'%s%s%s' % (folder, postavka, short_path.split(postavka)[-1])
-                            upload_folder = r'%s%s' % (folder, short_path.split('natarova')[-1])
-                            suredir(upload_folder)
-                            result = DownloadFromDB(scene_id, self.satname, upload_folder, check_folder=folder_id)
                             if result:
                                 params['Status'] = 'DOWNLOADED'
                                 i += result
@@ -182,7 +146,7 @@ for index in index_list:
     if not os.path.exists(index_path):
         print('PATH NOT FOUND: %s\nUNABLE TO FIND QL' % index_path)
         continue
-    downloader = Downloader(index_path, sat=sat, sensor=sensor)
+    downloader = Downloader(index_path, sat=sat, sensor=sensor, direct=direct)
     downloader.set_skip()
     downloader.update_categories()
     downloader.download(final_dir, part=part)

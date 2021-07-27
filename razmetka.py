@@ -274,6 +274,9 @@ class MaskTypeFolderIndex:
         self.FillMaskBandclasses()
         self.FillMaskSubtypes(datacats=datacats)
         self.connected = {}
+        self.qlreport = None
+        self.qlreportids = {}
+        self.qlpoint = r'y:\\'
 
     def FillMaskBandclasses(self, bandclass_list=[]):
         bandclasses = globals()['bandclasses']
@@ -413,6 +416,35 @@ class MaskTypeFolderIndex:
         else:
             print('MASK DATA NOT FOUND: %s' % subtype)
 
+    def FileFromPath(self, path):
+        source_folder = fullpath(self.qlpoint, path.split('natarova')[-1])
+        files = folder_paths(source_folder, 1, 'tif')
+        if files:
+            return files[0]
+
+    def DownloadQL(self, kan_id, kan_folder, geom_path = None):
+        if '_cut' in kan_id:
+            return None
+        if kan_id in self.qlreportids:
+            qlids = self.qlreportids[kan_id]
+            if qlids:
+                kan_file = fullpath(kan_folder, kan_id, 'tif')
+                if len(qlids)==1:
+                    source_file = self.FileFromPath(self.qlreport.get(qlids[0],{}).get('Path'))
+                    if source_file:
+                        copyfile(source_file, kan_file)
+                        return kan_file
+                else:
+                    for qlid in qlids:
+                        source_file = self.FileFromPath(self.qlreport.get(qlid, {}).get('Path'))
+                        if source_file:
+                            if IntersectRaster(source_file, geom_path):
+                                copyfile(source_file, kan_file)
+                                return kan_file
+        else:
+            print(kan_id)
+            sys.exit()
+
     def GetKanPath(self, kan_name, subtype='', type=None, geom_path=None, use_source_pms=True, datacat='img'):
         if type is None:
             type = GetKanTypeFromID(kan_name)
@@ -426,7 +458,13 @@ class MaskTypeFolderIndex:
             return kan_path
         else:
             kan_folder, kan_id, tif = split3(kan_path)
+            kan_id = kan_id.replace('.MD','')
             suredir(kan_folder)
+            if self.qlreportids:
+                fin_path = self.DownloadQL(kan_id, kan_folder, geom_path=geom_path)
+                if fin_path:
+                    print('DOWNLOADED QL: %s' % kan_id)
+                    return fin_path
             if kan_id in self.connected:
                 if IntersectRaster(self.connected[kan_id], geom_path):
                     copyfile(self.connected[kan_id], kan_path)
@@ -634,6 +672,17 @@ class MaskTypeFolderIndex:
 
     def GetSubtypeFolderPath(self, bandclass, datacat, subtype_folder_name):
         return r'%s\%s\%s\%s' % (self.corner, bandclass, datacat, subtype_folder_name)
+
+    def ImportQLReport(self, xls_path_list):
+        self.qlreport = XLSDict(xls_path_list)
+        if self.qlreport:
+            self.qlreportids = {}
+            for qlid in self.qlreport:
+                id = '_'.join(qlid.split('_')[:-1]) + '.L2'
+                if id in self.qlreportids:
+                    self.qlreportids[id].append(qlid)
+                else:
+                    self.qlreportids[id] = [qlid]
 
 class NeuroMasking(OrderedDict):
 
@@ -1736,3 +1785,11 @@ def pms_exit(id, pms = False):
             if pms:
                 return True
     return False
+
+def SetQlXlsPathList(path = r'\\172.21.195.2\thematic\!SPRAVKA\S3\\'):
+    xls_path_list = []
+    for index in range(1, 90):
+        xls_path = r'%s\%i\%i.xls' % (path, index, index)
+        if os.path.exists(xls_path):
+            xls_path_list.append(xls_path)
+    return xls_path_list

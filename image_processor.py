@@ -266,8 +266,6 @@ class process(object):
                     feat = ascene.json_feat(lyr_defn, add_path=add_path, cartesian_area=cartezian_area, data_mask=data_mask)
                     lyr_out.CreateFeature(feat)
                 except:
-                    feat = ascene.json_feat(lyr_defn, add_path=add_path, cartesian_area=cartezian_area, data_mask=data_mask)
-                    lyr_out.CreateFeature(feat)
                     print('Error writing metadata: %s' % ascene.path)
                     errors.append(ascene.path)
             if len(errors) > 0:

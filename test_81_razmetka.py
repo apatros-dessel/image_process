@@ -9,11 +9,12 @@ folder_index.FillMaskBandclasses()
 folder_index.FillMaskSubtypes(datacats=datacat)
 scroll(folder_index.subtypes.keys())
 # folder_index.UpdateFolderTif(r'y:\\')
-# folder_index.ImportQLReport(SetQlXlsPathList(path = r'\\172.21.195.2\thematic\!SPRAVKA\S3'))
+folder_index.ImportQLReport(SetQlXlsPathList(path = r'\\172.21.195.2\thematic\!SPRAVKA\S3'))
 # sys.exit()
 
 indices = ['&full_cloud', '&autumn_original', '&without_cloud_originals', 'less_snow_original', 'mist_coeff_original', 'surface_cloud_originals', 'thick_snow_original', 'water_originals']
-indices = ['&full_cloud', '&autumn_cut', '&without_cloud_cut', 'less_snow_cut', 'mist_coeff_original', 'surface_cloud_cut', 'thick_snow_cut', 'water_cut']
+# indices = ['&full_cloud', '&autumn_cut', '&without_cloud_cut', 'less_snow_cut', 'mist_coeff_original',
+# 'surface_cloud_cut', 'thick_snow_cut', 'water_cut']
 
 # folder_index.VectorizeRasterMasks(bandclass='MS', subtype='strips', datacat='shp_auto', replace={0:255}, delete_vals=0)
 # folder_index.UpdateFromMS('PAN','img_mist_cloud_shadow_surface',use_source_pms=False)
@@ -22,7 +23,7 @@ indices = ['&full_cloud', '&autumn_cut', '&without_cloud_cut', 'less_snow_cut', 
 # sys.exit()
 for subtype in indices:
     # print(folder_index.Subtype(subtype))
-    # folder_index.CreateQuicklookSubtype(30, bandclass='MS', subtype=subtype, datacat=datacat, satellite='Resurs')
-    folder_index.UpdateFromMS('PMS', subtype, use_source_pms=False)
-    # folder_index.SaveBandsSeparated(subtype, datacat=datacat)
+    folder_index.UpdateFromMS('PAN', subtype, use_source_pms=False)
+    folder_index.CreateQuicklookSubtype(30, bandclass='PAN', subtype=subtype, datacat=datacat, satellite='Resurs')
+    # folder_index.SaveBandsSeparated(subtype, datacat=datacat, satellite='Kanopus')
 # folder_index.ReprojectPanToMs(r'e:\rks\kantest2\img_cloud_mist_shadow', 'img_cloud_mist_shadow')

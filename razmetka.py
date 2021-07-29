@@ -276,7 +276,7 @@ class MaskTypeFolderIndex:
         self.connected = {}
         self.qlreport = None
         self.qlreportids = {}
-        self.qlpoint = r'y:\\'
+        self.qlpoints = [r'y:\\', r'\\172.21.195.160\thematic\S3_NATAROVA_']
 
     def FillMaskBandclasses(self, bandclass_list=[]):
         bandclasses = globals()['bandclasses']
@@ -417,10 +417,13 @@ class MaskTypeFolderIndex:
             print('MASK DATA NOT FOUND: %s' % subtype)
 
     def FileFromPath(self, path):
-        source_folder = fullpath(self.qlpoint, path.split('natarova')[-1])
+        fin_files = []
+        for qlpoint in self.qlpoints:
+            source_folder = fullpath(qlpoint, path.split('natarova')[-1])
         files = folder_paths(source_folder, 1, 'tif')
         if files:
-            return files[0]
+            fin_files.extend(files)
+            return fin_files
 
     def DownloadQL(self, kan_id, kan_folder, geom_path = None):
         if '_cut' in kan_id:

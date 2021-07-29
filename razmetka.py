@@ -417,13 +417,11 @@ class MaskTypeFolderIndex:
             print('MASK DATA NOT FOUND: %s' % subtype)
 
     def FileFromPath(self, path):
-        fin_files = []
         for qlpoint in self.qlpoints:
             source_folder = fullpath(qlpoint, path.split('natarova')[-1])
-        files = folder_paths(source_folder, 1, 'tif')
-        if files:
-            fin_files.extend(files)
-            return fin_files
+            files = folder_paths(source_folder, 1, 'tif')
+            if files:
+                return files[0]
 
     def DownloadQL(self, kan_id, kan_folder, geom_path = None):
         if '_cut' in kan_id:

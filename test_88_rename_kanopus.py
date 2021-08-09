@@ -1,8 +1,9 @@
 from razmetka import *
 
-pout = r'e:\rks\razmetka_source\resurs_clouds_fix_bands'
+pout = r'\\172.21.195.2\thematic\Sadkov_SA\razmetka_source\resurs_ms_mountain'
 type = 'MS'
 update = False
+ending = ''
 
 files = folder_paths(pout,1,['shp','tif','json'])
 
@@ -14,6 +15,11 @@ for file in files:
     f,id,e = split3(file)
     name = '%s.%s' % (id, e)
     foldername = os.path.split(f)[1]
+    tid = id
+    end = ''
+    if ending:
+        if id.endswith(ending):
+            tid, end = id.split(ending)
     if name in names:
         if name in name_duplicates:
             name_duplicates[name].append(foldername)
@@ -29,7 +35,9 @@ for file in files:
         # print(geom_path)
         if geom_path is not None:
             raster_dir = [None, f][update]
-            kan_id = GetKanopusId(id, type=type, geom_path=geom_path, raster_dir=raster_dir)
+            kan_id = GetKanopusId(tid, type=type, geom_path=geom_path, raster_dir=raster_dir)
+            if kan_id is not None:
+                kan_id += ending
             if kan_id != id:
                 vals[id] = kan_id
 

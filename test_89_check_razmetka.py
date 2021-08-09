@@ -76,7 +76,7 @@ for razmetka_id in folders:
     xls_files = folder_paths(folder,1,'xls',filter_folder='quicklook')
     if len(xls_files)>0:
         xls_path = xls_files[0]
-        scn_num, raster_folders, values = ReadXlsMeta(xls_path, copy_mask_folder=fullpath(copy_mask_folder, razmetka_id))
+        scn_num, raster_folders, values = ReadXlsMeta(xls_path, copy_mask_folder=None)#fullpath(copy_mask_folder, razmetka_id))
         scroll(raster_folders, header='\n%s: %s' % (razmetka_id, scn_num), lower=' '.join(flist(values, str)))
         razmetka_report['Всего сцен'] = scn_num
         razmetka_report['По типам'] = DictToLine(raster_folders)

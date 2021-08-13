@@ -250,6 +250,8 @@ def FileFromPath(path, point):
     files = folder_paths(source_folder, 1, 'tif')
     if files:
         return files[0]
+    else:
+        print('FILES NOT FOUND: %s' % files)
 
 def DownloadQL(kan_id, kan_folder, ids, point, report, geom_path = None):
     if '_cut' in kan_id:
@@ -263,13 +265,21 @@ def DownloadQL(kan_id, kan_folder, ids, point, report, geom_path = None):
                 if source_file:
                     copyfile(source_file, kan_file)
                     return kan_file
-            else:
+            elif geom_path:
                 for qlid in qlids:
                     source_file = FileFromPath(report.get(qlid, {}).get('Path'), point)
                     if source_file:
                         if IntersectRaster(source_file, geom_path):
                             copyfile(source_file, kan_file)
                             return kan_file
+            else:
+                # scroll(qlids, header=kan_id)
+                for qlid in qlids:
+                    source_file = FileFromPath(report.get(qlid, {}).get('Path'), point)
+                    kan_file =  fullpath(kan_folder, qlid[:-4], 'tif')
+                    copyfile(source_file, kan_file)
+        else:
+            print('QLIDS IS EMPTY: %s' % kan_id)
     else:
         print(kan_id)
 
@@ -297,7 +307,11 @@ def SetQlXlsPathList(path = r'\\172.21.195.2\thematic\!SPRAVKA\S3\\'):
 report = XLSDict(SetQlXlsPathList(path = r'\\172.21.195.2\thematic\!SPRAVKA\S3\\'))
 ids = XLSDictIds(report)
 point = r'y:\\'
-with open(r'C:\Users\Home\AppData\Local\Temp\Kanopus.txt') as txt:
+with open(r'C:\Users\Admin\Desktop\Kanopus.txt') as txt:
     ids_list = txt.read().split('\n')
     for id in ids_list:
-        DownloadQL(id, r'e:\rks\new', ids, point, report, geom_path=None)
+        id = id.replace('.MS', '.PAN')
+        if os.path.exists(r':\rks\new\%s.tif' % id):
+            continue
+        else:
+            DownloadQL(id, r'e:\rks\new', ids, point, report, geom_path=None)

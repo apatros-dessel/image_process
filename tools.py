@@ -1134,8 +1134,10 @@ def Do(func, *args, **kwargs):
     else:
         try:
             return func(*args, **kwargs)
-        except:
-            print('Do() ERROR')
+        except Exception as e:
+            fin = 'DO ERROR: %s' % str(e)
+            print(fin)
+            return fin
 
 def Separate(line, char, num=1):
     parts = line.split(char)

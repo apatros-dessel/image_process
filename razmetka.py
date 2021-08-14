@@ -16,8 +16,8 @@ satellite_types = {
     'Resurs': {'tmpt': r'RP\d.+_GEOTON_', 'folder': 'resurs', 'base_tmpt': '^RP\d', 'band_num': 4},
     'KSHMSA-VR': {'tmpt': r'RP\d.+_KSHMSA-VR_', 'folder': 'kshmsa_vr', 'base_tmpt': r'^RP\d.+_KSHMSA-VR_', 'band_num': 5, 'band_list': ['red', 'green', 'blue', 'nir1', 'nir2']},
     'KSHMSA-SR': {'tmpt': r'RP\d.+_KSHMSA-SR_', 'folder': 'kshmsa_sr', 'base_tmpt': r'^RP\d.+_KSHMSA-SR_', 'band_num': 5, 'band_list': ['red', 'green', 'blue', 'nir1', 'nir2']},
-    'Meteor': {'tmpt': r'M\d.+_MSU-MR_', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_MSU-MR_', 'band_num': 6, 'band_list': ['nirr','rred','swir1','swir2','tir1','tir2']},
-    'Meteor-KMSS': {'tmpt': r'M\d.+_KMSS\d', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_KMSS\d', 'band_num': 3, 'band_list': ['red','green','blue','tir1','tir2']},
+    'Meteor-KMSS50': {'tmpt': r'M\d.+_KMSS50', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_KMSS50', 'band_num': 3, 'band_list': ['red','green','blue','tir1','tir2']},
+    'Meteor-KMSS100': {'tmpt': r'M\d.+_KMSS100', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_KMSS100', 'band_num': 3, 'band_list': ['1green','2nir','3red']},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet', 'base_tmpt': 'Analytic', 'band_num': 4},
     'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat', 'base_tmpt': '^LS\d', 'band_num': 4},
     # 'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg', 'base_tmpt': r'[DW]?[GV]?', 'band_num': 4},
@@ -36,6 +36,9 @@ band_params = {
     'swir2': [4, 'BANDS'],
     'tir1': [5, 'BANDS'],
     'tir2': [6, 'BANDS'],
+    '1green': [1, 'BANDS'],
+    '2nir': [2, 'BANDS'],
+    '3red': [3, 'BANDS'],
 }
 targets = {
     u'quarry': {'id': 'MQR', 'folder': 'mines', },

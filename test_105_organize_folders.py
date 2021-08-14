@@ -78,7 +78,7 @@ class SceneObject(OrderedDict):
             if self['cutend']:
                 border_path = r'%s/&cut_shp/%s_border.shp' % (self.folder, self.name)
                 if not os.path.exists(border_path):
-                    print('CUT BORDER NOT FOUND: %s' % border_path)
+                    # print('CUT BORDER NOT FOUND: %s' % border_path)
                     advice.append('Make border')
             if os.path.exists(self.path):
                 raster = gdal.Open(self.path)

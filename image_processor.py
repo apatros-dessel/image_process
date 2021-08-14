@@ -265,9 +265,9 @@ class process(object):
                 try:
                     feat = ascene.json_feat(lyr_defn, add_path=add_path, cartesian_area=cartezian_area, data_mask=data_mask)
                     lyr_out.CreateFeature(feat)
-                except:
-                    print('Error writing metadata: %s' % ascene.path)
-                    errors.append(ascene.path)
+                except Exception as e:
+                    print('Error writing metadata %s from %s' % (str(e), ascene.path))
+                    errors.append('%s from %s' % (str(e), ascene.path))
             if len(errors) > 0:
                 log = tempname('txt').replace('.txt', 'log_cover.txt')
                 with open(log, 'w') as txt:

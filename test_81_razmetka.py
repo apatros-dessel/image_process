@@ -1,19 +1,19 @@
 from razmetka import *
 
-path = r'\\172.21.195.2\thematic\!razmetka\Resurs_geoton\Resurs_geoton_surface'
-datacat = 'img'
+path = r'\\172.21.195.2\thematic\!razmetka\Meteor_KMSS'
+datacat = 'img_check'
 
 folder_index = MaskTypeFolderIndex(path, datacats=datacat)
 folder_index.FillMaskBandclasses()
-scroll(folder_index.bandclasses)
+scroll(folder_index.bandclasses, counts=True)
 folder_index.FillMaskSubtypes(datacats=datacat)
-scroll(folder_index.subtypes.keys())
+scroll(folder_index.subtypes.keys(), counts=True)
 # folder_index.UpdateFolderTif(r'e:\rks\source\Ресурс_КШМСА')
 folder_index.ImportQLReport(SetQlXlsPathList(path = r'\\172.21.195.2\thematic\!SPRAVKA\S3'))
 # sys.exit()
 
 # indices = ['surface_cloud_originals', '&without_cloud_originals']
-indices = ['surface_cloud_cut']#'cloud_originals', 'surface_original']
+indices = ['kmss100']#'cloud_originals', 'surface_original']
 # indices = ['&full_cloud', '&autumn_original', '&without_cloud_originals', 'less_snow_original', 'mist_coeff_original', 'surface_cloud_originals', 'thick_snow_original', 'water_originals']
 # indices = ['&full_cloud', '&autumn_cut', '&without_cloud_cut', 'less_snow_cut', 'mist_coeff_original',
 # 'surface_cloud_cut', 'thick_snow_cut', 'water_cut']
@@ -26,7 +26,7 @@ indices = ['surface_cloud_cut']#'cloud_originals', 'surface_original']
 # os.system('python3 test_16_clip_raster.py')
 for subtype in indices:
     # print(folder_index.Subtype(subtype))
-    folder_index.UpdateFromMS('PMS', subtype, use_source_pms=False, datacat=datacat)
+    # folder_index.UpdateFromMS('PMS', subtype, use_source_pms=False, datacat=datacat)
     # folder_index.CreateQuicklookSubtype(30, bandclass='PAN', subtype=subtype, datacat=datacat, satellite='Resurs')
-    # folder_index.SaveBandsSeparated(subtype, datacat=datacat, satellite='Kanopus')
+    folder_index.SaveBandsSeparated(subtype, datacat=datacat, satellite='Meteor-KMSS100')
 # folder_index.ReprojectPanToMs(r'e:\rks\kantest2\img_cloud_mist_shadow', 'img_cloud_mist_shadow')

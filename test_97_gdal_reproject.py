@@ -1,9 +1,9 @@
 from geodata import *
 # gdalwarp -s_srs EPSG:4326 -t_srs EPSG:32631 -dstnodata 0.0 -tr 23.5 23.5 -r cubicspline -of GTiff -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 E:/rks/razmetka_source/resurs_kshmsa_ms_clouds/img_clouds_vr/RP1_15523_02_KSHMSA-VR_20160403_083342_083414.MS.RS.tif E:/temp/rgb2.tif
-command_template = r'gdalwarp {path_in} {path_out} -s_srs EPSG:{epsg_in} -t_srs EPSG:{epsg_out} -dstnodata {nodata} -tr {pix} {pix} -r {method} -of GTiff -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9'
+command_template = r'gdalwarp {path_in} {path_out} -s_srs EPSG:{epsg_in} -t_srs EPSG:{epsg_out} -dstnodata {nodata} -tr {pix} {pix} -r {method} -of GTiff -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 -co BIGTIFF=YES'
 
-folder_in = r'\\172.21.195.2\thematic\!razmetka\Resurs_KSHMSA\Resurs_KSHMSA_BP\Resurs_KSHMSA_BP_clouds\MS\img_check'
-pixel_size = 23.8
+folder_in = r'\\172.21.195.2\thematic\!razmetka\Resurs_KSHMSA\Resurs_KSHMSA_CP\Resurs_KSHMSA_CP_surface\MS\img_check'
+pixel_size = 120
 # json_out = r'E:/temp/test.json'
 
 def GetEPSG(central_lat, central_long):
@@ -50,7 +50,7 @@ meta_list = {}
     # if name.endswith('.MD'):
         # meta_list[name[:-3]] = file
 
-for path_in in folder_paths(folder_in, 1, 'tif', filter_folder=['#original_deg']):
+for path_in in folder_paths(folder_in, 1, 'tif', filter_folder=['#original_deg', '#substandard']):
     corner, name, ext = split3(path_in)
     path_out = fullpath(corner, name+'_utm', ext)
     if os.path.exists(path_out):

@@ -4,17 +4,17 @@ import sys
 from image_processor import *
 from shutil import copyfile
 
-path_in = FolderDirs(r'y:\\').values()
-path_out = r'\\172.21.195.2\thematic\Sadkov_SA\covers\natarova_kanopus'
+path_in = FolderDirs(r'\\172.21.195.2\thematic\!razmetka\Cloud_and_bad\RADIOMETRY_L1').values()
+path_out = r'\\172.21.195.2\thematic\Sadkov_SA\covers\cloud_and_bad'
 suredir(path_out)
 
 for path in path_in:
-    try:
+    # try:
         path_cover = fullpath(path_out, os.path.split(path)[1], 'json')
         if os.path.exists(path_cover):
             print('FILE_EXISTS: %s' % path_cover)
         else:
-            proc = process().input(path, imsys_list = ['KAN'], skip_duplicates = False)
+            proc = process().input(path, imsys_list = None, skip_duplicates = False)
             # print(len(proc))
             # sys.exit()
             if len(proc)>0:
@@ -23,5 +23,5 @@ for path in path_in:
                 print('FINISHED: %s' % path_cover)
             else:
                 print('SKIPPED: %s' %  os.path.split(path)[1])
-    except e:
-        print('ERROR PROCESSING: %s %s' % (path, e))
+    # except:
+        # print('ERROR PROCESSING: %s' % (path))

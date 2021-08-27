@@ -1,8 +1,8 @@
 from tools import *
 from progress.bar import IncrementalBar
 
-folder_in = r'y:\102_2020_107'
-folder_out = r'\\172.21.195.160\thematic\S3_NATAROVA_\102_2020_107'
+folder_in = r'y:\102_2020_126'
+folder_out = r'\\172.21.195.160\thematic\S3_NATAROVA_\102_2020_126'
 
 input_folders, input_files = folder_paths(folder_in)
 cut_len = len(folder_in)
@@ -18,9 +18,9 @@ def CheckSumMatch(file1, file2):
     return CheckSum(file1) == CheckSum(file2)
 
 def DownloadAndCheck(ifile, ofile):
-    check = CheckSum(ifile)
-    while check != CheckSum(ofile):
-    # while FileMatch(file1, file2):
+    # check = CheckSum(ifile)
+    # while check != CheckSum(ofile):
+    while FileMatch(ifile, ofile):
         print('MISMATCHING IN %s, DOWNLOADING AGAIN' % oname)
         delete(ofile)
         shutil.copyfile(ifile, ofile)

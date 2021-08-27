@@ -2,7 +2,7 @@
 
 # Auxilliary functions for image processor
 
-import sys, os, re, shutil, xlrd, xlwt, csv
+import sys, os, re, shutil, xlrd, xlwt, csv, hashlib
 import numpy as np
 import xml.etree.ElementTree as et
 from collections import OrderedDict
@@ -1195,3 +1195,12 @@ def NumRus(val, one, two, many):
         if not re.search('1[234]$', str_val):
             return '%i %s' % (val, two)
     return '%i %s' % (val, many)
+
+def CheckSum(path):
+    h = hashlib.sha1()
+    with open(path, 'rb') as file:
+        chunk = 0
+        while chunk != b'':
+            chunk = file.read(1024)
+            h.update(chunk)
+    return h.hexdigest()

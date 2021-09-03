@@ -283,16 +283,23 @@ def DownloadQL(kan_id, kan_folder, ids, point, report, geom_path = None):
     else:
         print(kan_id)
 
-def FillFromCut(folder):
-    cut_folder = folder + r'\\&cut_img'
+def FillFromCut(folder, appendix = '\\&cut_img'):
+    cut_folder = folder + appendix
     if os.path.exists(cut_folder):
         for cut in folder_paths(cut_folder,1,'tif'):
-            name = Name(cut.split('_cut')[0])
+            name = Name(cut).split('_cut')[0]
+            geom_path = RasterCentralPoint(gdal.Open(cut), reference=None, vector_path=tempname('json'))
             file = fullpath(folder, name, 'tif')
             if os.path.exists(file):
-                continue
+                print('ALREADY EXISTS: %s' % name)
+                pass
             else:
-                DownloadQL(name, folder, ids, point, report, geom_path=None)
+                fin = DownloadQL(name, folder, ids, point, report, geom_path=geom_path)
+                if fin:
+                    print('WRITTEN: %s' % name)
+                else:
+                    print('ERROR: %s' % name)
+            delete(geom_path)
 
 def SetQlXlsPathList(path = r'\\172.21.195.2\thematic\!SPRAVKA\S3\\'):
     xls_path_list = []
@@ -307,11 +314,17 @@ def SetQlXlsPathList(path = r'\\172.21.195.2\thematic\!SPRAVKA\S3\\'):
 report = XLSDict(SetQlXlsPathList(path = r'\\172.21.195.2\thematic\!SPRAVKA\S3\\'))
 ids = XLSDictIds(report)
 point = r'y:\\'
+
+folders = FolderDirs(r'\\172.21.195.2\thematic\!razmetka\Resurs_geoton\!Resurs_Geoton\MS\img')
+for folder_name in folders:
+    folder = folders[folder_name]
+    FillFromCut(folder)
+sys.exit()
 with open(r'C:\Users\Admin\Desktop\Kanopus.txt') as txt:
     ids_list = txt.read().split('\n')
     for id in ids_list:
         id = id.replace('.MS', '.PAN')
-        if os.path.exists(r':\rks\new\%s.tif' % id):
+        if os.path.exists(r'e:\rks\new\%s.tif' % id):
             continue
         else:
             DownloadQL(id, r'e:\rks\new', ids, point, report, geom_path=None)

@@ -4,8 +4,8 @@ import sys
 from image_processor import *
 from shutil import copyfile
 
-path_in = FolderDirs(r'\\172.21.195.2\thematic\!razmetka\Cloud_and_bad\RADIOMETRY_L1').values()
-path_out = r'\\172.21.195.2\thematic\Sadkov_SA\covers\cloud_and_bad'
+path_in = FolderDirs(r'\\172.21.195.160\thematic\S3_NATAROVA_\102_2021_1266').values()
+path_out = r'd:\rks\covers'
 suredir(path_out)
 
 for path in path_in:

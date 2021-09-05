@@ -196,6 +196,7 @@ def metadata(path):
         if cur_meta is None:
             print('Metadata file not found for {}'.format(meta.id))
         else:
+            scroll(meta.files)
             meta.filepaths = {meta.files[0]: get_from_tree(cur_meta, 'rasterFileName')}
             meta.datetime = get_date_from_string(get_from_tree(cur_meta, 'firstLineTimeUtc'))
             meta.lvl = get_from_tree(cur_meta, 'productType')

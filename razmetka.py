@@ -16,7 +16,8 @@ satellite_types = {
     'Resurs': {'tmpt': r'RP\d.+_GEOTON_', 'folder': 'resurs', 'base_tmpt': '^RP\d', 'band_num': 4},
     'KSHMSA-VR': {'tmpt': r'RP\d.+_KSHMSA-VR_', 'folder': 'kshmsa_vr', 'base_tmpt': r'^RP\d.+_KSHMSA-VR_', 'band_num': 5, 'band_list': ['red', 'green', 'blue', 'nir1', 'nir2']},
     'KSHMSA-SR': {'tmpt': r'RP\d.+_KSHMSA-SR_', 'folder': 'kshmsa_sr', 'base_tmpt': r'^RP\d.+_KSHMSA-SR_', 'band_num': 5, 'band_list': ['red', 'green', 'blue', 'nir1', 'nir2']},
-    'Meteor-KMSS50': {'tmpt': r'M\d.+_KMSS50', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_KMSS50', 'band_num': 3, 'band_list': ['red','green','blue','tir1','tir2']},
+    'Meteor': {'tmpt': r'M\d.+_MSU-MR_', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_MSU-MR_', 'band_num': 6, 'band_list': ['nirr','rred','swir1','swir2','tir1','tir2']},
+    'Meteor-KMSS50': {'tmpt': r'M\d.+_KMSS50', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_KMSS50', 'band_num': 3, 'band_list': ['blue', 'green', 'red']},
     'Meteor-KMSS100': {'tmpt': r'M\d.+_KMSS100', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_KMSS100', 'band_num': 3, 'band_list': ['1green','2nir','3red']},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet', 'base_tmpt': 'Analytic', 'band_num': 4},
     'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat', 'base_tmpt': '^LS\d', 'band_num': 4},
@@ -359,13 +360,15 @@ class MaskTypeFolderIndex:
             if image_folder:
                 return os.path.split(image_folder)[1]
             else:
-                raise
+                print('UNABLE TO SET FOLDER NAME: %s %s %s' % (datacat, bandclass, subtype))
         else:
             return ''
 
     def SaveBandsSeparated(self, subtype='', datacat='img', satellite='Kanopus'):
         full_imgs = self.Images(subtype, 'MS', datacat=datacat)
         subtype_folder_name = self.SubtypeFolderName(subtype=subtype, datacat=datacat)
+        if subtype_folder_name is None:
+            return None
         if full_imgs:
             band_list = globals()['satellite_types'].get(satellite, {}).get('band_list', ['red', 'green', 'blue', 'nir'])
             band_params = globals()['band_params']
@@ -426,28 +429,35 @@ class MaskTypeFolderIndex:
             if files:
                 return files[0]
 
-    def DownloadQL(self, kan_id, kan_folder, geom_path = None):
+    def DownloadQL(self, kan_id, kan_folder, geom_path = None, ql_id = None):
         if '_cut' in kan_id:
-            return None
+            kan_id = kan_id.split('_cut')[0]
         if kan_id in self.qlreportids:
             qlids = self.qlreportids[kan_id]
             if qlids:
                 kan_file = fullpath(kan_folder, kan_id, 'tif')
-                if len(qlids)==1:
+                if ql_id is not None:
+                    source_file = self.FileFromPath(self.qlreport.get(ql_id, {}).get('Path'))
+                    if source_file:
+                        copyfile(source_file, kan_file)
+                        return kan_file
+                elif len(qlids)==1:
                     source_file = self.FileFromPath(self.qlreport.get(qlids[0],{}).get('Path'))
                     if source_file:
                         copyfile(source_file, kan_file)
                         return kan_file
                 else:
+                    scroll(qlids)
                     for qlid in qlids:
                         source_file = self.FileFromPath(self.qlreport.get(qlid, {}).get('Path'))
                         if source_file:
                             if IntersectRaster(source_file, geom_path):
                                 copyfile(source_file, kan_file)
                                 return kan_file
+            else:
+                print('QL IDS NOT FOUND: %s' % kan_id)
         else:
-            print(kan_id)
-            sys.exit()
+            print('ID NOT FOUND: %s' % kan_id)
 
     def GetKanPath(self, kan_name, subtype='', type=None, geom_path=None, use_source_pms=True, datacat='img'):
         if type is None:

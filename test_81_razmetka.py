@@ -9,7 +9,7 @@ scroll(folder_index.bandclasses)
 folder_index.FillMaskSubtypes(datacats=datacat)
 scroll(folder_index.subtypes.keys())
 # folder_index.UpdateFolderTif(r'e:\rks\source\Ресурс_КШМСА')
-# folder_index.ImportQLReport(SetQlXlsPathList(path = r'\\172.21.195.2\thematic\!SPRAVKA\S3'))
+folder_index.ImportQLReport(SetQlXlsPathList(path = r'\\172.21.195.2\thematic\!SPRAVKA\S3'))
 # sys.exit()
 
 # indices = ['surface_cloud_originals', '&without_cloud_originals']

@@ -188,7 +188,7 @@ def limits_mask(raster_array, lim_list, sign='==', band_mix='AND', include_ = No
 
     return mask
 
-def get_raster_limits(raster_array, method=0, band_limits = None):
+def get_raster_limits(raster_array, method=0, band_limits = None, data_limits = None):
 
     method_list = [
         'Min/Max',  # Minimum/maximum values of the array
@@ -208,34 +208,40 @@ def get_raster_limits(raster_array, method=0, band_limits = None):
         method = 0
 
     if (method == method_list[0]) or (method == 0):                # Min/Max
-        min = np.min(raster_array)
-        max = np.max(raster_array)
+        minimum = np.min(raster_array)
+        maximum = np.max(raster_array)
 
     elif (method == method_list[1]) or (method == 1):              # Mean+-SD
         mean = np.mean(raster_array)
         sd = np.std(raster_array)
-        min = mean - (band_limits[0] * sd)
-        max = mean + (band_limits[1] * sd)
+        minimum = mean - (band_limits[0] * sd)
+        maximum = mean + (band_limits[1] * sd)
 
     elif (method == method_list[2]) or (method == 2):              # Count_Cut
-        min = arrlim(raster_array.flatten(), band_limits[0])
-        max = arrlim(raster_array.flatten(), band_limits[1])
+        minimum = arrlim(raster_array.flatten(), band_limits[0])
+        maximum = arrlim(raster_array.flatten(), band_limits[1])
 
 
     elif (method == method_list[3]) or (method == 3):            # Custom
-        min = band_limits[0]
-        max = band_limits[1]
+        minimum = band_limits[0]
+        maximum = band_limits[1]
 
     else:
         print('Unknown hystogram limits')
         return None, None
 
-    return  min, max
+    if data_limits is not None:
+        if data_limits[0]:
+            minimum = max(minimum, data_limits[0])
+        if data_limits[1]:
+            maximum = min(maximum, data_limits[1])
 
-def data_to_image(raster_array, method=0, band_limits=None, gamma=1):
+    return  minimum, maximum
 
-    min, max = get_raster_limits(raster_array, method=method, band_limits = band_limits)
+def data_to_image(raster_array, method=0, band_limits=None, data_limits = None, gamma=1):
 
+    min, max = get_raster_limits(raster_array, method=method, band_limits = band_limits, data_limits = data_limits)
+    print(min, max)
     y_min = 1
     y_max = 255
     dy = 254

@@ -843,7 +843,7 @@ def write_prj(path2prj, projection):
     return None
 
 # Unites all objects in a set of vector layers into a single layer
-def unite_vector(path2vector_list, path2export): # No georeference check is used
+def unite_vector(path2vector_list, path2export, filter_attr = None): # No georeference check is used
 
     drv = ogr.GetDriverByName("ESRI Shapefile")
     t_ds = drv.CreateDataSource(path2export)
@@ -884,6 +884,23 @@ def unite_vector(path2vector_list, path2export): # No georeference check is used
         s_lyr = s_vector_ds.GetLayer()
 
         for feat in s_lyr:
+            if filter_attr is not None:
+                break_ = False
+                for filter_key in filter_attr:
+                    if filter_key in feat_attr_list:
+                        if feat.GetField(filter_key) in filter_attr[filter_key]:
+                            # print('USED: ' + feat.GetField(filter_key))
+                            pass
+                        else:
+                            # print('FILTERED: ' + feat.GetField(filter_key))
+                            break_ = True
+                            break
+                    else:
+                        # print('NOT FILTERED ' + feat.GetFID())
+                        break_ = True
+                        break
+                if break_:
+                    break
             t_lyr.CreateFeature(feat)
             newfeat = t_lyr.GetNextFeature()
             attr_list = feat.keys()
@@ -1022,7 +1039,7 @@ def GetRasterPercentileUInteger(files, min_p = 0.02, max_p = 0.98, bands = [1,2,
 
 # RasterToImage with reprojection
 def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1, exclude_nodata = True,
-                   enforce_nodata = None, band_order = [1,2,3], GaussianBlur = False,
+                   enforce_nodata = None, band_order = [1,2,3], data_limits = [None, None, None], GaussianBlur = False,
                    reprojectEPSG = None, reproject_method = gdal.GRA_Lanczos, masked = False,
                    compress = None, overwrite = True, alpha=False):
 
@@ -1102,7 +1119,7 @@ def RasterToImage3(path2raster, path2export, method=0, band_limits=None, gamma=1
         else:
             gamma_band = gamma
 
-        image = data_to_image(data, method=method, band_limits=band_limits[band_id-1], gamma=gamma_band)
+        image = data_to_image(data, method=method, band_limits=band_limits[band_id-1], data_limits = data_limits[band_id-1], gamma=gamma_band)
 
         del data
 
@@ -3256,23 +3273,30 @@ def CreateDataMask(raster_in, mask_out, value=1, nodata=0, bandnum=1):
             mask_ds.GetRasterBand(1).WriteArray(arr)
             mask_ds = None
 
-def VectorCentralPoint(path, reference=None, vector_path=None):
+def VectorCentroid(path, reference = None):
     ds_in, lyr_in = get_lyr_by_path(path)
     if lyr_in:
         extent = lyr_in.GetExtent()
         x1, x2, y1, y2 = extent
-        center_geom = ogr.CreateGeometryFromWkt('POINT (%f %f)' % ((x1+x2)/2, (y1+y2)/2))
-        if vector_path:
-            if reference is None:
-                reference = get_srs(ds_in)
-            json(vector_path, srs = reference)
-            ds_out, lyr_out = get_lyr_by_path(vector_path, True)
-            feat_defn = lyr_out.GetLayerDefn()
-            feat = ogr.Feature(feat_defn)
-            feat.SetGeometry(center_geom)
-            lyr_out.SetFeature(feat)
-            ds_out = None
-    return vector_path
+        source_reference = get_srs(ds_in)
+        center_geom = ogr.CreateGeometryFromWkt('POINT (%f %f)' % ((x1+x2)/2, (y1+y2)/2), SpatialReference = source_reference)
+        if reference is not None:
+            target_reference = get_srs(reference)
+            if target_reference != source_reference:
+                center_geom = center_geom.TransformTo(target_reference)
+        return center_geom
+
+def VectorCentralPoint(path, reference=None, vector_path=None):
+    center_geom = VectorCentroid(path, reference = reference)
+    if center_geom and vector_path:
+        json(vector_path, srs = reference)
+        ds_out, lyr_out = get_lyr_by_path(vector_path, True)
+        feat_defn = lyr_out.GetLayerDefn()
+        feat = ogr.Feature(feat_defn)
+        feat.SetGeometry(center_geom)
+        lyr_out.SetFeature(feat)
+        ds_out = None
+        return vector_path
 
 def RasterCentralPoint(ds_, reference=None, vector_path=None):
     if ds_:

@@ -76,7 +76,7 @@ satellite_types = {
     'Kanopus': {'tmpt': r'KV[1-6I]', 'folder': 'kanopus', 'base_tmpt': '^KV[1-6I]', 'band_num': 4},
     'Resurs': {'tmpt': r'RP\d', 'folder': 'resurs', 'base_tmpt': '^RP\d', 'band_num': 4},
     'Planet': {'tmpt': r'PLN.+', 'folder': 'planet', 'base_tmpt': 'Analytic', 'band_num': 4},
-    'Landsat': {'tmpt': r'LS\d', 'folder': 'landsat', 'base_tmpt': '^LS\d', 'band_num': 4},
+    'Landsat': {'tmpt': r'LC\d', 'folder': 'landsat', 'base_tmpt': '^LC\d', 'band_num': 4},
     # 'DigitalGlobe': {'tmpt': r'[DW]?[GV]?', 'folder': 'dg', 'base_tmpt': r'[DW]?[GV]?', 'band_num': 4},
     'Meteor': {'tmpt': r'M\d.+_MSU-MR_', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_MSU-MR_', 'band_num': 6},
     'Meteor-KMSS': {'tmpt': r'M\d.+_KMSS\d', 'folder': 'meteor', 'base_tmpt': r'^M\d.+_KMSS\d', 'band_num': 3, 'band_list': ['red','green','blue']},
@@ -913,7 +913,7 @@ try:
                 empty_value = 220
             else:
                 # print('UNKNOWN EMPTY VALUE: %s' % str(neuroid))
-                empty_value = None
+                empty_value = 0
             if (not vec_in) and (empty_value is None):
                 input[neuroid]['report'] = 'FAILURE'
                 print('  %i -- EMPTY VALUE ERROR: %s\n' % (i + 1, str(neuroid)))

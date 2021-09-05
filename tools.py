@@ -1060,7 +1060,7 @@ def dict_max_key(dict_):
 
 def boolstr(val):
     if isinstance(val, str):
-        if val.lower() == 'false':
+        if val.lower() in ['false', 'n', 'no', '0']:
             val = False
         else:
             val = True

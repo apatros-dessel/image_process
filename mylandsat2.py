@@ -20,7 +20,8 @@ from tools import *
 from geodata import *
 
 templates = (
-    r'LC08_L1TP_\d{6}_\d{8}_\d{8}_01_T1_MTL.txt',
+    # LC08_L1GT_204236_20210813_20210813_02_RT_MTL.txt
+    r'LC08_L1TP_\d{6}_\d{8}_.*_MTL.txt',
 )
 
 landsat_files = [
@@ -170,8 +171,8 @@ def getlandsatfiles(text):
 
 def getlandsatdatetime(aq_date_time): #FILE_DATE = 2019-05-20T19:05:31Z
     year, month, day = intlist(aq_date_time[:10].split('-'))
-    hour, minute, second = intlist(aq_date_time[11:19].split(':'))
-    dtime = datetime(year, month, day, hour, minute, second)
+    # hour, minute, second = intlist(aq_date_time[11:19].split(':'))
+    dtime = datetime(year, month, day, 0, 0, 0)
     return dtime
 
 # Fill <landsat_name> metadata
@@ -194,7 +195,7 @@ def metadata(path):
 
     meta.bandpaths = globals()['landsat_bandpaths'] # get bandpaths as tuple of files_id and band numbers
     meta.location = meta.id[10:16]   # get scene location id
-    meta.datetime = getlandsatdatetime(get_meta_landsat(landsat_data, "FILE_DATE"))    # get image datetime as datetime.datetime
+    meta.datetime = getlandsatdatetime(get_meta_landsat(landsat_data, "DATE_ACQUIRED"))    # get image datetime as datetime.datetime
 
     meta.namecodes.update(
         {

@@ -147,7 +147,7 @@ for index in index_list:
         print('PATH NOT FOUND: %s\nUNABLE TO FIND QL' % index_path)
         continue
     downloader = Downloader(index_path, sat=sat, sensor=sensor, direct=direct)
-    downloader.set_skip()
+    # downloader.set_skip()
     downloader.update_categories()
     downloader.download(final_dir, part=part)
 sys.exit()

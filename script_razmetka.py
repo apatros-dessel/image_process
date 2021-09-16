@@ -673,7 +673,7 @@ def check_image(img_in, neuro, multiply = None):
     counter = min((metaBandNum, realBandNum))
     for i in range(1, counter + 1):
         band = raster.GetRasterBand(i)
-        if band.DataType != 3 or band.GetNoDataValue() != 0:
+        if band.DataType != 2 or band.GetNoDataValue() != 0:
             return True, counter
     return False, counter
 
@@ -701,7 +701,7 @@ def repair_img(img_in, img_out, count, band_order=None, multiply = None):
         band_order = range(1, count+1)
     raster = gdal.Open(img_in)
     # print(img_in, raster.GetGeoTransform(), '"', raster.GetProjection(), '"')
-    new_raster = ds(img_out, copypath=img_in, options={'bandnum':count, 'dt':3, 'compress':'DEFLATE', 'nodata':0}, editable=True)
+    new_raster = ds(img_out, copypath=img_in, options={'bandnum':count, 'dt':2, 'compress':'DEFLATE', 'nodata':0}, editable=True)
     # print(img_out, new_raster.GetGeoTransform(), new_raster.GetProjection())
     for bin, bout in zip(band_order, range(1, count+1)):
         init_band = raster.GetRasterBand(bin)

@@ -443,61 +443,66 @@ class scene:
     def json_feat(self, lyr_defn, add_path=True, cartesian_area = False, data_mask=False, srs=4326):
         feat = geodata.ogr.Feature(lyr_defn)
         # print(self.meta.id, self.datamask())
-        ds_mask, lyr_mask = geodata.get_lyr_by_path(self.datamask())
-        t_crs = geodata.get_srs(srs)
-        if lyr_mask is not None:
-            geom_feat = lyr_mask.GetNextFeature()
-            geom = geom_feat.GetGeometryRef()
-            # print(geom.ExportToWkt())
-            v_crs = lyr_mask.GetSpatialRef()
-            if (v_crs is None) and self.imsys=='PLD':
-                v_crs = geodata.osr.SpatialReference()
-                v_crs.ImportFromEPSG(4326)
-                geom = geodata.MultipolygonFromMeta(self.fullpath, v_crs)
-            else:
-                if not geodata.ds_match(v_crs, t_crs):
-                    # print(v_crs)
-                    # print(t_crs)
-                    coordTrans = geodata.osr.CoordinateTransformation(v_crs, t_crs)
-                    geom.Transform(coordTrans)
-                if sys.version.startswith('3'):
-                    geom = geodata.changeXY(geom)
-            feat.SetGeometry(geom)
-        feat = globals()['metalib'].get(self.imsys).set_cover_meta(feat, self.meta)
-        if self.imsys=='KAN' and 'NP' in self.meta.id:
-            for type in ('mul', 'pan'):
-                if type in self.meta.files:
-                    mykanopus.meta_from_raster(feat, self.get_raster_path(type))
-        elif self.imsys=='SS':
-            myskysat.meta_from_raster(feat, self.get_raster_path('Analytic'))
-        if add_path:
-            feat.SetField('path', self.fullpath)
-        if cartesian_area or data_mask:
-            path2export = tempname('shp')
-            if isinstance(self.meta.base, list):
-                area = 0.0
-                cover_list = []
-                for base in self.meta.base:
+        datamask = self.datamask()
+        if datamask:
+            ds_mask, lyr_mask = geodata.get_lyr_by_path(self.datamask())
+            t_crs = geodata.get_srs(srs)
+            if lyr_mask is not None:
+                geom_feat = lyr_mask.GetNextFeature()
+                geom = geom_feat.GetGeometryRef()
+                # print(geom.ExportToWkt())
+                v_crs = lyr_mask.GetSpatialRef()
+                if (v_crs is None) and self.imsys=='PLD':
+                    v_crs = geodata.osr.SpatialReference()
+                    v_crs.ImportFromEPSG(4326)
+                    geom = geodata.MultipolygonFromMeta(self.fullpath, v_crs)
+                else:
+                    if not geodata.ds_match(v_crs, t_crs):
+                        # print(v_crs)
+                        # print(t_crs)
+                        coordTrans = geodata.osr.CoordinateTransformation(v_crs, t_crs)
+                        geom.Transform(coordTrans)
+                    if sys.version.startswith('3'):
+                        geom = geodata.changeXY(geom)
+                feat.SetGeometry(geom)
+            feat = globals()['metalib'].get(self.imsys).set_cover_meta(feat, self.meta)
+            if self.imsys=='KAN' and 'NP' in self.meta.id:
+                for type in ('mul', 'pan'):
+                    if type in self.meta.files:
+                        mykanopus.meta_from_raster(feat, self.get_raster_path(type))
+            elif self.imsys=='SS':
+                myskysat.meta_from_raster(feat, self.get_raster_path('Analytic'))
+            if add_path:
+                feat.SetField('path', self.fullpath)
+            if cartesian_area or data_mask:
+                path2export = tempname('shp')
+                if isinstance(self.meta.base, list):
+                    area = 0.0
+                    cover_list = []
+                    for base in self.meta.base:
+                        if cartesian_area:
+                            area += geodata.RasterDataCartesianArea(self.get_raster_path(base))
+                        if data_mask:
+                            temp_cover = tempname('shp')
+                            geodata.RasterDataMask(self.get_raster_path(base), temp_cover, use_nodata=True, enforce_nodata=None, alpha=None,
+                                                   epsg=srs, overwrite=True)
+                            cover_list.append(temp_cover)
+                else:
                     if cartesian_area:
-                        area += geodata.RasterDataCartesianArea(self.get_raster_path(base))
+                        area = geodata.RasterDataCartesianArea(self.get_raster_path(self.meta.base))
                     if data_mask:
-                        temp_cover = tempname('shp')
-                        geodata.RasterDataMask(self.get_raster_path(base), temp_cover, use_nodata=True, enforce_nodata=None, alpha=None,
-                                               epsg=srs, overwrite=True)
-                        cover_list.append(temp_cover)
-            else:
+                        geodata.RasterDataMask(self.get_raster_path(self.meta.base), path2export, use_nodata=True,
+                                           enforce_nodata=None, alpha=None, epsg=srs, overwrite=True)
                 if cartesian_area:
-                    area = geodata.RasterDataCartesianArea(self.get_raster_path(self.meta.base))
+                    feat.SetField('area', area)
                 if data_mask:
-                    geodata.RasterDataMask(self.get_raster_path(self.meta.base), path2export, use_nodata=True,
-                                       enforce_nodata=None, alpha=None, epsg=srs, overwrite=True)
-            if cartesian_area:
-                feat.SetField('area', area)
-            if data_mask:
-                new_ds, new_lyr = geodata.get_lyr_by_path(path2export)
-                new_feat = new_lyr.GetNextFeature()
-                new_geom = new_feat.GetGeometryRef()
-                feat.SetGeometry(new_geom)
+                    new_ds, new_lyr = geodata.get_lyr_by_path(path2export)
+                    new_feat = new_lyr.GetNextFeature()
+                    new_geom = new_feat.GetGeometryRef()
+                    feat.SetGeometry(new_geom)
+        else:
+            print('Datamask not found, cannot create cover for: ' + self.meta.id)
+            return None
         return feat
 
     def quicklook(self):

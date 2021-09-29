@@ -732,9 +732,11 @@ def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_
             mask_arr[curr_mask] = id_val
             curr_mask = None
     # scroll(np.unique(mask_arr), header='%s:' % split3(bandpath_in[0])[1])
-    data_ds = ds(globals()['temp_dir_list_geo'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
+    data_tif = tempname('tif')
+    data_ds = ds(data_tif, copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
     data_ds.GetRasterBand(1).WriteArray(mask_arr)
-    mask_ds = ds(globals()['temp_dir_list_geo'].create('shp'), copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
+    mask_tif = tempname('tif')
+    mask_ds = ds(mask_tif, copypath=bandpath_in[0], options={'bandnum': 1, 'dt': 1}, editable=True)
     mask_ds.GetRasterBand(1).WriteArray(mask_arr.astype(bool))
     mask_arr = None
     dst_ds = shp(path_out, 1)
@@ -742,6 +744,8 @@ def VectorizeBand(bandpath_in, path_out, classify_table = [(0, None, 1)], index_
     dst_layer.CreateField(ogr.FieldDefn(index_id, ogr.OFTInteger))
     gdal.Polygonize(data_ds.GetRasterBand(1), mask_ds.GetRasterBand(1), dst_layer, 0)
     dst_ds = None
+    delete(data_tif)
+    delete(mask_tif)
     write_prj(path_out[:-4] + '.prj', data_ds.GetProjection())
     return 0
 
@@ -1572,51 +1576,39 @@ def MultiplyRasterBand(bandpath_in, bandpath_out, multiplicator, dt = None, comp
 
 # Unites geometry from shapefiles
 def Unite(path2shp_list, path2export, proj=None, deafault_srs=4326, changexy=False, overwrite=True):
-
     if check_exist(path2export, ignore=overwrite):
         return 1
-
     t_geom = None
-
     path2shp_list = obj2list(path2shp_list)
-
     for path2shp in path2shp_list:
-
         s_ds, s_lyr = get_lyr_by_path(path2shp)
-
         if s_lyr is None:
             print('Layer not found: {}'.format(path2shp))
             continue
-
         s_srs = get_srs(s_lyr)
-
         if s_srs is None:
             print('srs not found for: {}'.format(path2shp))
             s_srs = get_srs(deafault_srs)
-
         if proj is None:
             t_srs = s_srs
         else:
             t_srs = get_srs(proj)
-
+        if t_srs is None:
+            print('SRS not found, assume SRS matching')
+            t_srs = s_srs
         proj = t_srs.ExportToWkt()
-
         for feat in s_ds.GetLayer():
-
             s_geom = feat.GetGeometryRef()
-
             if t_geom is None:
-                t_feat = feat
-                t_geom = s_geom
+                t_geom = deepcopy(s_geom)
             else:
                 t_geom = t_geom.Union(s_geom)
-        if ds_match(s_srs, t_srs):
-            return Geom2Shape(path2export, t_geom, proj=proj)
-        else:
-            t_path = tempname('shp')
-            Geom2Shape(t_path, t_geom, proj=s_srs.ExportToWkt())
-            return ReprojectVector(t_path, path2export, t_srs, changexy=changexy, overwrite=True)
-
+    if ds_match(s_srs, t_srs):
+        return Geom2Shape(path2export, t_geom, proj=proj)
+    else:
+        t_path = tempname('shp')
+        Geom2Shape(t_path, t_geom, proj=s_srs.ExportToWkt())
+        return ReprojectVector(t_path, path2export, t_srs, changexy=changexy, overwrite=True)
     # return Geom2Shape(path2export, t_geom, proj=proj)
 
 def ShapesIntersect(path2shp1, path2shp2, attr_filter = None):
@@ -3402,6 +3394,7 @@ def SelectFromVectorByAttribute(vec_list, attr, vals, pout, proj=get_srs(4326), 
     ds_fin = None
 
 def GetRasterDataParams(path):
+    os.system('gdalinfo -stats {}'.format(path).replace('&','^&'))
     raster = gdal.Open(path)
     if raster:
         params = [raster.RasterXSize, raster.RasterYSize]
@@ -3537,3 +3530,22 @@ def RasterDataArea(path):
         total_count = raster.RasterXSize * raster.RasterYSize
         count = np.unique(raster.GetRasterBand(1).ReadAsArray(), return_counts = True)[1][0]
         return abs( (total_count - count) * geotrans[1] * geotrans[5] )
+
+def MultiRasterCover(rpaths, vcover):
+    vcovers = []
+    for rpath in rpaths:
+        vpath = tempname('shp')
+        VectorizeBand((rpath, 1), vpath, classify_table=[(0, None, 1)], index_id='CLASS')
+        # VectorizeRaster(rpath, vpath)
+        if os.path.exists(vpath):
+            vcovers.append(vpath)
+        else:
+            print('EMPTY VECTOR: %s' % Name(rpath))
+    Unite(vcovers, vcover)
+    for vpath in vcovers:
+        cleardir(os.path.split(vpath)[0])
+
+def copyshp(shp_path, out_folder):
+    f, name, e = Name(shp_path)
+    for ext in ['shp', 'dbf', 'shx', 'prj', 'sbn', 'sbx']:
+        copyfile(fullpath(f, name, ext), fullpath(out_folder, name, ext))

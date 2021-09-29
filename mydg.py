@@ -1,6 +1,6 @@
 # Functions for processing Digital Globe metadata
 
-from tools import *
+from geodata import *
 
 # Examples of Digital Globe metadata filenames
 # r'20MAY02084412-S2AS-012719021010_01_P001.XML'
@@ -94,6 +94,11 @@ def get_dg_datamask(folder, name):
         for vec in folder_paths(gis_folder,1,'shp'):
             if re.search(name, vec):
                 return vec
+    else:
+        vcover = fullpath(folder, n, 'shp')
+        if not os.path.exists(vcover):
+            MultiRasterCover(folder_paths(folder, 1, 'tif'), vcover)
+        return vcover
 
 # Fill Digital Globe metadata
 def metadata(path):

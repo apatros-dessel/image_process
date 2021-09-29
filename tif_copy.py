@@ -29,15 +29,20 @@ def SeparateStrings(str_, separator = ',', as_folder = False):
         fin.append(part)
     return fin
 
-def FileIndex(path, ext):
+def FileIndexAsList(path, ext):
     files = []
     ext = '.' + ext.lstrip('.')
     for corner, _folders, _files in os.walk(path):
         for file in _files:
             if file.endswith(ext):
                 files.append(corner + '\\' + file)
-    with open(path + r'\tif_index.txt', 'w') as txt:
-        txt.write('\n'.join(files))
+    return files
+
+def FileIndex(path, ext):
+    files = FileIndexAsList(path, ext)
+    if files:
+        with open(path + r'\tif_index.txt', 'w') as txt:
+            txt.write('\n'.join(files))
 
 def CheckSum(path):
     h = hashlib.sha1()
@@ -106,38 +111,43 @@ except:
 done = []
 
 for folder in folders:
-    tif_index = folder + r'\tif_index.txt'
-    if not os.path.exists(tif_index):
-        FileIndex(folder, 'tif')
-    if os.path.exists(tif_index):
-        try:
-            paths = open(tif_index).read().split('\n')
-        except:
-            print('\n  Ошибка чтения индекса: ' + tif_index)
-            continue
-        for path in paths:
-            try:
-                for id in ids:
-                    if re.search(id, path):
-                        name = os.path.split(path)[1]
-                        path_out = folder_out + '\\' + name
-                        i = 0
-                        path_out_ = path_out
-                        while os.path.exists(path_out_):
-                            i += 1
-                            if checksum:
-                                if CheckSum(path) == CheckSum(path_out_):
-                                    print('%s Обнаружен дубликат: %s' % (id, path))
-                                    done.append(id)
-                                    raise CheckSumError
-                            path_out_ = path_out.replace('.tif', '_%i.tif' % i)
-                        shutil.copyfile(path, path_out_)
-                        print('%s Скопировано из: %s' % (id, path))
-                        done.append(id)
-            except CheckSumError:
-                pass
+    if folder.startswith('y:'):
+        paths = FileIndexAsList(folder, 'tif')
     else:
-        print('Список файлов не найден: %s' % tif_index)
+        tif_index = folder + r'\tif_index.txt'
+        if not os.path.exists(tif_index):
+            FileIndex(folder, 'tif')
+        if os.path.exists(tif_index):
+            try:
+                paths = open(tif_index).read().split('\n')
+            except:
+                print('\n  Ошибка чтения индекса: ' + tif_index)
+                continue
+        else:
+            print('Список файлов не найден: %s' % tif_index)
+            continue
+    for path in paths:
+        try:
+            for id in ids:
+                if re.search(id, path):
+                    name = os.path.split(path)[1]
+                    path_out = folder_out + '\\' + name
+                    i = 0
+                    path_out_ = path_out
+                    while os.path.exists(path_out_):
+                        i += 1
+                        if checksum:
+                            if CheckSum(path) == CheckSum(path_out_):
+                                print('%s Обнаружен дубликат: %s' % (id, path))
+                                done.append(id)
+                                raise CheckSumError
+                        path_out_ = path_out.replace('.tif', '_%i.tif' % i)
+                    shutil.copyfile(path, path_out_)
+                    print('%s Скопировано из: %s' % (id, path))
+                    done.append(id)
+        except CheckSumError:
+            pass
+
 print('')
 for id in ids:
     if not id in done:

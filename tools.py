@@ -273,7 +273,7 @@ def RemoveFromList(list_, val_):
 # Change all values in list using the function
 def flist(l, func, copy=True, error_value=None):
     if copy:
-        l = list(deepcopy(l))
+        l = deepcopy(list(l))
     for i, v in enumerate(l):
         try:
             l[i] = func(v)
@@ -754,23 +754,23 @@ def XLSDict(xls_path_list):
 
 # Export data to xls
 def dict_to_xls(path2xls, adict, col_list=None): # It's better to use OrderedDict to preserve the order of rows and columns
-
     wb = xlwt.Workbook()
     ws = wb.add_sheet('New_Sheet')
-
     # Find all column names
+    col_names = ['']
     if col_list is None:
-        col_list = ['']
         for row_key in adict:
             for key in adict.get(row_key).keys():
                 if not key in col_list:
-                    col_list.append(key)
-
+                    col_names.append(key)
+    elif col_list[0] != '':
+        col_names.extend(col_list)
+    else:
+        col_names = col_list
     # Write column names
     row = ws.row(0)
-    for col_num, col_name in enumerate(col_list):
+    for col_num, col_name in enumerate(col_names):
         row.write(col_num, col_name)
-
     # Write data
     for id, row_key in enumerate(adict):
         row_num = id+1
@@ -781,8 +781,8 @@ def dict_to_xls(path2xls, adict, col_list=None): # It's better to use OrderedDic
         rowdata = adict.get(row_key)
         if isinstance(rowdata, dict):
             row.write(0, row_key)
-            for key in rowdata:
-                row.write(col_list.index(key), rowdata.get(key))
+            for i, key in enumerate(col_names[1:]):
+                row.write(i+1, rowdata.get(key, ''))
         elif hasattr(rowdata, '__iter__'):
             row.write(0, row_num)
             for col_id, obj in enumerate(rowdata):
@@ -790,9 +790,7 @@ def dict_to_xls(path2xls, adict, col_list=None): # It's better to use OrderedDic
         else:
             row.write(0, row_num)
             row.write(1, rowdata)
-
     wb.save(path2xls)
-
     return None
 
 # Scene metadata
@@ -909,7 +907,7 @@ class scene_metadata:
         return namestring
 
 # Searches filenames according to template and returns a list of full paths to them
-def folder_paths(path, files = False, extension = None, id_max=100000, filter_folder=[]):
+def folder_paths(path, files = False, extension = None, id_max=100000, filter_folder=[], empty_return = None):
     # templates_list = listoftype(templates_list, str, export_tuple=True)
     if extension is not None:
         extensions = obj2list(extension)
@@ -920,7 +918,7 @@ def folder_paths(path, files = False, extension = None, id_max=100000, filter_fo
         path_list = [path_list]
     else:
         print('Path does not exist: {}'.format(path))
-        return None
+        return empty_return
     id = 0
     export_files = []
     while id < len(path_list) < id_max:
@@ -1106,10 +1104,13 @@ def dictstr(str_, start='{', fin='}', spliter=',', joiner=':', ordered=False, to
             result[key] = val
     return result
 
-def dict_to_csv(csv_path, csv_dict):
+def dict_to_csv(csv_path, csv_dict, sort = True):
     with open(csv_path, 'w', newline='') as csvfile:
         dictwriter = csv.writer(csvfile, delimiter=';')
-        for key in csv_dict:
+        keys = list(csv_dict.keys())
+        if sort:
+            keys.sort()
+        for key in keys:
             dictwriter.writerow([str(key), str(csv_dict[key])])
 
 def dict_from_csv(csv_path):

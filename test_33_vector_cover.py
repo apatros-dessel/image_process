@@ -4,9 +4,10 @@ import sys
 from image_processor import *
 from shutil import copyfile
 
-path_in = FolderDirs(r'\\172.21.195.160\thematic\S3_NATAROVA_\102_2021_1266').values()
+path_in = FolderDirs(r'\\172.21.195.160\digital earth\DG_stage_2').values()
 path_out = r'd:\rks\covers'
 suredir(path_out)
+path_in = [r'\\172.21.195.160\digital earth\DG_stage_2']
 
 for path in path_in:
     # try:
@@ -25,3 +26,4 @@ for path in path_in:
                 print('SKIPPED: %s' %  os.path.split(path)[1])
     # except:
         # print('ERROR PROCESSING: %s' % (path))
+

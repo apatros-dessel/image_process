@@ -1,7 +1,7 @@
 from razmetka import *
 
 path = r'd:\test'
-txt_path = r'd:\test\files.txt'
+txt_path = r'c:\Users\admin\Downloads\12_bit.txt'
 kan_folder = r'e:\temp'
 
 # folder_index = MaskTypeFolderIndex(path)
@@ -11,14 +11,12 @@ with open(txt_path) as txt:
     txt_id_list = txt.read().split('\n')
 
 # scroll(DictCounts({}, txt_id_list), counts=1)
-txt_id_list = [r'RP3_02599_03_GEOTON_20160830_091634_091703.SCN4.PAN',
-r'RP3_05077_03_GEOTON_20170208_053602_053630.SCN5.PAN']
 
 for corner, folders, files in os.walk(r'y:\\'):
     for id in txt_id_list:
         if id in corner:
             for file in files:
-                if file.lower().enswith('tif'):
+                if file.lower().endswith('tif'):
                     copyfile(file, fullpath(kan_folder, file))
                     print('DONE: ' + file)
                     break

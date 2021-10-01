@@ -141,7 +141,8 @@ def vec_to_crs(ogr_dataset, t_crs, export_path, changexy=False):
     v_crs = ogr_layer.GetSpatialRef()
     if v_crs is None:
         v_crs = t_crs
-    if v_crs.ExportToUSGS() != t_crs.ExportToUSGS():
+    # if v_crs.ExportToUSGS() != t_crs.ExportToUSGS():
+    if not ds_match(t_crs, v_crs):
         coordTrans = osr.CoordinateTransformation(v_crs, t_crs)
         driver = ogr.GetDriverByName('ESRI Shapefile')
         if os.path.exists(export_path): # the shapefile is created in the cwd
@@ -3545,7 +3546,9 @@ def MultiRasterCover(rpaths, vcover):
     for vpath in vcovers:
         cleardir(os.path.split(vpath)[0])
 
-def copyshp(shp_path, out_folder):
-    f, name, e = Name(shp_path)
-    for ext in ['shp', 'dbf', 'shx', 'prj', 'sbn', 'sbx']:
-        copyfile(fullpath(f, name, ext), fullpath(out_folder, name, ext))
+def copyshp(shp_path, out_folder, final_name = None):
+    f, name, e = split3(shp_path)
+    if final_name is None:
+        final_name = name
+    for ext in ['shp', 'dbf', 'shx', 'prj', 'sbn', 'sbx', 'cpg']:
+        copyfile(fullpath(f, name, ext), fullpath(out_folder, final_name, ext))

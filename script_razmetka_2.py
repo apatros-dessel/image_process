@@ -5,6 +5,7 @@ meta_folder = r'\\172.21.195.2\thematic\Sadkov_SA\code\razmetka_params'
 
 sattelites = xls_to_dict(fullpath(meta_folder, 'sattelites.xls'))
 legend = xls_to_dict(fullpath(meta_folder, 'legend.xls'))
+bands = xls_to_dict(fullpath(meta_folder, 'bands.xls'))
 
 report_col_order = ['img_in', 'vec_in', 'img_out', 'msk_out', 'shp_out', 'x_pix_count', 'y_pix_count', 'x_pix_size', 'y_pix_size',
                         'data_min', 'data_max', 'bits_exceed', 'msk_values']
@@ -20,6 +21,20 @@ def GetSattelite(id):
     for sat in sattelites:
         if re.search(sattelites[sat].get('tmpt', '^$'), id):
             return sattelites[sat].get('folder', sat)
+
+def GetBandList(id):
+    band_str = globals()['sattelites'].get(GetSattelite(id), {}).get('BANDS')
+    if band_str is None:
+        raise RazmetkaError('Cannot extract bands for ' + scene.id)
+    else:
+        count = 0
+        band_list = band_str.split(',')
+        for i, band in enumerate(band_list):
+            band_id_mark = globals()['bands'].get(band, {}).get('short_name')
+            if band_id_mark is None:
+                raise RazmetkaError('Cannot extract band id mark ' + band + ' for ' + scene.id)
+            band_list[i] = ([i+1], band_id_mark)
+        return band_list
 
 def CheckImage(img_in, bands):
     raster = gdal.Open(img_in)
@@ -369,8 +384,8 @@ class DataFolder:
         else:
             raise FileNotFoundError(corner)
 
-    def DataFolder(self, band = 'MS', type = 'img', category = '', ql = False, cut = False, create_folder = False):
-        band_folder = r'%s\%s' % (self.corner, band)
+    def DataFolder(self, bandt = 'MS', type = 'img', category = '', ql = False, ms_cut = False, cut = False, create_folder = False):
+        band_folder = r'%s\%s' % (self.corner, bandt)
         CheckFolder(band_folder, create_folder, 'Band folder not found: ')
         data_folder = r'%s\%s' % (band_folder, type)
         CheckFolder(data_folder, create_folder, 'Type folder not found: ')
@@ -380,23 +395,55 @@ class DataFolder:
         if ql:
             data_folder = r'%s\&q%sm' % (data_folder, ql)
             CheckFolder(data_folder, create_folder, 'Quicklook folder not found: ')
+        if ms_cut:
+            data_folder = r'%s\&MScut_%s' % (data_folder, type.split('_')[0])
+            CheckFolder(data_folder, create_folder, 'MS cut folder not found: ')
         if cut:
             data_folder = r'%s\&cut_%s' % (data_folder, type.split('_')[0])
             CheckFolder(data_folder, create_folder, 'Cut folder not found: ')
         return data_folder
 
-    def DataFiles(self, band = 'MS', type = 'img', category = '', ql = False, cut = False, ext = 'tif'):
+    def DataFiles(self, bandt = 'MS', type = 'img', category = '', ql = False, ms_cut = False, cut = False, mark = None, ext = 'tif'):
         try:
-            data_folder = self.DataFolder(band = band, type = type, category = category, ql = ql, cut = cut)
+            data_folder = self.DataFolder(bandt = bandt, type = type, category = category, ql = ql, ms_cut = False, cut = cut)
         except FileNotFoundError as e:
             print(e)
             return None
         files = {}
         for file in os.listdir(data_folder):
             fname, fext = os.path.splitext(file)
+            if mark is not None:
+                if not mark in fname:
+                    continue
             if fext[1:] == ext:
                 files[fname] = fullpath(data_folder, file)
         return files
+
+    def CropPanByMS(self, category = '', ql = False, cut = False):
+        ms_files = self.DataFiles(bandt = 'MS', type = 'img', category = category, ql = ql, cut = cut, mark = None, ext = 'tif')
+        pan_files = self.DataFiles(bandt = 'PAN', type = 'img', category = category, ql = ql, cut = cut, mark = None, ext = 'tif')
+        if not pan_files:
+            raise RazmetkaError('PAN data not found: ' + category)
+        if ms_files:
+            ms_cut_folder = self.DataFolder(bandt = 'MS', type = 'shp', category = category, ql = ql, ms_cut = True, cut = cut, create_folder = True)
+            pan_cut_folder = self.DataFolder(bandt = 'PAN', type='img', category = category, ql = ql, ms_cut = True, cut = cut, create_folder = True)
+            for ms_name in ms_files:
+                pan_name = ms_name.replace('.MS', '.PAN')
+                assert pan_name != ms_name
+                if pan_name in pan_files:
+                    pan_file = pan_files[pan_name]
+                    ms_file = ms_files[ms_name]
+                    ms_cut_file = fullpath(ms_cut_folder, ms_name + '_border.shp')
+                    VectorizeBand((ms_file, 1), ms_cut_file, classify_table=[(0, None, 1)], index_id='CLASS')
+                    if os.path.exists(ms_cut_file):
+                        pan_cut_file = fullpath(pan_cut_folder, pan_name + '_MScut.tif')
+                        clip_raster(pan_file, ms_cut_file, export_path = pan_cut_file, byfeatures = True, exclude = False, nodata = 0,
+                                    path2newshp = None, compress = 'DEFLATE', overwrite = False)
+                        print('Written: ' + pan_name + '_MScut.tif')
+                    else:
+                        print('MS cover not created: ' + ms_name)
+                else:
+                    print('PAN file not found: ' + pan_name)
 
 class Razmetka:
 
@@ -409,47 +456,80 @@ class Razmetka:
         self.sets = []
         self.errors = []
 
-    def AddScene(self, img_in, vec_in, bands, burn, filter_nodata):
-        scene = SceneRazmetka(img_in, vec_in = vec_in, bands = bands, burn = burn, filter_nodata = filter_nodata)
+    def AddScene(self, img_in, vec_in, bands, burn, filter_nodata, id_mark = ''):
+        scene = SceneRazmetka(img_in, vec_in = vec_in, bands = bands, burn = burn, filter_nodata = filter_nodata, id_mark = id_mark)
         if scene:
             if scene.id in self.input:
                 print('Scene ID already exists: ' + scene.id)
             else:
                 self.input[scene.id] = scene
-                return True
-        return False
+                return 1
+        return 0
+
+    def AddScenes(self, img_in, vec_in, bands, burn, filter_nodata, id_mark = '', by_bands = False):
+        if by_bands:
+            band_str = globals()['sattelites'].get(GetSattelite(Name(img_in)), {}).get('BANDS')
+            if band_str is None:
+                raise RazmetkaError('Cannot extract bands for ' + scene.id)
+            else:
+                count = 0
+                band_list = band_str.split(',')
+                for i, band in enumerate(band_list):
+                    band_id_mark = globals()['bands'].get(band, {}).get('short_name')
+                    if band_id_mark is None:
+                        raise RazmetkaError('Cannot extract band id mark ' + band + ' for ' + scene.id)
+                    elif id_mark:
+                        band_id_mark = id_mark + ' ' + band_id_mark
+                    scene = SceneRazmetka(img_in, vec_in=vec_in, bands=bands, burn=burn, filter_nodata=filter_nodata,
+                                          id_mark=id_mark)
+                    count += AddScene(self, img_in, vec_in, [i+1], burn, filter_nodata, id_mark = band_id_mark)
+                return count
+        else:
+            return AddScene(self, img_in, vec_in, bands, burn, filter_nodata, id_mark = id_mark)
 
     def CreateQuicklooks(self, corner, category, overwrite = False):
         assert isinstance(self.qlsize, int)
         data = DataFolder(corner)
-        ql_files = data.DataFiles(band = self.bandt, type = 'img', category = category, ql = self.qlsize, ext='tif')
-        img_files = data.DataFiles(band = self.bandt, type = 'img', category = category, ext = 'tif')
+        ql_files = data.DataFiles(bandt = self.bandt, type = 'img', category = category, ql = self.qlsize, ext='tif')
+        img_files = data.DataFiles(bandt = self.bandt, type = 'img', category = category, ext = 'tif')
         if ql_files:
             if len(ql_files) == len(img_files):
                 return None
-        ql_folder = data.DataFolder(band = 'MS', type = 'img', category = category, ql = self.qlsize, cut = False, create_folder = True)
+        ql_folder = data.DataFolder(bandt = 'MS', type = 'img', category = category, ql = self.qlsize, cut = False, create_folder = True)
         bar = IncrementalBar('Идёт создание квиклуков: ', max=len(img_files))
         for id in img_files:
             path_out = fullpath(ql_folder, id + '_%im.tif' % self.qlsize)
             MakeQuicklook(img_files[id], path_out, epsg = None, pixelsize = self.qlsize, method = gdal.GRA_Average, overwrite = overwrite)
             bar.next()
 
-    def EnterInput(self, corner, category, bands = None, use_empty = False, use_cut = False, burn = None, filter_nodata = True, allow_corner_vector = True):
+    def EnterInput(self, corner, category, bands = None, use_empty = False, use_cut = False, burn = None, filter_nodata = True, by_bands = False, allow_corner_vector = True):
         count = 0
         try:
             data = DataFolder(corner)
-            img_files = data.DataFiles(band = self.bandt, type = 'img', category = category, ql = self.qlsize, cut = use_cut, ext = 'tif')
+            img_files = data.DataFiles(bandt = self.bandt, type = 'img', category = category, ql = self.qlsize, cut = use_cut, ext = 'tif')
             # scroll(img_files)
             if use_empty:
                 for id in img_files:
                     try:
-                        count += bool(self.AddScene(img_files[id], None, bands, burn, filter_nodata))
+                        if by_bands:
+                            bands_list = GetBandList(id)
+                            for band_params in bands_list:
+                                try:
+                                    bands, id_mark = band_params
+                                    count += int(self.AddScene(img_files[id], None, bands, burn, filter_nodata, id_mark = id_mark))
+                                except RazmetkaError as e:
+                                    self.errors.append(e)
+                        else:
+                            count += int(self.AddScene(img_files[id], None, bands, burn, filter_nodata))
                     except RazmetkaError as e:
                         self.errors.append(e)
             else:
-                vec_files = data.DataFiles(band = self.bandt, type = self.vect, category = category, ql = self.qlsize, cut = use_cut, ext = 'shp')
+                if by_bands:
+                    vec_files_bands = []
+                else:
+                    vec_files = data.DataFiles(bandt = self.bandt, type = self.vect, category = category, ql = self.qlsize, cut = use_cut, ext = 'shp')
                 if allow_corner_vector and (not vec_files):
-                    vec_files = data.DataFiles(band = self.bandt, type = self.vect, category = category, cut = use_cut, ext = 'shp')
+                    vec_files = data.DataFiles(bandt = self.bandt, type = self.vect, category = category, cut = use_cut, ext = 'shp')
                 # scroll(vec_files)
                 if not vec_files:
                     raise RazmetkaError('Vector data not found: ' + corner + ' ' + category)
@@ -460,7 +540,7 @@ class Razmetka:
                         if vec_file is None:
                             # print('Vector file not found: ' + id)
                             continue
-                        count += bool(self.AddScene(img_file, vec_file, bands, burn, filter_nodata))
+                        count += int(self.AddScene(img_file, vec_file, bands, burn, filter_nodata))
                     except RazmetkaError as e:
                         self.errors.append(e)
         except RazmetkaError as e:
@@ -508,6 +588,9 @@ class SceneRazmetka:
 
     def __init__(self, img_in, vec_in = None, bands = None, burn = None, filter_nodata = True, id_mark = ''):
         self.id = Name(img_in)
+        self.sat = GetSattelite(self.id)
+        if id_mark:
+            self.id = self.id + '_' + id_mark
         if vec_in is None:
             if burn is None:
                 raise RazmetkaError('Pairing error ' + self.id)
@@ -516,7 +599,6 @@ class SceneRazmetka:
             raise RazmetkaError('Vector error: ' + vec_in)
         if not os.path.exists(img_in):
             raise RazmetkaError('Image error: ' + img_in)
-        self.sat = GetSattelite(self.id)
         self.img = img_in
         self.AppendBands(bands)
         self.burn = burn

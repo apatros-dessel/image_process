@@ -1,8 +1,12 @@
 from script_razmetka_2 import *
 
-corner = r'\\172.21.195.2\thematic\!razmetka\Resurs_geoton\!Resurs_Geoton'
+corner = r'\\172.21.195.2\thematic\!razmetka\Kanopus\!Kanopus'
 categories = ['without_cloud', 'water']
 output_folder = r'e:\test\razmetka_test'
+
+data = DataFolder(corner)
+data.CropPanByMS(category = 'water', ql = False, cut = False)
+sys.exit()
 
 razmetka = Razmetka(mask_type = 'full', band_type = 'MS', vec_type = 'shp_hand', quicklook_size = 30)
 for category in categories:

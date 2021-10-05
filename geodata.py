@@ -156,7 +156,7 @@ def vec_to_crs(ogr_dataset, t_crs, export_path, changexy=False):
         for feat in ogr_layer:
             geom = feat.GetGeometryRef()
             if geom is None:
-                print('GEOM NOT FOUND: {}'.format(feat.GetFID()))
+                # print('GEOM NOT FOUND: {}'.format(feat.GetFID()))
                 continue
             geom.Transform(coordTrans)
             if changexy:
@@ -167,6 +167,7 @@ def vec_to_crs(ogr_dataset, t_crs, export_path, changexy=False):
                 out_feat.SetField(outLayerDefn.GetFieldDefn(i).GetNameRef(), feat.GetField(i))
             outLayer.CreateFeature(out_feat)
             out_feat = None
+            write_prj(export_path[:-4] + '.prj', t_crs.ExportToWkt())
     else:
         outDataSet = ogr_dataset
     return outDataSet

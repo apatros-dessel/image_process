@@ -456,13 +456,13 @@ class Razmetka:
         self.sets = []
         self.errors = []
 
-    def AddScene(self, img_in, vec_in, bands, burn, filter_nodata, id_mark = ''):
-        scene = SceneRazmetka(img_in, vec_in = vec_in, bands = bands, burn = burn, filter_nodata = filter_nodata, id_mark = id_mark)
+    def AddScene(self, img_in, vec_in, bands, burn, filter_nodata, id_mark = '', appendix_id = ''):
+        scene = SceneRazmetka(img_in, vec_in = vec_in, bands = bands, burn = burn, filter_nodata = filter_nodata, id_mark = appendix_id + id_mark)
         if scene:
             if scene.id in self.input:
-                print('Scene ID already exists: ' + scene.id)
+                self.errors.append('ID duplicate: ' + scene.id)
             else:
-                self.input[scene.id] = scene
+                self.input[scene.id + appendix_id] = scene
                 return 1
         return 0
 
@@ -502,12 +502,14 @@ class Razmetka:
             MakeQuicklook(img_files[id], path_out, epsg = None, pixelsize = self.qlsize, method = gdal.GRA_Average, overwrite = overwrite)
             bar.next()
 
-    def EnterInput(self, corner, category, bands = None, use_empty = False, use_cut = False, burn = None, filter_nodata = True, by_bands = False, allow_corner_vector = True):
+    def EnterInput(self, corner, category, bands = None, use_empty = False, use_cut = False, burn = None, filter_nodata = True, by_bands = False, appendix_id = '', allow_corner_vector = True):
         count = 0
         try:
             data = DataFolder(corner)
             img_files = data.DataFiles(bandt = self.bandt, type = 'img', category = category, ql = self.qlsize, cut = use_cut, ext = 'tif')
             # scroll(img_files)
+            if img_files is None:
+                raise RazmetkaError('Image files not found for: ' + category)
             if use_empty:
                 for id in img_files:
                     try:
@@ -516,7 +518,7 @@ class Razmetka:
                             for band_params in bands_list:
                                 try:
                                     bands, id_mark = band_params
-                                    count += int(self.AddScene(img_files[id], None, bands, burn, filter_nodata, id_mark = id_mark))
+                                    count += int(self.AddScene(img_files[id], None, bands, burn, filter_nodata, id_mark = id_mark, appendix_id = appendix_id))
                                 except RazmetkaError as e:
                                     self.errors.append(e)
                         else:
@@ -540,7 +542,7 @@ class Razmetka:
                         if vec_file is None:
                             # print('Vector file not found: ' + id)
                             continue
-                        count += int(self.AddScene(img_file, vec_file, bands, burn, filter_nodata))
+                        count += int(self.AddScene(img_file, vec_file, bands, burn, filter_nodata, appendix_id = appendix_id))
                     except RazmetkaError as e:
                         self.errors.append(e)
         except RazmetkaError as e:
@@ -571,8 +573,11 @@ class Razmetka:
                     msk_values.sort()
                     razmetka_report[id]['msk_values'] = ' '.join(flist(msk_values, str))
                 except RazmetkaError as e:
-                    self.errors.append(e)
-                bar.next()
+                    self.errors.append('{}: {}'.format(id, e))
+                except Exception as e:
+                    self.errors.append('{}: {}'.format(id, e))
+                finally:
+                    bar.next()
             # scroll(razmetka_report)
             report_path = r'{}\report_{}.xls'.format(output_folder, str(datetime.now()).replace(' ','_').replace(':','-')[:19])
             dict_to_xls(report_path, razmetka_report, col_list = globals()['report_col_order'])

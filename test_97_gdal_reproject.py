@@ -2,8 +2,8 @@ from geodata import *
 # gdalwarp -s_srs EPSG:4326 -t_srs EPSG:32631 -dstnodata 0.0 -tr 23.5 23.5 -r cubicspline -of GTiff -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 E:/rks/razmetka_source/resurs_kshmsa_ms_clouds/img_clouds_vr/RP1_15523_02_KSHMSA-VR_20160403_083342_083414.MS.RS.tif E:/temp/rgb2.tif
 command_template = r'gdalwarp {path_in} {path_out} -s_srs EPSG:{epsg_in} -t_srs EPSG:{epsg_out} -dstnodata {nodata} -tr {pix} {pix} -r {method} -of GTiff -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 -co BIGTIFF=YES'
 
-folder_in = r'\\172.21.195.2\thematic\!razmetka\Cloud_and_bad\BANDS\BANDS_1\01\RP1_05333_02_GEOTON_20140608\RP1_05333_02_GEOTON_20140608_094608_094630.MS.RS'
-pixel_size = 2.1
+folder_in = r'\\172.21.195.2\thematic\!razmetka\Kanopus\!Kanopus\MS\img\img_strips'
+pixel_size = 10.5
 # json_out = r'E:/temp/test.json'
 
 def GetEPSG(central_lat, central_long):
@@ -38,7 +38,7 @@ def GetCommand(path_in, path_out, pixel_size = 24):
     central_lat = ((extent[2] + extent[3]) / 2 ) % 90
     central_long = ((extent[0] + extent[1]) / 2 ) % 180
     epsg_out = GetEPSG(central_lat, central_long)
-    command = command_template.format(path_in=path_in, path_out=path_out, epsg_in=epsg_in, epsg_out=epsg_out, nodata=0, pix=pixel_size, method='cubicspline')
+    command = command_template.format(path_in=path_in, path_out=path_out, epsg_in=epsg_in, epsg_out=epsg_out, nodata=0, pix=pixel_size, method='bilinear')
     dout = None
     delete(json_out)
     return command.replace('&','^&')
@@ -50,7 +50,7 @@ meta_list = {}
     # if name.endswith('.MD'):
         # meta_list[name[:-3]] = file
 
-for path_in in folder_paths(folder_in, 1, 'tif', filter_folder=['#original_deg', '#substandard', 'grids', 'tiles']):
+for path_in in folder_paths(folder_in, 1, 'tif', filter_folder=['#original_deg', '#substandard', 'grids', 'tiles', '&cut_img']):
     corner, name, ext = split3(path_in)
     path_out = fullpath(corner, name+'_utm', ext)
     if os.path.exists(path_out):

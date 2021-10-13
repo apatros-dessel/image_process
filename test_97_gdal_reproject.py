@@ -19,7 +19,7 @@ def GetCommand(path_in, path_out, pixel_size = 24):
     raster = gdal.Open(path_in)
     srs = raster.GetSpatialRef()
     epsg_in = srs.GetAttrValue("AUTHORITY", 1)
-    if epsg_in.startswith('32'):
+    if epsg_in.startswith('326') or epsg_in.startswith('327'):
         print('ALREADY UTM: %s' % Name(path_in))
         return None
     point = raster.GetGCPs()

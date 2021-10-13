@@ -1,6 +1,6 @@
 from geodata import *
 
-folders = FolderDirs(r'd:\rks\razmetka').values()
+folders = FolderDirs(r'e:\rks\razmetka').values()
 # folders = [r'e:\rks\razmetka\!set038__20201218__water_landsat']
 
 meta_folder = r'\\172.21.195.2\thematic\Sadkov_SA\code\razmetka_params'
@@ -157,7 +157,5 @@ def Report(folder):
         dict_to_csv(folder + '\\mask_values.csv', values_legend)
 
 for folder in folders:
-    if 'kanopus' in folder.lower():
-        continue
     Report(folder)
     print('FINISHED: ' + os.path.split(folder)[1])

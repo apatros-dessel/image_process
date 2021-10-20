@@ -378,7 +378,7 @@ def neuroid_extended(id, original=False, imgid=None):
     for part_id in parts:
         print(id)
         part_neuroid = neuroid_extended(part_id, original=original)
-        vals.append(part_neuroid[part_neuroid.index('-')+1:])
+        vals.append(part_neuroid)#[part_neuroid.index('-')+1:])
     return '__'.join(vals) + cut
 
 # Получить neuroid из исходного имени файла (для 4-х канального RGBN)
@@ -932,7 +932,7 @@ try:
             else:
                 attr_mask = None
             # !!! Add checking vals_mask
-            msk_out = set_mask(img_in, vec_in, msk_out, code_col=attr_mask, code_col_sec=code_col_sec, empty_value=empty_value, burn_value=burn_value, filter_nodata=filter_nodata, overwrite=overwrite)
+            msk_out = set_mask(img_out, vec_in, msk_out, code_col=attr_mask, code_col_sec=code_col_sec, empty_value=empty_value, burn_value=burn_value, filter_nodata=filter_nodata, overwrite=overwrite)
             input[neuroid]['msk_out'] = msk_out
             if quickpaths:
                 for size in quickpaths:

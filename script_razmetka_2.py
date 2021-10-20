@@ -8,10 +8,11 @@ legend = xls_to_dict(fullpath(meta_folder, 'legend.xls'))
 bands = xls_to_dict(fullpath(meta_folder, 'bands.xls'))
 
 report_col_order = ['img_in', 'vec_in', 'img_out', 'msk_out', 'shp_out', 'x_pix_count', 'y_pix_count', 'x_pix_size', 'y_pix_size',
-                        'data_min', 'data_max', 'bits_exceed', 'msk_values']
+                        'data_min', 'data_max', 'matrix_check', 'bits_exceed', 'msk_values']
 
 def FilesDict(folder, ext, mark = None):
     files = {}
+    # scroll(os.listdir(folder), header=folder, counts=1)
     for file in os.listdir(folder):
         fname, fext = os.path.splitext(file)
         if mark is not None:
@@ -212,6 +213,7 @@ def RasterInfo(path, bits_limit = 16, cut_bits_limit = False, min_bits_limit = F
         gt = r.GetGeoTransform()
         result = {'x_pix_size': abs(gt[1]), 'y_pix_size': abs(gt[-1]), 'x_pix_count': r.RasterXSize, 'y_pix_count': r.RasterYSize}
         try:
+            raise Exception
             arr = r.ReadAsArray()
             arr = arr[arr!=0]
             result['data_min'] = int(np.min(arr))
@@ -235,7 +237,7 @@ def RasterInfo(path, bits_limit = 16, cut_bits_limit = False, min_bits_limit = F
             else:
                 result['bits_exceed'] = ''
         except Exception as e:
-            print('RasterInfo error: {}'.format(e))
+            # print('RasterInfo error: {}'.format(e))
             result.update({'data_min': '', 'data_max': '', 'bits_exceed': ''})
         return result
     else:
@@ -316,10 +318,10 @@ def MaskInfo(path, replace = {}, shp_path = None):
         values = {}
         if not replace:
             replace = {}
+        shp_counts = {}
         if shp_path:
-            shp_counts = AttrValCalculator(shp_path, attr_id = 'gridcode', replace = replace)
-        else:
-            shp_counts = {}
+            if os.path.exists(shp_path):
+                shp_counts = AttrValCalculator(shp_path, attr_id = 'gridcode', replace = replace)
         assert raster.RasterCount == 1
         band = raster.GetRasterBand(1)
         arr_ = band.ReadAsArray()
@@ -400,6 +402,18 @@ def GetBitsLimit(name):
     else:
         return 16
 
+def ImageMaskCheck(img, msk):
+    img_raster = gdal.Open(img)
+    msk_raster = gdal.Open(msk)
+    if img_raster and msk_raster:
+        if (img_raster.RasterXSize != msk_raster.RasterXSize) or (img_raster.RasterYSize != msk_raster.RasterYSize):
+            print('Raster size mismatch: ' + Name(img))
+        # elif not ds_match(img_raster, msk_raster):
+            # print('Projection mismatch: ' + Name(img))
+        else:
+            return True
+    return False
+
 def Report(folder, replace = None, bits_limit = None, cut_bits_limit = False):
     report = OrderedDict()
     for xls in folder_paths(folder, 1, 'xls'):
@@ -421,13 +435,19 @@ def Report(folder, replace = None, bits_limit = None, cut_bits_limit = False):
     for msk in folder_paths(folder + '\\masks', 1, 'tif'):
         id = Name(msk)
         if id in report:
-            report[id]['msk_out'] = msk[len(folder):]
+            report[id]['matrix_check'] = ImageMaskCheck(folder + report[id]['img_out'], msk)
+            # print(id, report[id]['matrix_check'])
             shp_path = r'{}\vector\{}.shp'.format(folder, id)
-            id_msk_report = MaskInfo(msk, replace = replace, shp_path = shp_path)
-            report[id]['msk_info'] = id_msk_report
-            msk_values = flist(id_msk_report.keys(), str)
-            msk_values.sort()
-            report[id]['msk_values'] = ' '.join(msk_values)
+            if report[id]['matrix_check']:
+                report[id]['msk_out'] = msk[len(folder):]
+                id_msk_report = MaskInfo(msk, replace = replace, shp_path = shp_path)
+                report[id]['msk_info'] = id_msk_report
+                msk_values = flist(id_msk_report.keys(), str)
+                msk_values.sort()
+                report[id]['msk_values'] = ' '.join(msk_values)
+            # else:
+                # delete(msk)
+                # delshp(shp_path)
         else:
             print('UNKNOWN MASK ID: ' + id)
     # scroll(report)
@@ -502,7 +522,6 @@ class DataFolder:
         try:
             data_folder = self.DataFolder(bandt = bandt, type = type, category = category, ql = ql, ms_cut = False, cut = cut)
         except FileNotFoundError as e:
-            # print(e)
             return None
         return FilesDict(data_folder, ext, mark = mark)
 
@@ -681,7 +700,7 @@ class Razmetka:
                     except RazmetkaError as e:
                         self.errors.append(e)
             else:
-                vec_files_tuple = self.GetVectorFilesTuple(data, category, use_cut, allow_corner_vector, by_bands)
+                vec_files_tuple = self.GetVectorFilesTuple(data, category, use_cut, by_bands, allow_corner_vector)
                 # vec_files = data.DataFiles(bandt = self.bandt, type = self.vect, category = category, ql = self.qlsize, cut = use_cut, ext = 'shp')
                 # if allow_corner_vector and (self.qlsize is not None):
                     # corner_vec_files = data.DataFiles(bandt=self.bandt, type=self.vect, category=category, cut=use_cut, ext='shp')
@@ -703,12 +722,14 @@ class Razmetka:
                                     vec_file = self.GetVecFile(id + '_' + id_mark, vec_files_tuple, id_mark)
                                     count += int(self.AddScene(img_file, vec_file, bands, burn, filter_nodata, id_mark = id_mark, appendix_id = appendix_id))
                                 except RazmetkaError as e:
+                                    # if use_cut:
+                                        # scroll(vec_files_tuple, header = id, lower = use_cut)
+                                        # sys.exit()
                                     self.errors.append(e)
                         else:
                             # vec_file = vec_files.get(id, vec_files.get(id.replace('_{}m'.format(self.qlsize), '')))
                             vec_file = self.GetVecFile(id, vec_files_tuple, appendix_id)
                             if vec_file is None:
-                                # print('Vector file not found: ' + id)
                                 continue
                             count += int(self.AddScene(img_file, vec_file, bands, burn, filter_nodata, appendix_id = appendix_id))
                     except RazmetkaError as e:
@@ -721,17 +742,18 @@ class Razmetka:
         return count
 
     def GetVectorFilesTuple(self, data, category, use_cut, by_bands, allow_corner_vector):
+        vec_files = data.DataFiles(bandt=self.bandt, type=self.vect, category=category, ql=self.qlsize, cut=use_cut, ext='shp')
+        if allow_corner_vector and (self.qlsize is not None):
+            corner_vec_files = data.DataFiles(bandt=self.bandt, type=self.vect, category=category, cut=use_cut, ext='shp')
         if by_bands:
             band_vec_files = data.DataFiles(bandt='BANDS', type=self.vect, category=category, ql=self.qlsize, cut=use_cut, ext='shp')
             if allow_corner_vector and (self.qlsize is not None):
                 band_corner_vec_files = data.DataFiles(bandt='BANDS', type=self.vect, category=category, cut=use_cut, ext='shp')
-                return [band_vec_files, band_corner_vec_files]
+                return [band_vec_files, band_corner_vec_files, vec_files, corner_vec_files]
             else:
-                return [band_vec_files]
+                return [band_vec_files, vec_files]
         else:
-            vec_files = data.DataFiles(bandt=self.bandt, type=self.vect, category=category, ql=self.qlsize, cut=use_cut, ext='shp')
             if allow_corner_vector and (self.qlsize is not None):
-                corner_vec_files = data.DataFiles(bandt=self.bandt, type=self.vect, category=category, cut=use_cut, ext='shp')
                 return [vec_files, corner_vec_files]
             else:
                 return [vec_files]
@@ -758,16 +780,15 @@ class Razmetka:
                 for part in ['', '_{}m'.format(self.qlsize), '_{}'.format(id_mark), '_{}m_{}'.format(self.qlsize, id_mark)]:
                     id_check = id.replace(part, '')
                     vec_file = vec_files.get(id_check, '')
-                    # print(id, id_check, vec_file)
                     if vec_file:
-                        # sys.exit()
                         return vec_file
-                # vec_file = vec_files.get(id)
-                # vec_file = vec_files.get(id.replace('_{}m'.format(self.qlsize)))
-                # vec_file = vec_files.get(id.replace('_{}m_{}'.format(self.qlsize, id_mark)))
-                # vec_file = vec_files.get(id.replace('_{}'.format(id_mark)))
+                id_check = id.replace('_{}m'.format(self.qlsize), '').replace('_{}'.format(id_mark), '')
+                vec_file = vec_files.get(id_check, '')
                 if vec_file:
                     return vec_file
+        # print('Vector file not found: ' + id)
+        # for part in ['', '_{}m'.format(self.qlsize), '_{}'.format(id_mark), '_{}m_{}'.format(self.qlsize, id_mark)]:
+            # print(id.replace(part, ''))
         raise RazmetkaError('Vector file not found: ' + id)
 
     def EnterCheck(self, corner, category, bands = None, use_cut = False, by_bands = False, appendix_id = ''):

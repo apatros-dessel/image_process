@@ -3553,3 +3553,8 @@ def copyshp(shp_path, out_folder, final_name = None):
         final_name = name
     for ext in ['shp', 'dbf', 'shx', 'prj', 'sbn', 'sbx', 'cpg']:
         copyfile(fullpath(f, name, ext), fullpath(out_folder, final_name, ext))
+
+def delshp(shp_path):
+    f, name, e = split3(shp_path)
+    for ext in ['shp', 'dbf', 'shx', 'prj', 'sbn', 'sbx', 'cpg']:
+        delete(fullpath(f, name, ext))

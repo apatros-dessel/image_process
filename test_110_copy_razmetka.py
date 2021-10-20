@@ -13,8 +13,8 @@ corner_list = [
     r'd:\rks\razmetka\set002__20200618__sentinel_kanopus_time_composit',
     r'd:\rks\razmetka\set004__20201111__sentinel_change__fix001',
 ]
-out_folder = r'e:\rks\razmetka\set123__20210802__resurs_ms_mountain'
-sat = 'sentinel_sentinel'
+out_folder = r'd:\rks\razmetka\set009__20210926__sentinel_sentinel_change_new'
+sat = 'sentinel-sentinel'
 type = 'change'
 report_col_order = ['r', 'v', 'img_out', 'msk_out', 'x_pix_count', 'y_pix_count', 'x_pix_size', 'y_pix_size',
                         'data_min', 'data_max', 'bits_exceed', 'msk_values']
@@ -208,7 +208,7 @@ def Report(folder):
     dict_to_xls(folder + '\\mask_values_count.xls', values_count, ['scene_count', 'msk_pixel_count', 'msk_feature_count', 'legend'])
     values_legend = GetLegend(list(values_count), globals()['legend'])
     dict_to_csv(folder + '\\mask_values.csv', values_legend)
-'''
+
 for corner in corner_list:
 
     img_folder = corner + '\\images'
@@ -228,5 +228,5 @@ for corner in corner_list:
     if folder_paths(corner, 1, 'xls'):
         for xls in folder_paths(corner, 1, 'xls'):
             copyfile(xls, fullpath(out_folder, os.path.split(xls)[1]))
-'''
+
 Report(out_folder)
